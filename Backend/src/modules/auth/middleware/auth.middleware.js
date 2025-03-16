@@ -4,6 +4,7 @@ const { AuthError } = require('../errors');
 const logger = require('../../../utils/logger');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+const User = require('../models/user.model');
 
 // Initialize services
 const tokenService = new TokenService();
@@ -97,8 +98,8 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // Get user from database
-    const user = await userService.findById(decoded.userId);
+    // Get user from database using Mongoose model directly
+    const user = await User.findById(decoded.userId);
     
     if (!user) {
       logger.warn('User not found for token', {
@@ -111,8 +112,14 @@ const authenticate = async (req, res, next) => {
       });
     }
     
-    // Attach user to request
-    req.user = userService.sanitizeUser(user);
+    // Attach user to request (sanitize sensitive data)
+    req.user = {
+      _id: user._id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      // Add other non-sensitive fields as needed
+    };
     req.userId = user._id;
     req.sessionId = decoded.sessionId;
     

@@ -1,4 +1,4 @@
-import { encrypt, decrypt } from '@/utils/crypto';
+import { authStorage } from '@/features/auth/utils/auth-storage';
 
 export class SecureStorage {
   private namespace: string;
@@ -8,24 +8,23 @@ export class SecureStorage {
   }
   
   async setItem(key: string, value: string): Promise<void> {
-    const fullKey = `${this.namespace}:${key}`;
-    
-    // For sensitive data, use sessionStorage instead of localStorage
-    sessionStorage.setItem(fullKey, value);
-    
-    // For extra security, consider using IndexedDB with encryption
-    // await this.storeInIndexedDB(fullKey, value);
+    // Use the unified authStorage API
+    authStorage.set(key, value, {
+      namespace: this.namespace,
+      storage: 'sessionStorage' // For sensitive data
+    });
   }
   
   async getItem(key: string): Promise<string | null> {
-    const fullKey = `${this.namespace}:${key}`;
-    return sessionStorage.getItem(fullKey);
+    return authStorage.get(key, {
+      namespace: this.namespace,
+      storage: 'sessionStorage'
+    });
   }
   
   async removeItem(key: string): Promise<void> {
-    const fullKey = `${this.namespace}:${key}`;
-    sessionStorage.removeItem(fullKey);
+    authStorage.clear(key, {
+      namespace: this.namespace
+    });
   }
-  
-  // Additional methods for IndexedDB storage with encryption
 }

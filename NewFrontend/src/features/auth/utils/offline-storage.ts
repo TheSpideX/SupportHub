@@ -164,3 +164,35 @@ export function createOfflineStore() {
     clear
   };
 }
+
+// Add a wrapper that uses the same interface as authStorage
+export const offlineStorage = {
+  set: async (key: string, value: any, options: any = {}): Promise<boolean> => {
+    try {
+      await set(key, value);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+  
+  get: async <T = any>(key: string, options: any = {}): Promise<T | null> => {
+    try {
+      const result = await get(key);
+      return result as T;
+    } catch (error) {
+      return options.defaultValue || null;
+    }
+  },
+  
+  clear: async (key: string, options: any = {}): Promise<boolean> => {
+    try {
+      await remove(key);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  },
+  
+  // Add other methods to match authStorage API
+};

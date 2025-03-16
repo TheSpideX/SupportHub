@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger';
-import { secureGet, secureSet, secureClear, isStorageAvailable } from '../utils/auth-storage';
+import { authStorage, isStorageAvailable, secureSet, secureGet, secureClear } from '../utils/auth-storage';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 import { AuthState, User, SecurityContext } from '../types';
 import { store } from '@/store';
@@ -242,7 +242,7 @@ class AuthPersistenceService {
       ? AUTH_CONSTANTS.SESSION.REMEMBER_ME_DURATION 
       : AUTH_CONSTANTS.SESSION.MAX_INACTIVITY);
     
-    return secureSet(
+    return authStorage.set(
       AUTH_CONSTANTS.STORAGE_KEYS.USER,
       user,
       { 
@@ -284,7 +284,7 @@ class AuthPersistenceService {
       ? AUTH_CONSTANTS.SESSION.REMEMBER_ME_DURATION 
       : AUTH_CONSTANTS.SESSION.MAX_INACTIVITY);
     
-    return secureSet(
+    return authStorage.set(
       AUTH_CONSTANTS.STORAGE_KEYS.SECURITY_CONTEXT,
       securityContext,
       { 

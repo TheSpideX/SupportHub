@@ -165,13 +165,53 @@ class TokenService {
       const tokenExpiry = await this.getTokenExpiry();
       if (!tokenExpiry) return true;
       
+      // Convert to seconds for comparison with bufferTime
       const now = Math.floor(Date.now() / 1000);
-      const expiresIn = tokenExpiry - now;
+      
+      // Convert tokenExpiry from milliseconds to seconds if needed
+      const expiryInSeconds = tokenExpiry > 1000000000000 
+        ? Math.floor(tokenExpiry / 1000) // If in milliseconds (13 digits), convert to seconds
+        : tokenExpiry; // Already in seconds
+      
+      const expiresIn = expiryInSeconds - now;
+      
+      this.logger.debug('Token expiry check', { 
+        expiresIn, 
+        bufferTime,
+        now,
+        tokenExpiry: expiryInSeconds,
+        isExpiring: expiresIn <= bufferTime
+      });
       
       return expiresIn <= bufferTime;
     } catch (error) {
       this.logger.error('Error checking token expiration', { error });
       return true; // Assume token is expiring if we can't check
+    }
+  }
+
+  /**
+   * Get token expiry time
+   * @returns Expiry time in seconds or null if not found
+   */
+  async getTokenExpiry(): Promise<number | null> {
+    try {
+      const expiryStr = await this.secureStorage.getItem(this.ACCESS_TOKEN_EXPIRY_KEY);
+      if (!expiryStr) return null;
+      
+      // Parse the expiry time
+      const expiry = parseInt(expiryStr, 10);
+      
+      // Validate the expiry time
+      if (isNaN(expiry) || expiry <= 0) {
+        this.logger.warn('Invalid token expiry value', { value: expiryStr });
+        return null;
+      }
+      
+      return expiry;
+    } catch (error) {
+      this.logger.error('Error getting token expiry', { error });
+      return null;
     }
   }
 

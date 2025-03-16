@@ -884,7 +884,7 @@ class AuthService {
           );
           
           // Update stored auth state
-          await authPersistenceService.saveAuthState({
+          await authPersistenceService.persistAuthState({
             user: response.data.user,
             isAuthenticated: true
           });
@@ -1012,9 +1012,8 @@ class AuthService {
       try {
         this.logger.info(`Starting auth service initialization (attempt #${attemptId})`);
         
-        // Check server configuration - results are already logged in the method
-        const configCheck = await this.checkServerConfiguration();
-        // Remove duplicate logging here
+        // Check server configuration without logging the results again
+        await this.checkServerConfiguration();
         
         // Attempt to restore session
         const restored = await this.restoreSession();
