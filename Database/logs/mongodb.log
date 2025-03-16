@@ -53,3 +53,10 @@ To see additional information in this output, start without the "--fork" option.
 about to fork child process, waiting until server is ready for connections.
 forked process: 78180
 child process started successfully, parent exiting
+about to fork child process, waiting until server is ready for connections.
+forked process: 85827
+ERROR: child process failed, exited with 1
+To see additional information in this output, start without the "--fork" option.
+about to fork child process, waiting until server is ready for connections.
+forked process: 85940
+child process started successfully, parent exiting
