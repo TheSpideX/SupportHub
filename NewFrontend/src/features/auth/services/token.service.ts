@@ -26,19 +26,12 @@ class TokenService {
   private static instance: TokenService;
   private secureStorage: SecureStorage;
   private logger: Logger;
-  private readonly ACCESS_TOKEN_KEY = 'access_token';
-  private readonly REFRESH_TOKEN_KEY = 'refresh_token';
-  private blacklistedTokens: Set<string> = new Set();
+  private readonly ACCESS_TOKEN_EXPIRY_KEY = 'access_token_expiry';
+  private readonly REFRESH_TOKEN_EXPIRY_KEY = 'refresh_token_expiry';
+  private readonly HAS_TOKENS_KEY = 'has_tokens';
+  private events = new EventEmitter();
   private refreshPromise: Promise<boolean> | null = null;
   private tokenRefreshTimer: NodeJS.Timeout | null = null;
-  private events = new EventEmitter();
-  private tokenEncryptionKey: string | null = null;
-  // Add caching for token validation results
-  private tokenValidationCache = new Map<string, {
-    valid: boolean;
-    timestamp: number;
-  }>();
-  private TOKEN_VALIDATION_CACHE_TTL = 60 * 1000; // 1 minute
 
   private constructor() {
     this.secureStorage = new SecureStorage('auth');
@@ -54,7 +47,7 @@ class TokenService {
   }
 
   // Event subscription methods
-  onTokenRefresh(callback: (tokens: Tokens) => void): () => void {
+  onTokenRefresh(callback: (success: boolean) => void): () => void {
     return this.events.on('tokenRefresh', callback);
   }
 
@@ -62,191 +55,127 @@ class TokenService {
     return this.events.on('tokenExpiring', callback);
   }
 
-  // Token storage methods
-  async setTokens(tokenData: any): Promise<void> {
+  // Store token expiry times (tokens themselves are in HTTP-only cookies)
+  async storeTokenExpiry(tokenData: any): Promise<void> {
     try {
+      const COMPONENT = 'TokenService';
+      
       // Store expiration times
       if (tokenData.accessTokenExpiry) {
-        await this.secureStorage.setItem('access_token_expiry', tokenData.accessTokenExpiry.toString());
+        await this.secureStorage.setItem(
+          this.ACCESS_TOKEN_EXPIRY_KEY, 
+          tokenData.accessTokenExpiry.toString()
+        );
       }
       
       if (tokenData.refreshTokenExpiry) {
-        await this.secureStorage.setItem('refresh_token_expiry', tokenData.refreshTokenExpiry.toString());
+        await this.secureStorage.setItem(
+          this.REFRESH_TOKEN_EXPIRY_KEY, 
+          tokenData.refreshTokenExpiry.toString()
+        );
       }
       
       // Store token status
-      await this.secureStorage.setItem('has_tokens', 'true');
+      await this.secureStorage.setItem(this.HAS_TOKENS_KEY, 'true');
       
-      // Broadcast token update to other tabs
-      this.broadcastTokenUpdate();
+      this.logger.debug('Token expiry times stored successfully', { component: COMPONENT });
       
-      this.logger.debug('Token data stored successfully', { component: COMPONENT });
+      // Schedule token refresh based on new expiry
+      this.scheduleTokenRefresh();
     } catch (error) {
-      this.logger.error('Failed to store token data', { 
-        component: COMPONENT, 
-        error 
+      this.logger.error('Failed to store token expiry data', { 
+        error: error.message 
       });
       throw new Error('TOKEN_STORAGE_FAILED');
     }
   }
 
-  async getAccessToken(): Promise<boolean> {
+  // Check if we have valid access token (based on expiry time)
+  async hasValidAccessToken(): Promise<boolean> {
     try {
-      const expiresAtStr = await this.secureStorage.getItem('token_expires_at');
-      if (!expiresAtStr) return false;
+      const expiryStr = await this.secureStorage.getItem(this.ACCESS_TOKEN_EXPIRY_KEY);
+      if (!expiryStr) return false;
       
-      const expiresAt = parseInt(expiresAtStr, 10);
-      return expiresAt > Date.now();
+      const expiryTime = parseInt(expiryStr, 10);
+      return expiryTime > Date.now();
     } catch (error) {
-      this.logger.error('Error checking access token', { error });
+      this.logger.error('Error checking access token expiry', { error: error.message });
       return false;
     }
   }
 
-  async getRefreshToken(): Promise<string | null> {
-    try {
-      const encryptedToken = await this.secureStorage.getItem(this.REFRESH_TOKEN_KEY);
-      if (!encryptedToken) return null;
-      return this.decryptToken(encryptedToken);
-    } catch (error) {
-      this.logger.error('Failed to retrieve refresh token', { error });
-      return null;
-    }
-  }
-
-  async clearTokens(): Promise<void> {
-    try {
-      await this.secureStorage.removeItem('access_token_expiry');
-      await this.secureStorage.removeItem('refresh_token_expiry');
-      await this.secureStorage.removeItem('has_tokens');
-      
-      this.broadcastTokenUpdate();
-      
-      this.logger.debug('Tokens cleared successfully', { component: COMPONENT });
-    } catch (error) {
-      this.logger.error('Failed to clear tokens', { 
-        component: COMPONENT, 
-        error 
-      });
-    }
-  }
-
-  // Token validation methods
-  async isTokenExpired(token: string): Promise<boolean> {
-    // Check cache first
-    const tokenHash = this.hashToken(token);
-    const cached = this.tokenValidationCache.get(tokenHash);
-    
-    if (cached && Date.now() - cached.timestamp < this.TOKEN_VALIDATION_CACHE_TTL) {
-      return !cached.valid;
-    }
-    
-    // If not in cache, validate locally
-    const decoded = this.decodeToken(token);
-    const isExpired = !decoded || decoded.exp * 1000 < Date.now();
-    
-    // Cache the result
-    this.tokenValidationCache.set(tokenHash, {
-      valid: !isExpired,
-      timestamp: Date.now()
-    });
-    
-    return isExpired;
-  }
-
-  async isTokenExpiring(thresholdSeconds = 300): Promise<boolean> {
-    try {
-      const expiryStr = await this.secureStorage.getItem('access_token_expiry');
-      if (!expiryStr) return true;
-      
-      const expiryTime = parseInt(expiryStr, 10);
-      const now = Date.now();
-      
-      return (expiryTime - now) < (thresholdSeconds * 1000);
-    } catch (error) {
-      this.logger.error('Failed to check token expiration', { 
-        component: COMPONENT, 
-        error 
-      });
-      return true; // Assume token is expiring if we can't check
-    }
-  }
-
+  // Get access token expiry time
   async getAccessTokenExpiry(): Promise<number | null> {
     try {
-      const expiryStr = await this.secureStorage.getItem('access_token_expiry');
+      const expiryStr = await this.secureStorage.getItem(this.ACCESS_TOKEN_EXPIRY_KEY);
       if (!expiryStr) return null;
       
       return parseInt(expiryStr, 10);
     } catch (error) {
-      this.logger.error('Failed to get token expiration', { 
-        component: COMPONENT, 
-        error 
+      this.logger.error('Failed to get access token expiration', { 
+        error: error.message 
       });
       return null;
     }
   }
 
-  getTokenRemainingTime(token: string): number {
-    const expiration = this.getTokenExpiration(token);
-    return Math.max(0, expiration - Date.now());
-  }
-
-  getUserIdFromToken(token: string): string | null {
+  // Get refresh token expiry time
+  async getRefreshTokenExpiry(): Promise<number | null> {
     try {
-      const payload = this.decodeToken(token);
-      return payload.sub;
-    } catch {
-      return null;
-    }
-  }
-
-  getUserRoleFromToken(token: string): string | null {
-    try {
-      const payload = this.decodeToken(token);
-      return payload.role || null;
-    } catch {
-      return null;
-    }
-  }
-
-  // Token blacklist methods
-  async isTokenBlacklisted(token: string): Promise<boolean> {
-    // Check local cache first
-    if (this.blacklistedTokens.has(token)) {
-      return true;
-    }
-    
-    // Check with server
-    try {
-      const response = await axiosInstance.post(API_ROUTES.AUTH.VALIDATE_TOKEN, { token });
-      const isBlacklisted = !response.data.valid;
+      const expiryStr = await this.secureStorage.getItem(this.REFRESH_TOKEN_EXPIRY_KEY);
+      if (!expiryStr) return null;
       
-      // Update local cache if blacklisted
-      if (isBlacklisted) {
-        this.blacklistedTokens.add(token);
-      }
-      
-      return isBlacklisted;
-    } catch {
-      // If server check fails, assume token is valid
-      return false;
-    }
-  }
-
-  async blacklistToken(token: string): Promise<void> {
-    try {
-      // Add to local blacklist
-      this.blacklistedTokens.add(token);
-      
-      // Notify server
-      await axiosInstance.post(API_ROUTES.AUTH.REVOKE_TOKEN, { token });
+      return parseInt(expiryStr, 10);
     } catch (error) {
-      this.logger.error('Failed to blacklist token', { error });
+      this.logger.error('Failed to get refresh token expiration', { 
+        error: error.message 
+      });
+      return null;
     }
   }
 
-  // Token refresh methods
+  // Clear token expiry data
+  async clearTokenData(): Promise<void> {
+    try {
+      await this.secureStorage.removeItem(this.ACCESS_TOKEN_EXPIRY_KEY);
+      await this.secureStorage.removeItem(this.REFRESH_TOKEN_EXPIRY_KEY);
+      await this.secureStorage.removeItem(this.HAS_TOKENS_KEY);
+      
+      this.logger.debug('Token data cleared successfully');
+      
+      // Clear any scheduled refresh
+      if (this.tokenRefreshTimer) {
+        clearTimeout(this.tokenRefreshTimer);
+        this.tokenRefreshTimer = null;
+      }
+    } catch (error) {
+      this.logger.error('Failed to clear token data', { 
+        error: error.message 
+      });
+    }
+  }
+
+  /**
+   * Check if the token is expiring soon
+   * @param bufferTime Time in seconds before expiry to consider token as expiring
+   * @returns Boolean indicating if token is expiring soon
+   */
+  async isTokenExpiring(bufferTime = 300): Promise<boolean> {
+    try {
+      const tokenExpiry = await this.getTokenExpiry();
+      if (!tokenExpiry) return true;
+      
+      const now = Math.floor(Date.now() / 1000);
+      const expiresIn = tokenExpiry - now;
+      
+      return expiresIn <= bufferTime;
+    } catch (error) {
+      this.logger.error('Error checking token expiration', { error });
+      return true; // Assume token is expiring if we can't check
+    }
+  }
+
+  // Refresh tokens
   async refreshTokens(): Promise<boolean> {
     // If a refresh is already in progress, return that promise
     if (this.refreshPromise) {
@@ -257,7 +186,10 @@ class TokenService {
     this.refreshPromise = this.performTokenRefresh();
     
     try {
-      return await this.refreshPromise;
+      const result = await this.refreshPromise;
+      // Notify listeners about token refresh
+      this.events.emit('tokenRefresh', result);
+      return result;
     } finally {
       this.refreshPromise = null;
     }
@@ -265,55 +197,38 @@ class TokenService {
 
   private async performTokenRefresh(): Promise<boolean> {
     try {
-      const refreshToken = await this.getRefreshToken();
-      if (!refreshToken) return false;
-      
       // Get device info for security context
       const deviceInfo = await deviceService.getDeviceInfo();
       
+      // Call refresh endpoint (refresh token is in HTTP-only cookie)
       const response = await axiosInstance.post(API_ROUTES.AUTH.REFRESH_TOKEN, { 
-        refreshToken,
         deviceInfo
       });
       
-      const { accessToken, refreshToken: newRefreshToken, expiresIn } = response.data.tokens;
+      if (!response.data.success) {
+        this.logger.warn('Token refresh failed', { 
+          reason: response.data.message || 'Unknown reason'
+        });
+        return false;
+      }
       
-      await this.setTokens({ 
-        accessToken, 
-        refreshToken: newRefreshToken,
-        expiresIn
-      });
+      // Store new token expiry times
+      await this.storeTokenExpiry(response.data.tokens);
       
+      this.logger.info('Tokens refreshed successfully');
       return true;
     } catch (error) {
-      this.logger.error('Token refresh failed', { error });
+      this.logger.error('Token refresh failed', { 
+        error: error.response?.data?.message || error.message,
+        status: error.response?.status
+      });
+      
+      // If refresh fails with 401/403, clear token data
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        await this.clearTokenData();
+      }
+      
       return false;
-    }
-  }
-
-  // Token encryption methods
-  private encryptToken(token: string): string {
-    // In a real implementation, this would use a proper encryption algorithm
-    // For now, we'll just return the token as is
-    // TODO: Implement actual encryption
-    return token;
-  }
-
-  private decryptToken(encryptedToken: string): string {
-    // In a real implementation, this would decrypt the token
-    // For now, we'll just return the token as is
-    // TODO: Implement actual decryption
-    return encryptedToken;
-  }
-
-  // Set up encryption key (should be called during app initialization)
-  async setupEncryption(userSalt?: string): Promise<void> {
-    try {
-      // In a real implementation, this would generate or retrieve an encryption key
-      // For now, we'll just set a dummy key
-      this.tokenEncryptionKey = userSalt || 'default-encryption-key';
-    } catch (error) {
-      this.logger.error('Failed to set up token encryption', { error });
     }
   }
 
@@ -321,135 +236,75 @@ class TokenService {
   private setupTokenRefreshScheduler(): void {
     // Check for token expiration every minute
     setInterval(async () => {
-      const accessToken = await this.getAccessToken();
-      if (!accessToken) return;
-      
       try {
-        if (await this.isTokenExpiring(accessToken, 120)) {
+        const hasValidToken = await this.hasValidAccessToken();
+        if (!hasValidToken) return;
+        
+        if (await this.isTokenExpiringSoon(120)) {
+          this.logger.debug('Token is expiring soon, triggering refresh');
           this.events.emit('tokenExpiring');
           await this.refreshTokens();
         }
       } catch (error) {
-        this.logger.error('Token refresh scheduler error', { error });
+        this.logger.error('Token refresh scheduler error', { 
+          error: error.message 
+        });
       }
     }, 60000); // Check every minute
   }
 
-  private scheduleTokenRefresh(accessToken: string): void {
+  private async scheduleTokenRefresh(): Promise<void> {
     if (this.tokenRefreshTimer) {
       clearTimeout(this.tokenRefreshTimer);
     }
     
     try {
-      const payload = this.decodeToken(accessToken);
-      const expirationTime = payload.exp * 1000;
+      const expiryTime = await this.getAccessTokenExpiry();
+      if (!expiryTime) return;
+      
       const currentTime = Date.now();
-      const timeUntilExpiry = expirationTime - currentTime;
+      const timeUntilExpiry = expiryTime - currentTime;
       
       // Schedule refresh at 80% of token lifetime
-      const refreshTime = timeUntilExpiry * 0.8;
+      const refreshTime = Math.max(timeUntilExpiry * 0.8, 0);
+      
+      this.logger.debug('Scheduling token refresh', {
+        timeUntilExpiry: Math.floor(timeUntilExpiry / 1000) + 's',
+        refreshIn: Math.floor(refreshTime / 1000) + 's'
+      });
       
       this.tokenRefreshTimer = setTimeout(() => {
         this.refreshTokens().catch(error => {
-          this.logger.error('Scheduled token refresh failed', { error });
+          this.logger.error('Scheduled token refresh failed', { 
+            error: error.message 
+          });
         });
       }, refreshTime);
     } catch (error) {
-      this.logger.error('Failed to schedule token refresh', { error });
+      this.logger.error('Failed to schedule token refresh', { 
+        error: error.message 
+      });
     }
   }
 
-  // Token validation with server
-  async validateTokenWithServer(token: string): Promise<boolean> {
+  // Get remaining time until token expiry (in milliseconds)
+  async getTokenRemainingTime(): Promise<number> {
+    const expiryTime = await this.getAccessTokenExpiry();
+    if (!expiryTime) return 0;
+    
+    return Math.max(0, expiryTime - Date.now());
+  }
+
+  // Check if we have tokens (based on stored flag)
+  async hasTokens(): Promise<boolean> {
     try {
-      const response = await axiosInstance.post(API_ROUTES.AUTH.VALIDATE_TOKEN, { token });
-      return response.data.valid === true;
-    } catch {
+      const hasTokens = await this.secureStorage.getItem(this.HAS_TOKENS_KEY);
+      return hasTokens === 'true';
+    } catch (error) {
+      this.logger.error('Error checking if tokens exist', { 
+        error: error.message 
+      });
       return false;
-    }
-  }
-
-  // Get token metadata
-  getTokenMetadata(token: string): Record<string, any> {
-    try {
-      const payload = this.decodeToken(token);
-      const { exp, iat, jti, sub, ...metadata } = payload;
-      return {
-        issuedAt: new Date(iat * 1000).toISOString(),
-        expiresAt: new Date(exp * 1000).toISOString(),
-        tokenId: jti,
-        userId: sub,
-        ...metadata
-      };
-    } catch {
-      return {};
-    }
-  }
-
-  // Helper to create a hash of the token for cache keys
-  private hashToken(token: string): string {
-    // Simple hash function for cache keys
-    let hash = 0;
-    for (let i = 0; i < token.length; i++) {
-      const char = token.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return hash.toString();
-  }
-
-  // Helper method to get token from cookie
-  private getTokenFromCookie(): string | null {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.startsWith('accessToken=')) {
-        return cookie.substring('accessToken='.length, cookie.length);
-      }
-    }
-    return null;
-  }
-
-  // Add the missing isTokenExpiringSoon method
-  isTokenExpiringSoon(): boolean {
-    try {
-      // Since token is in HTTP-only cookie, we can't directly access it
-      // Instead, check the expiration time stored in localStorage or secureStorage
-      const expiryStr = this.secureStorage.getItem('access_token_expiry');
-      if (!expiryStr) return true; // If no expiry info, assume it's expiring
-      
-      const expiryTime = parseInt(expiryStr, 10);
-      const now = Date.now();
-      const timeRemaining = expiryTime - now;
-      
-      // Check if token is expiring soon based on threshold (e.g., 5 minutes)
-      const REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
-      return timeRemaining <= REFRESH_THRESHOLD;
-    } catch (error) {
-      this.logger.error('Failed to check if token is expiring soon', { error });
-      return true; // Assume it's expiring if there's an error
-    }
-  }
-
-  // Helper method to decode JWT token
-  private decodeToken(token: string): any {
-    try {
-      // Simple JWT decoding (base64)
-      const base64Url = token.split('.')[1];
-      if (!base64Url) return null;
-      
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      
-      return JSON.parse(jsonPayload);
-    } catch (error) {
-      this.logger.error('Failed to decode token', { error });
-      return null;
     }
   }
 }

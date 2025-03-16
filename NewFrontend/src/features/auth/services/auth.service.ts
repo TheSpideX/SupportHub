@@ -26,6 +26,7 @@ import {
 import authPersistenceService from "./auth-persistence.service";
 import { AuthError, createAuthError } from "../errors/auth-error";
 import { offlineAuthService } from "./offline-auth.service";
+import * as authApi from '../api/auth-api';
 
 const COMPONENT = 'AuthService';
 const logger = new Logger(COMPONENT);
@@ -123,32 +124,58 @@ class AuthService {
   /**
    * Login user with email and password
    */
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  async login(credentials: LoginCredentials): Promise<LoginResponse> {
     try {
-      const response = await axiosInstance.post(API_ROUTES.AUTH.LOGIN, credentials);
+      // Get device info for security context
+      const deviceInfo = await deviceService.getDeviceInfo();
       
-      if (response.data && response.data.success) {
-        // Store token expiry information
-        if (response.data.accessTokenExpiry && response.data.refreshTokenExpiry) {
-          await tokenService.storeTokenExpiry(
-            response.data.accessTokenExpiry,
-            response.data.refreshTokenExpiry
-          );
-        }
-        
-        // Set user in store
-        if (response.data.user) {
-          store.dispatch(setCredentials({
-            user: response.data.user,
-            isAuthenticated: true,
-            isOfflineMode: !navigator.onLine
-          }));
-        }
+      // Add device info to login request
+      const loginData = {
+        ...credentials,
+        deviceInfo
+      };
+      
+      // Make the login request directly using axios
+      const response = await axiosInstance.post(API_ROUTES.AUTH.LOGIN, loginData);
+      
+      if (!response.data || !response.data.success) {
+        const message = response.data?.message || 'Login failed';
+        throw createAuthError('AUTH_LOGIN_FAILED', message);
       }
       
-      return response.data;
+      // Store token expiry times
+      if (response.data.tokens) {
+        await tokenService.storeTokenExpiry(response.data.tokens);
+      }
+      
+      // Store user data in Redux
+      store.dispatch(
+        setCredentials({
+          user: response.data.user,
+          isAuthenticated: true,
+          isOfflineMode: !navigator.onLine,
+        })
+      );
+      
+      // Store auth state for persistence - using the correct method name
+      await authPersistenceService.persistAuthState({
+        user: response.data.user,
+        securityContext: response.data.securityContext
+      }, {
+        rememberMe: credentials.rememberMe || false
+      });
+      
+      return {
+        success: true,
+        user: response.data.user
+      };
     } catch (error) {
-      this.logger.error('Login failed', { error });
+      this.logger.error('Login failed', { 
+        error: error.response?.data?.message || error.message || 'Unknown error',
+        status: error.response?.status || 'No status',
+        code: error.response?.data?.code || error.code || 'No code'
+      });
+      
       throw error;
     }
   }
@@ -292,51 +319,46 @@ class AuthService {
     }
   }
 
-  async logout(silent: boolean = false): Promise<void> {
+  async logout(options: LogoutOptions = {}): Promise<void> {
     try {
-      if (!silent) store.dispatch(setAuthLoading(true));
-
-      // Get refresh token for server-side invalidation
-      const refreshToken = await tokenService.getRefreshToken();
-
-      // Call logout endpoint if we have a token
-      if (refreshToken && navigator.onLine) {
+      // Only call logout API if we have tokens
+      if (await tokenService.hasTokens()) {
         try {
-          await axiosInstance.post(API_ROUTES.AUTH.LOGOUT, { refreshToken });
+          await axiosInstance.post(API_ROUTES.AUTH.LOGOUT, {
+            allDevices: options.allDevices || false
+          });
         } catch (error) {
-          this.logger.warn(
-            "Server logout failed, continuing with client logout",
-            { error }
-          );
+          this.logger.warn('Logout API call failed', { 
+            error: error.message 
+          });
+          // Continue with local logout even if API call fails
         }
       }
-
-      // End session
-      await sessionService.endSession("LOGOUT");
-
-      // Clear tokens
-      await tokenService.clearTokens();
-
-      // Clear security context
-      await securityService.clearSecurityContext();
-
-      // Update Redux store
-      store.dispatch(clearCredentials());
-
-      // Notify other tabs about logout
-      localStorage.setItem("auth_logout", "true");
-      setTimeout(() => localStorage.removeItem("auth_logout"), 1000);
-
-      // Persist auth state using the new persistence service
+      
+      // Clear token data
+      await tokenService.clearTokenData();
+      
+      // Clear auth state
       await authPersistenceService.clearAuthState();
-    } catch (error) {
-      this.logger.error("Logout failed", { error });
-      // Still clear local state even if server request fails
+      
+      // Clear Redux state
       store.dispatch(clearCredentials());
-      await tokenService.clearTokens();
-      await sessionService.endSession("FORCED");
-    } finally {
-      if (!silent) store.dispatch(setAuthLoading(false));
+      
+      this.logger.info('User logged out successfully');
+    } catch (error) {
+      this.logger.error('Logout failed', { 
+        error: error.message 
+      });
+      
+      // Ensure we still clear local state even if API call fails
+      await tokenService.clearTokenData();
+      await authPersistenceService.clearAuthState();
+      store.dispatch(clearCredentials());
+      
+      throw createAuthError(
+        'AUTH_LOGOUT_FAILED',
+        'Failed to complete logout process'
+      );
     }
   }
 
@@ -380,36 +402,71 @@ class AuthService {
 
   async isAuthenticated(): Promise<boolean> {
     try {
-      // First check if we have valid tokens
-      const hasValidTokens = await tokenService.hasValidTokens();
-      if (!hasValidTokens) return false;
+      // First check if we have valid token
+      const hasValidToken = await tokenService.hasValidAccessToken();
+      if (!hasValidToken) {
+        return false;
+      }
       
-      // Then verify with the server
-      const response = await axiosInstance.get(API_ROUTES.AUTH.VERIFY_SESSION, {
-        // Add a timestamp to prevent caching
-        params: { _t: Date.now() }
-      });
+      // If we're offline, use local validation
+      if (!navigator.onLine) {
+        return true;
+      }
       
-      return response.data && response.data.isAuthenticated === true;
+      // If online, validate with server
+      try {
+        const response = await axiosInstance.post(API_ROUTES.AUTH.VALIDATE_SESSION, {
+          timestamp: Date.now() // Add timestamp to prevent caching
+        });
+        
+        return response.data.sessionValid === true;
+      } catch (error) {
+        this.logger.warn('Session validation failed', { 
+          error: error.message 
+        });
+        
+        // If server validation fails with 401/403, clear token data
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          await tokenService.clearTokenData();
+        }
+        
+        return false;
+      }
     } catch (error) {
-      // Only log as warning since this might be a normal case
-      this.logger.warn('Session verification failed', { error });
+      this.logger.error('Authentication check failed', { 
+        error: error.message 
+      });
       return false;
     }
   }
 
   async validateSession(): Promise<boolean> {
     try {
-      const accessToken = await tokenService.getAccessToken();
-      if (!accessToken) return false;
+      const accessTokenExpiry = await tokenService.getAccessTokenExpiry();
+      if (!accessTokenExpiry || Date.now() > accessTokenExpiry) {
+        this.logger.warn("No valid access token expiry found", {});
+        return false;
+      }
 
       // Validate session on server
       const response = await axiosInstance.post(
-        API_ROUTES.AUTH.VALIDATE_SESSION
+        API_ROUTES.AUTH.VALIDATE_SESSION,
+        { timestamp: Date.now() } // Add timestamp to prevent caching
       );
-      return response.data.valid === true;
+      
+      // Log the response for debugging
+      this.logger.debug("Session validation response", { 
+        status: response.status,
+        sessionValid: response.data.sessionValid
+      });
+      
+      return response.data.sessionValid === true;
     } catch (error) {
-      this.logger.error("Session validation failed", { error });
+      this.logger.error("Session validation failed", { 
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
       return false;
     }
   }
@@ -785,77 +842,64 @@ class AuthService {
    */
   async restoreSession(): Promise<boolean> {
     try {
-      // Define component name for logging
       const COMPONENT = 'AuthService';
       
       this.logger.info('Attempting to restore session', { component: COMPONENT });
       
-      // First check if we have token expiry information stored locally
-      const tokenExpiry = await tokenService.getAccessTokenExpiry();
-      const currentTime = Date.now();
+      // Check if we have valid access token
+      const hasValidToken = await tokenService.hasValidAccessToken();
+      if (!hasValidToken) {
+        this.logger.info('No valid token found or token expired', { component: COMPONENT });
+        return false;
+      }
       
-      // If we have valid token expiry time, use it before making API call
-      if (tokenExpiry && tokenExpiry > currentTime) {
-        try {
-          // Ensure CSRF token is available
-          await ensureCsrfToken();
-          
-          const response = await axiosInstance.get(API_ROUTES.AUTH.VALIDATE_SESSION, {
-            withCredentials: true // Important for sending cookies
+      try {
+        // Validate session with server
+        const response = await axiosInstance.post(API_ROUTES.AUTH.VALIDATE_SESSION, {
+          timestamp: Date.now() // Add timestamp to prevent caching
+        });
+        
+        if (response.data.sessionValid && response.data.user) {
+          this.logger.info('Session validated successfully', {
+            userId: response.data.user.id,
+            component: COMPONENT
           });
           
-          if (response.status === 200 && response.data.success && response.data.user) {
-            this.logger.info('Session validated successfully', {
-              userId: response.data.user.id
-            });
-            
-            store.dispatch(
-              setCredentials({
-                user: response.data.user,
-                isAuthenticated: true,
-                isOfflineMode: !navigator.onLine,
-              })
-            );
-            
-            // Store token expiry information if available
-            if (response.data.tokens?.accessTokenExpiry) {
-              await tokenService.setAccessTokenExpiry(response.data.tokens.accessTokenExpiry);
-            }
-            
-            return true;
-          }
-        } catch (error) {
-          // Continue with fallback if API call fails
-          this.logger.info('Session validation failed', { 
-            status: error.response?.status,
-            error: error.message
-          });
-        }
-        
-        // If server validation fails but token is still valid, restore from local storage
-        this.logger.info('Trying fallback session restoration from storage', { component: COMPONENT });
-        const sessionInitialized = await authPersistenceService.loadAuthState();
-        
-        if (sessionInitialized && sessionInitialized.user) {
+          // Store user data in Redux
           store.dispatch(
             setCredentials({
-              user: sessionInitialized.user,
+              user: response.data.user,
               isAuthenticated: true,
               isOfflineMode: !navigator.onLine,
             })
           );
+          
+          // Update stored auth state
+          await authPersistenceService.saveAuthState({
+            user: response.data.user,
+            isAuthenticated: true
+          });
+          
           return true;
         }
-      } else {
-        this.logger.info('No valid token expiry found or token expired', { component: COMPONENT });
+      } catch (error) {
+        this.logger.warn('Session validation failed', { 
+          error: error.message,
+          component: COMPONENT
+        });
       }
       
+      // If server validation fails, clear token data
+      await tokenService.clearTokenData();
       return false;
     } catch (error) {
       this.logger.error('Session restoration failed', { 
-        error: error.message || 'Unknown error',
+        error: error.message,
         component: 'AuthService'
       });
+      
+      // Clear token data on error
+      await tokenService.clearTokenData();
       return false;
     }
   }
