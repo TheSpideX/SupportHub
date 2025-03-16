@@ -81,9 +81,9 @@ export function useSession(): UseSessionReturn {
   const [sessionMetrics, setSessionMetrics] = useState<SessionMetrics | null>(null);
   
   // Refs for interval management
-  const intervalIds = useRef<{ checkInterval: number | null; timerInterval: number | null }>({
+  const intervalIds = useRef<{ checkInterval: number | null; timerAnimationFrame: number | null }>({
     checkInterval: null,
-    timerInterval: null
+    timerAnimationFrame: null
   });
   
   // Refs for throttling
@@ -136,9 +136,9 @@ export function useSession(): UseSessionReturn {
         intervalIds.current.checkInterval = null;
       }
       
-      if (intervalIds.current.timerInterval) {
-        clearInterval(intervalIds.current.timerInterval);
-        intervalIds.current.timerInterval = null;
+      if (intervalIds.current.timerAnimationFrame) {
+        cancelAnimationFrame(intervalIds.current.timerAnimationFrame);
+        intervalIds.current.timerAnimationFrame = null;
       }
       
       // Dispatch logout action if reason is EXPIRED or TERMINATED
@@ -160,9 +160,9 @@ export function useSession(): UseSessionReturn {
       intervalIds.current.checkInterval = null;
     }
     
-    if (intervalIds.current.timerInterval) {
-      clearInterval(intervalIds.current.timerInterval);
-      intervalIds.current.timerInterval = null;
+    if (intervalIds.current.timerAnimationFrame) {
+      cancelAnimationFrame(intervalIds.current.timerAnimationFrame);
+      intervalIds.current.timerAnimationFrame = null;
     }
   }, []);
   
@@ -214,22 +214,11 @@ export function useSession(): UseSessionReturn {
   }, [dispatch]);
   
   const checkSessionStatus = useCallback(async () => {
-    if (!isAuthenticated) return;
-    
-    const now = Date.now();
-    
-    // Prevent concurrent checks
-    if (checkInProgress.current) {
-      return;
-    }
-    
-    // Throttle checks
-    if (now - lastCheckTime.current < SESSION_CHECK_THROTTLE) {
+    if (checkInProgress.current || !isAuthenticated) {
       return;
     }
     
     checkInProgress.current = true;
-    lastCheckTime.current = now;
     
     try {
       // Check if sessionService is available
@@ -247,21 +236,42 @@ export function useSession(): UseSessionReturn {
         logger.error('Failed to get session time remaining', {
           component: COMPONENT,
           action: 'getSessionTimeRemaining',
-          error
+          error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error)
         });
         return 0;
       });
       
-      // Check if session is valid
-      const isValid = await sessionService.isSessionValid();
-      if (!isValid) {
-        // Try to recover session
-        const recovered = await sessionService.attemptSessionRecovery();
-        if (!recovered) {
-          await endSession('EXPIRED');
-          checkInProgress.current = false;
-          return;
+      // Check if session is valid with better error handling
+      try {
+        const isValid = await sessionService.isSessionValid();
+        if (!isValid) {
+          // Try to recover session
+          try {
+            const recovered = await sessionService.attemptSessionRecovery();
+            if (!recovered) {
+              await endSession('EXPIRED');
+              checkInProgress.current = false;
+              return;
+            }
+          } catch (recoveryError) {
+            logger.error('Session recovery failed', {
+              component: COMPONENT,
+              action: 'attemptSessionRecovery',
+              error: recoveryError instanceof Error ? { message: recoveryError.message, stack: recoveryError.stack } : String(recoveryError)
+            });
+            await endSession('EXPIRED');
+            checkInProgress.current = false;
+            return;
+          }
         }
+      } catch (validityError) {
+        logger.error('Session validity check failed', {
+          component: COMPONENT,
+          action: 'isSessionValid',
+          error: validityError instanceof Error ? { message: validityError.message, stack: validityError.stack } : String(validityError)
+        });
+        checkInProgress.current = false;
+        return;
       }
       
       // Check if session is about to expire
@@ -303,7 +313,11 @@ export function useSession(): UseSessionReturn {
       logger.error('Session check failed', {
         component: COMPONENT,
         action: 'checkSessionStatus',
-        error
+        error: error instanceof Error ? { 
+          message: error.message, 
+          stack: error.stack,
+          name: error.name
+        } : String(error)
       });
     }
   }, [isAuthenticated, dispatch, endSession, refreshSession, updateSessionMetrics]);
@@ -312,23 +326,38 @@ export function useSession(): UseSessionReturn {
     // Clear any existing intervals first
     stopSessionMonitoring();
     
-    // Set up session check interval
+    // Set up session check interval with a reasonable delay
+    // Use a longer interval to prevent excessive checks
     intervalIds.current.checkInterval = window.setInterval(() => {
       checkSessionStatus().catch(error => {
         logger.error('Error in session check interval', {
           component: COMPONENT,
-          error
+          error: error instanceof Error ? { 
+            message: error.message, 
+            stack: error.stack,
+            name: error.name
+          } : String(error)
         });
       });
     }, AUTH_CONSTANTS.SESSION.CHECK_INTERVAL);
     
     // Set up timer interval for UI updates
-    intervalIds.current.timerInterval = window.setInterval(() => {
-      if (sessionInfo) {
-        const remaining = sessionInfo.expiresAt - Date.now();
-        setTimeRemaining(Math.max(0, remaining));
+    // Use requestAnimationFrame for UI updates to be more efficient
+    let lastUpdateTime = 0;
+    const updateTimer = () => {
+      const now = Date.now();
+      // Only update UI every second
+      if (now - lastUpdateTime >= 1000) {
+        if (sessionInfo) {
+          const remaining = sessionInfo.expiresAt - Date.now();
+          setTimeRemaining(Math.max(0, remaining));
+        }
+        lastUpdateTime = now;
       }
-    }, 1000);
+      intervalIds.current.timerAnimationFrame = requestAnimationFrame(updateTimer);
+    };
+    
+    intervalIds.current.timerAnimationFrame = requestAnimationFrame(updateTimer);
   }, [checkSessionStatus, stopSessionMonitoring, sessionInfo]);
   
   const initializeSessionData = useCallback(async () => {

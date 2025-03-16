@@ -202,11 +202,14 @@ export const sessionMiddleware: Middleware = (store) => {
         }
       }
       
-      // Update session metrics (only if needed)
-      store.dispatch({ 
-        type: 'auth/updateSessionMetrics', 
-        payload: { healthCheckTime: now } 
-      });
+      // Only update session metrics if significant time has passed
+      // This prevents excessive dispatching of the same action
+      if (now - lastHealthCheck >= AUTH_CONSTANTS.SESSION.METRICS_UPDATE_INTERVAL) {
+        store.dispatch({ 
+          type: 'auth/updateSessionMetrics', 
+          payload: { healthCheckTime: now } 
+        });
+      }
     } catch (error) {
       // Handle any other errors during health check
       console.error('Session health check failed:', error);
