@@ -50,11 +50,13 @@ class TokenService {
   };
   private refreshPromise: Promise<boolean> | null = null;
   private tokenRefreshTimer: NodeJS.Timeout | null = null;
+  private tokenMonitorInterval: NodeJS.Timeout | null = null;
 
   private constructor() {
     this.secureStorage = new SecureStorage('auth');
     this.logger = new Logger('TokenService');
     this.setupTokenRefreshScheduler();
+    this.setupTokenMonitoring();
   }
 
   static getInstance(): TokenService {
@@ -368,6 +370,80 @@ class TokenService {
    */
   hasStoredTokens(): boolean {
     return localStorage.getItem(this.HAS_TOKENS_KEY) === 'true';
+  }
+
+  /**
+   * Check if token is expired and handle refresh if needed
+   * @returns {Promise<boolean>} True if token is valid or was successfully refreshed
+   */
+  async checkAndRefreshTokenIfNeeded(): Promise<boolean> {
+    try {
+      const hasValidToken = await this.hasValidAccessToken();
+      
+      if (!hasValidToken) {
+        this.logger.debug('Access token is invalid or expired, attempting refresh');
+        return await this.refreshTokens();
+      }
+      
+      // Check if token is expiring soon (within 5 minutes)
+      const isExpiringSoon = await this.isTokenExpiringSoon();
+      
+      if (isExpiringSoon) {
+        this.logger.debug('Access token is expiring soon, refreshing proactively');
+        return await this.refreshTokens();
+      }
+      
+      return true;
+    } catch (error) {
+      this.logger.error('Token check and refresh failed', { 
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Set up automatic token refresh monitoring
+   */
+  setupTokenMonitoring(): void {
+    // Clear any existing monitoring
+    if (this.tokenMonitorInterval) {
+      clearInterval(this.tokenMonitorInterval);
+    }
+    
+    // Check token status every minute
+    this.tokenMonitorInterval = setInterval(async () => {
+      try {
+        const hasTokens = await this.hasTokens();
+        if (!hasTokens) return;
+        
+        await this.checkAndRefreshTokenIfNeeded();
+      } catch (error) {
+        this.logger.error('Token monitoring error', { 
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }, 60000); // Check every minute
+    
+    // Also set up event listeners for app visibility changes
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        // When app becomes visible, check token status
+        const hasTokens = await this.hasTokens();
+        if (hasTokens) {
+          await this.checkAndRefreshTokenIfNeeded();
+        }
+      }
+    });
+    
+    // Listen for online status changes
+    window.addEventListener('online', async () => {
+      // When coming back online, check token status
+      const hasTokens = await this.hasTokens();
+      if (hasTokens) {
+        await this.checkAndRefreshTokenIfNeeded();
+      }
+    });
   }
 }
 

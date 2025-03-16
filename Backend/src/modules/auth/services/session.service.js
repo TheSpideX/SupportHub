@@ -77,9 +77,9 @@ class SessionService {
       }
 
       // Check if we need to enforce session limits
-      if (config.security.sessions.enforceLimit) {
+      if (config.security.session && config.security.session.maxConcurrentSessions) {
         const activeSessions = await this.getActiveSessions(userId);
-        const maxSessions = config.security.sessions.maxActiveSessions || 5;
+        const maxSessions = config.security.session.maxConcurrentSessions || 5;
         
         if (activeSessions.length >= maxSessions) {
           logger.info('Session limit reached, terminating oldest session', {

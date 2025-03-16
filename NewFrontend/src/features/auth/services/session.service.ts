@@ -1381,6 +1381,78 @@ export class SessionService {
       this.logger.error('Failed to refresh session from storage', { error });
     }
   }
+
+  /**
+   * Check if session is expired or expiring soon and handle accordingly
+   * @returns {Promise<boolean>} True if session is valid or was successfully extended
+   */
+  async checkAndExtendSessionIfNeeded(): Promise<boolean> {
+    try {
+      const session = await this.getSession();
+      if (!session) return false;
+      
+      const now = Date.now();
+      const timeRemaining = session.expiresAt - now;
+      
+      // If session is expired, end it
+      if (timeRemaining <= 0) {
+        this.logger.debug('Session has expired');
+        await this.endSession('EXPIRED');
+        this.events.emit('sessionExpired');
+        return false;
+      }
+      
+      // If session is expiring soon (within 5 minutes), extend it
+      if (timeRemaining <= AUTH_CONSTANTS.SESSION.EXPIRY_THRESHOLD) {
+        this.logger.debug('Session is expiring soon, extending proactively');
+        await this.extendSession();
+        this.events.emit('sessionExtended');
+        return true;
+      }
+      
+      // Also check token status
+      const tokenService = TokenService.getInstance();
+      return await tokenService.checkAndRefreshTokenIfNeeded();
+    } catch (error) {
+      this.logger.error('Session check and extend failed', { error });
+      return false;
+    }
+  }
+
+  /**
+   * Set up automatic session monitoring
+   */
+  setupSessionMonitoring(): void {
+    // Clear any existing monitoring
+    if (this.sessionMonitorInterval) {
+      clearInterval(this.sessionMonitorInterval);
+    }
+    
+    // Check session status every minute
+    this.sessionMonitorInterval = setInterval(async () => {
+      try {
+        const session = await this.getSession();
+        if (!session) return;
+        
+        await this.checkAndExtendSessionIfNeeded();
+        await this.updateSessionActivity();
+      } catch (error) {
+        this.logger.error('Session monitoring error', { error });
+      }
+    }, 60000); // Check every minute
+    
+    // Also set up event listeners for app visibility changes
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        // When app becomes visible, check session status
+        const session = await this.getSession();
+        if (session) {
+          await this.checkAndExtendSessionIfNeeded();
+          await this.updateSessionActivity();
+        }
+      }
+    });
+  }
 }
 
 export const sessionService = new SessionService();
