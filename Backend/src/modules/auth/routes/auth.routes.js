@@ -87,7 +87,7 @@ router.post(
 
 // Refresh token route
 router.post(
-    '/refresh',
+    '/refresh-token',
     rateLimitMiddleware.apiRateLimit(),
     csrfMiddleware.validateToken,
     authController.refreshToken

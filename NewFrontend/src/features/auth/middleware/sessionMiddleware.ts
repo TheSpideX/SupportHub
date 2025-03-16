@@ -1,5 +1,5 @@
 import { Middleware } from 'redux';
-import { SessionService } from '../services/session.service';
+import { SessionService, SESSION_CHANNEL_EVENTS } from '../services/session.service';
 import { tokenService } from '../services/token.service';
 import { securityService } from '../services/security.service';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
@@ -8,7 +8,7 @@ import { AuthenticationError } from '@/core/errors/base';
 import { AuthError } from '../errors/auth-error';
 import { serverStatusService } from '@/services/server-status.service';
 import { networkMonitorService } from '@/services/network-monitor.service';
-import { SESSION_CHANNEL_EVENTS } from '../services/session.service';
+import { handleAuthError } from '../utils/error-handler';
 
 // Create an instance of SessionService
 const sessionService = new SessionService();

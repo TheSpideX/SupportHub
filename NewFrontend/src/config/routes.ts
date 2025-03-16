@@ -32,8 +32,12 @@ export const API_ROUTES = {
     VERIFY_EMAIL: "/api/auth/verify-email",
     FORGOT_PASSWORD: "/api/auth/forgot-password",
     RESET_PASSWORD: "/api/auth/reset-password",
+    EXTEND_SESSION: "/api/auth/extend-session",
+    SYNC_SESSION: "/api/auth/sync-session",
     VALIDATE_SESSION: "/api/auth/validate-session",
-    CSRF_TOKEN: "/api/auth/csrf-token"
+    CSRF_TOKEN: "/api/auth/csrf-token",
+    VERIFY_DEVICE: "/api/auth/verify-device",
+    SECURITY_CONTEXT: "/api/auth/security-context"
   },
 };
 

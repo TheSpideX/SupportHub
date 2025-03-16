@@ -6465,3 +6465,11 @@
 {"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-16 16:53:06"}
 {"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-16 16:53:06"}
 {"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-16 16:53:06"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-16 16:58:47"}
