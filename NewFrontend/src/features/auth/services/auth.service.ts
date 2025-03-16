@@ -27,6 +27,7 @@ import authPersistenceService from "./auth-persistence.service";
 import { AuthError, createAuthError } from "../errors/auth-error";
 import { offlineAuthService } from "./offline-auth.service";
 import * as authApi from '../api/auth-api';
+import { SESSION_CHANNEL_EVENTS } from './session.service';
 
 const COMPONENT = 'AuthService';
 const logger = new Logger(COMPONENT);

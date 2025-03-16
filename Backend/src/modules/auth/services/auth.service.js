@@ -354,27 +354,61 @@ class AuthService {
         return { isValid: false };
       }
 
-      // Check if session is active
-      if (!session.isActive) {
-        logger.warn('Session validation failed: Session inactive', { 
+      // Check if session is expired
+      if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+        logger.warn('Session validation failed: Session expired', { 
           component: this.COMPONENT, 
           sessionId,
-          userId: session.userId
+          userId: session.userId,
+          expiresAt: session.expiresAt
         });
-        return { isValid: false };
+        
+        // Clean up expired session
+        await this.sessionService.terminateSession(sessionId, 'EXPIRED');
+        
+        return { 
+          isValid: false, 
+          reason: 'SESSION_EXPIRED',
+          message: 'Your session has expired. Please log in again.'
+        };
       }
 
-      // Check if session has expired
-      if (new Date() > session.expiresAt) {
-        logger.warn('Session validation failed: Session expired', { 
+      // Get user from database
+      const user = await this.userModel.findById(session.userId);
+      
+      if (!user) {
+        logger.warn('Session validation failed: User not found', { 
           component: this.COMPONENT, 
           sessionId,
           userId: session.userId
         });
         
-        // Terminate expired session
-        await this.sessionService.terminateSession(sessionId);
-        return { isValid: false };
+        // Clean up orphaned session
+        await this.sessionService.terminateSession(sessionId, 'USER_NOT_FOUND');
+        
+        return { 
+          isValid: false, 
+          reason: 'USER_NOT_FOUND',
+          message: 'User account not found'
+        };
+      }
+
+      // Check if user is active
+      if (!user.isActive) {
+        logger.warn('Session validation failed: User inactive', { 
+          component: this.COMPONENT, 
+          sessionId,
+          userId: user._id
+        });
+        
+        // Clean up session for inactive user
+        await this.sessionService.terminateSession(sessionId, 'USER_INACTIVE');
+        
+        return { 
+          isValid: false, 
+          reason: 'USER_INACTIVE',
+          message: 'Your account has been deactivated'
+        };
       }
 
       // Check device fingerprint if available
@@ -388,7 +422,7 @@ class AuthService {
         return { isValid: false, reason: 'DEVICE_MISMATCH' };
       }
 
-      // Update session activity
+      // Update last activity
       await this.sessionService.updateSessionActivity(sessionId);
 
       logger.info('Session validation successful', { 
@@ -401,7 +435,13 @@ class AuthService {
         isValid: true,
         expiresAt: session.expiresAt,
         userId: session.userId,
-        deviceInfo: session.deviceInfo
+        deviceInfo: session.deviceInfo,
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        }
       };
     } catch (error) {
       logger.error('Session validation error', { 
@@ -409,7 +449,11 @@ class AuthService {
         sessionId,
         error: error.message
       });
-      throw error;
+      return { 
+        isValid: false, 
+        reason: 'VALIDATION_ERROR',
+        message: 'An error occurred while validating your session'
+      };
     }
   }
 }

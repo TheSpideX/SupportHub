@@ -182,11 +182,14 @@ export const useAuth = () => {
 
   // Handle storage events for cross-tab synchronization
   const handleStorageEvent = useCallback((event: StorageEvent) => {
-    if (event.key === AUTH_CONSTANTS.STORAGE.LOGOUT_EVENT) {
+    // Safely check for the logout event with fallback for backward compatibility
+    const logoutEventKey = AUTH_CONSTANTS.STORAGE?.LOGOUT_EVENT || 'auth_logout_event';
+    
+    if (event.key === logoutEventKey) {
       // Another tab logged out, sync this tab
       dispatch(logoutAction());
       navigate(APP_ROUTES.AUTH.LOGIN);
-    } else if (event.key === AUTH_CONSTANTS.STORAGE.SESSION_UPDATED) {
+    } else if (event.key === (AUTH_CONSTANTS.STORAGE?.SESSION_UPDATED || 'auth_session_updated')) {
       // Session was updated in another tab
       sessionService.syncSessionFromStorage();
     }
@@ -428,7 +431,9 @@ export const useAuth = () => {
       dispatch(logoutAction());
       
       // Trigger storage event for cross-tab logout
-      localStorage.setItem(AUTH_CONSTANTS.STORAGE.LOGOUT_EVENT, Date.now().toString());
+      // Use fallback for backward compatibility
+      const logoutEventKey = AUTH_CONSTANTS.STORAGE?.LOGOUT_EVENT || 'auth_logout_event';
+      localStorage.setItem(logoutEventKey, Date.now().toString());
       
       // Navigate to login page
       navigate(APP_ROUTES.AUTH.LOGIN);
@@ -710,6 +715,47 @@ export const useAuth = () => {
       return false;
     }
   }, []);
+
+  // Add handler for session events from other tabs
+  useEffect(() => {
+    const handleUserActivity = () => {
+      sessionService.updateSessionActivity();
+    };
+    
+    const sessionChannel = new BroadcastChannel('auth_session_channel');
+    sessionChannel.onmessage = (event) => {
+      const { type, data } = event.data;
+      
+      switch (type) {
+        case SESSION_CHANNEL_EVENTS.GLOBAL_LOGOUT:
+          dispatch(logoutAction());
+          navigate(APP_ROUTES.AUTH.LOGIN);
+          break;
+          
+        case SESSION_CHANNEL_EVENTS.SESSION_TERMINATED:
+          if (isAuthenticated) {
+            dispatch(logoutAction());
+            navigate(APP_ROUTES.AUTH.LOGIN, { 
+              state: { sessionTerminated: true, reason: data.reason } 
+            });
+          }
+          break;
+          
+        // Handle other relevant events
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('mousemove', handleUserActivity);
+    window.addEventListener('keydown', handleUserActivity);
+    
+    return () => {
+      // Clean up
+      window.removeEventListener('mousemove', handleUserActivity);
+      window.removeEventListener('keydown', handleUserActivity);
+      sessionChannel.close();
+    };
+  }, [dispatch, navigate, isAuthenticated]);
 
   return {
     // State

@@ -8,6 +8,7 @@ import { AuthenticationError } from '@/core/errors/base';
 import { AuthError } from '../errors/auth-error';
 import { serverStatusService } from '@/services/server-status.service';
 import { networkMonitorService } from '@/services/network-monitor.service';
+import { SESSION_CHANNEL_EVENTS } from '../services/session.service';
 
 // Create an instance of SessionService
 const sessionService = new SessionService();
@@ -24,7 +25,7 @@ const sessionService = new SessionService();
  * - Error handling integration
  */
 export const sessionMiddleware: Middleware = (store) => {
-  // Setup broadcast channel for cross-tab communication
+  // Use the same channel name as in SessionService
   const sessionChannel = new BroadcastChannel('auth_session_channel');
   let healthCheckInterval: NodeJS.Timeout | null = null;
   let lastNetworkStatus = navigator.onLine;
@@ -91,12 +92,40 @@ export const sessionMiddleware: Middleware = (store) => {
     const { type, data } = event.data;
     
     switch (type) {
+      case 'GLOBAL_LOGOUT':
+        // Another tab logged out, sync this tab
+        store.dispatch(logoutAction());
+        break;
+        
       case 'SESSION_TERMINATED':
-        store.dispatch({ type: 'auth/forceLogout', payload: { reason: data.reason } });
+        // Session was terminated in another tab
+        store.dispatch(logoutAction());
+        break;
+        
+      case 'USER_SWITCHED':
+        // User switched in another tab
+        const currentUser = store.getState().auth.user;
+        if (currentUser?.id === data.previousUserId) {
+          // This tab has the old user, log them out
+          store.dispatch(logoutAction());
+        }
+        break;
+        
+      case 'SESSION_INITIALIZED':
+        // New session started in another tab
+        const state = store.getState();
+        if (state.auth.isAuthenticated && state.auth.user?.id === data.userId) {
+          // This is the same user, update session info
+          store.dispatch(updateSessionInfo({
+            sessionId: data.sessionId,
+            lastActivity: data.timestamp
+          }));
+        }
         break;
         
       case 'SESSION_ACTIVITY_UPDATE':
-        store.dispatch({ type: 'auth/syncLastActivity', payload: { timestamp: data.timestamp } });
+        // Activity in another tab
+        store.dispatch(updateLastActivity(data.timestamp));
         break;
         
       case 'TOKEN_REFRESHED':
@@ -109,6 +138,14 @@ export const sessionMiddleware: Middleware = (store) => {
         
       case 'SESSION_ERROR':
         handleSessionError(data.error, store);
+        break;
+        
+      case 'SESSION_UPDATED':
+        store.dispatch({ type: 'auth/syncSession', payload: data });
+        break;
+        
+      case 'ACTIVITY_UPDATE':
+        store.dispatch({ type: 'auth/syncLastActivity', payload: { timestamp: data.timestamp } });
         break;
     }
   };
@@ -243,10 +280,11 @@ export const sessionMiddleware: Middleware = (store) => {
           
           // Broadcast session termination to other tabs
           sessionChannel.postMessage({
-            type: 'SESSION_TERMINATED',
+            type: SESSION_CHANNEL_EVENTS.SESSION_TERMINATED,
             data: { 
               reason: action.type === 'auth/sessionExpired' ? 'EXPIRED' : 'FORCED',
-              timestamp: Date.now()
+              timestamp: Date.now(),
+              sessionId: state.auth.session?.id
             }
           });
           break;
@@ -275,8 +313,12 @@ export const sessionMiddleware: Middleware = (store) => {
         
         // Broadcast activity to other tabs
         sessionChannel.postMessage({ 
-          type: 'SESSION_ACTIVITY_UPDATE', 
-          data: { timestamp, actionType: action.type } 
+          type: SESSION_CHANNEL_EVENTS.SESSION_ACTIVITY_UPDATE, 
+          data: { 
+            timestamp, 
+            actionType: action.type,
+            sessionId: state.auth.session?.id 
+          } 
         });
         
         // Analytics tracking removed

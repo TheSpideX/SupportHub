@@ -5,7 +5,15 @@ export const AUTH_CONSTANTS = {
     EXPIRY_THRESHOLD: 300000, // 5 minutes
     MAX_INACTIVITY: 1800000, // 30 minutes
   },
+  STORAGE: {
+    AUTH_TOKENS: 'auth_tokens',
+    SECURITY_CONTEXT: 'security_context',
+    SESSION_DATA: 'session_data',
+    LOGOUT_EVENT: 'auth_logout_event',
+    SESSION_UPDATED: 'auth_session_updated'
+  },
   STORAGE_KEYS: {
+    AUTH_EVENT: 'auth_event',
     AUTH_TOKENS: 'auth_tokens',
     REMEMBER_ME: 'remember_me',
     DEVICE_ID: 'device_id',

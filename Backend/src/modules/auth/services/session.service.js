@@ -76,6 +76,30 @@ class SessionService {
         return session;
       }
 
+      // Check if we need to enforce session limits
+      if (config.security.sessions.enforceLimit) {
+        const activeSessions = await this.getActiveSessions(userId);
+        const maxSessions = config.security.sessions.maxActiveSessions || 5;
+        
+        if (activeSessions.length >= maxSessions) {
+          logger.info('Session limit reached, terminating oldest session', {
+            component: 'SessionService',
+            userId,
+            activeSessionCount: activeSessions.length,
+            maxSessions
+          });
+          
+          // Sort sessions by last activity and terminate the oldest one
+          const oldestSession = activeSessions.sort((a, b) => 
+            new Date(a.lastActivity) - new Date(b.lastActivity)
+          )[0];
+          
+          if (oldestSession) {
+            await this.terminateSession(oldestSession._id, 'SESSION_LIMIT_EXCEEDED');
+          }
+        }
+      }
+      
       // Create new session
       session = await Session.create({
         user: userId,

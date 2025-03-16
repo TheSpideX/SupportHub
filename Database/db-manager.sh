@@ -24,6 +24,7 @@ start_mongo() {
     else
         echo "Starting MongoDB..."
         mongod --config "$MONGOD_CONF" >> "$MONGO_LOG" 2>&1 &
+        #mongod --repair --dbpath=/Users/kumarsatyam/Desktop/SupportHub/Database
         sleep 2
         if check_service_running "mongod"; then
             echo "MongoDB started successfully"

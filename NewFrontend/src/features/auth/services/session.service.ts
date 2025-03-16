@@ -23,6 +23,17 @@ interface ValidationCacheEntry {
   timestamp: number;
 }
 
+// Constants for session channel communication
+export const SESSION_CHANNEL_EVENTS = {
+  SESSION_TERMINATED: 'SESSION_TERMINATED',
+  SESSION_ACTIVITY_UPDATE: 'SESSION_ACTIVITY_UPDATE',
+  SESSION_RECOVERY_REQUIRED: 'SESSION_RECOVERY_REQUIRED',
+  GLOBAL_LOGOUT: 'GLOBAL_LOGOUT',
+  SESSION_STATE_UPDATE: 'SESSION_STATE_UPDATE',
+  TOKEN_REFRESHED: 'TOKEN_REFRESHED',
+  SESSION_UPDATED: 'SESSION_UPDATED'
+};
+
 export class SessionService {
   private static instance: SessionService;
   private readonly SESSION_KEY = 'user_session';
@@ -54,10 +65,13 @@ export class SessionService {
   private readonly MAX_RECOVERY_ATTEMPTS = 3;
   private isRecoveryInProgress: boolean = false;
 
+  // Standardize the channel name
+  private readonly SESSION_CHANNEL_NAME = 'auth_session_channel';
+
   private constructor() {
     this.secureStorage = new SecureStorage('session');
     this.logger = new Logger('SessionService');
-    this.sessionChannel = new BroadcastChannel('session_channel');
+    this.sessionChannel = new BroadcastChannel(this.SESSION_CHANNEL_NAME);
     this.events = new EventEmitter();
     
     this.setupSessionSync();
@@ -328,6 +342,16 @@ export class SessionService {
           if (session && msg.data.sessionId === session.id) {
             localStorage.setItem(this.ACTIVITY_KEY, msg.data.timestamp.toString());
           }
+          break;
+
+        case 'SESSION_UPDATED':
+          // Handle session updates from other tabs
+          await this.refreshSessionFromStorage();
+          break;
+
+        case 'TOKEN_REFRESHED':
+          // Sync with token service
+          await tokenService.syncTokensFromStorage();
           break;
       }
     };
@@ -1342,6 +1366,19 @@ export class SessionService {
     } catch (error) {
       this.logger.error('Failed to set session', { error });
       throw error;
+    }
+  }
+
+  private async refreshSessionFromStorage(): Promise<void> {
+    try {
+      const encryptedSession = await this.secureStorage.getItem(this.SESSION_KEY);
+      if (encryptedSession) {
+        const session = await this.decryptSessionData(encryptedSession);
+        // Update local state without triggering another broadcast
+        this.events.emit('sessionUpdated', { sessionId: session.id });
+      }
+    } catch (error) {
+      this.logger.error('Failed to refresh session from storage', { error });
     }
   }
 }

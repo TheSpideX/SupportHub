@@ -6,6 +6,7 @@ import { axiosInstance } from '@/utils/axios';
 import { deviceService } from './device.service';
 import { EventEmitter } from '@/utils/event-emitter';
 import { AuthError, createAuthError } from '../errors/auth-error';
+import { SESSION_CHANNEL_EVENTS } from './session.service';
 
 interface TokenPayload {
   sub: string;
