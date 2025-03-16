@@ -182,11 +182,15 @@ export const useAuth = () => {
 
   // Handle storage events for cross-tab synchronization
   const handleStorageEvent = useCallback((event: StorageEvent) => {
-    if (event.key === AUTH_CONSTANTS.STORAGE.LOGOUT_EVENT) {
+    // Make sure we're using the correct constant path
+    const LOGOUT_EVENT_KEY = AUTH_CONSTANTS.STORAGE_KEYS?.LOGOUT_EVENT || 'auth_logout';
+    const SESSION_UPDATED_KEY = AUTH_CONSTANTS.STORAGE_KEYS?.SESSION_UPDATED || 'auth_session_updated';
+    
+    if (event.key === LOGOUT_EVENT_KEY) {
       // Another tab logged out, sync this tab
       dispatch(logoutAction());
       navigate(APP_ROUTES.AUTH.LOGIN);
-    } else if (event.key === AUTH_CONSTANTS.STORAGE.SESSION_UPDATED) {
+    } else if (event.key === SESSION_UPDATED_KEY) {
       // Session was updated in another tab
       sessionService.syncSessionFromStorage();
     }
@@ -428,7 +432,8 @@ export const useAuth = () => {
       dispatch(logoutAction());
       
       // Trigger storage event for cross-tab logout
-      localStorage.setItem(AUTH_CONSTANTS.STORAGE.LOGOUT_EVENT, Date.now().toString());
+      const LOGOUT_EVENT_KEY = AUTH_CONSTANTS.STORAGE_KEYS?.LOGOUT_EVENT || 'auth_logout';
+      localStorage.setItem(LOGOUT_EVENT_KEY, Date.now().toString());
       
       // Navigate to login page
       navigate(APP_ROUTES.AUTH.LOGIN);
@@ -443,9 +448,8 @@ export const useAuth = () => {
         error
       });
       
-      // Force logout even if API call fails
+      // Even if the API call fails, we should still clear local state
       dispatch(logoutAction());
-      await sessionService.endSession();
       navigate(APP_ROUTES.AUTH.LOGIN);
     } finally {
       if (!silent) {

@@ -1,16 +1,29 @@
+// Storage keys for cross-tab communication
+export const STORAGE_KEYS = {
+  AUTH_TOKENS: 'auth_tokens',
+  REFRESH_TOKEN: 'refresh_token',
+  ACCESS_TOKEN: 'access_token',
+  USER_DATA: 'user_data',
+  SECURITY_CONTEXT: 'security_context',
+  SESSION_DATA: 'session_data',
+  LOGOUT_EVENT: 'auth_logout',
+  SESSION_UPDATED: 'auth_session_updated',
+  AUTH_EVENT: 'auth_event'
+};
+
+// For backward compatibility
+export const STORAGE = STORAGE_KEYS;
+
+// Export all constants
 export const AUTH_CONSTANTS = {
   SESSION: {
-    HEALTH_CHECK_INTERVAL: 60000, // 1 minute
-    HEALTH_CHECK_THROTTLE: 30000, // 30 seconds minimum between checks
-    EXPIRY_THRESHOLD: 300000, // 5 minutes
-    MAX_INACTIVITY: 1800000, // 30 minutes
+    EXPIRY_THRESHOLD: 5 * 60 * 1000, // 5 minutes
+    WARNING_THRESHOLD: 10 * 60 * 1000, // 10 minutes
+    CRITICAL_WARNING_THRESHOLD: 60 * 1000, // 1 minute
+    VERIFICATION_TIMEOUT: 5 * 60 * 1000, // 5 minutes
+    INACTIVITY_THRESHOLD: 30 * 60 * 1000 // 30 minutes
   },
-  STORAGE_KEYS: {
-    AUTH_TOKENS: 'auth_tokens',
-    REMEMBER_ME: 'remember_me',
-    DEVICE_ID: 'device_id',
-    SECURITY_CONTEXT: 'security_context'
-  },
+  STORAGE_KEYS,
   ROUTES: {
     LOGIN: '/auth/login',
     REGISTER: '/auth/register',
