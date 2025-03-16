@@ -18,7 +18,7 @@ import { SessionAlert } from '@/features/auth/components/SessionAlert/SessionAle
 import { SessionTimeout } from '@/features/auth/components/SessionTimeout/SessionTimeout';
 import { APP_ROUTES } from '@/config/routes';
 import { lazyLoad } from './utils/lazyLoad';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { ServerStatusIndicator } from '@/components/ui/ServerStatusIndicator';
 import { networkMonitorService } from '@/services/network-monitor.service';
@@ -94,70 +94,92 @@ export function App() {
     return () => window.removeEventListener('offline', handleOnlineStatus);
   }, []);
 
+  // Add a ref to track initialization status
+  const initializationRef = useRef({
+    hasInitialized: false,
+    isInitializing: false,
+    attempt: 0
+  });
+
   useEffect(() => {
-    const restoreUserSession = async () => {
-      logger.debug('Attempting to restore user session on app initialization', { component: COMPONENT });
+    const COMPONENT = 'App';
+    let isMounted = true;
+    
+    // Skip if already initialized or initializing
+    if (initializationRef.current.hasInitialized) {
+      logger.debug('App already initialized, skipping duplicate initialization', { component: COMPONENT });
+      return;
+    }
+    
+    if (initializationRef.current.isInitializing) {
+      logger.debug('App initialization already in progress, skipping duplicate call', { component: COMPONENT });
+      return;
+    }
+    
+    // Track initialization attempt
+    initializationRef.current.attempt++;
+    initializationRef.current.isInitializing = true;
+    
+    const attemptId = initializationRef.current.attempt;
+    
+    const initializeAuth = async () => {
       try {
-        // First check server configuration
-        const configCheck = await authService.checkServerConfiguration();
-        logger.info('Server configuration check results', { configCheck, component: COMPONENT });
+        logger.info(`Initializing application (attempt #${attemptId})`, { component: COMPONENT });
         
-        if (!configCheck.corsConfigured) {
-          toast.error('CORS is not properly configured on the server');
+        // Use the centralized initialization method
+        const initialized = await authService.initialize();
+        
+        // Check if component is still mounted before updating state
+        if (!isMounted) {
+          logger.debug(`Initialization completed but component unmounted (attempt #${attemptId})`);
+          return;
         }
         
-        if (!configCheck.cookiesConfigured) {
-          toast.error('HTTP cookies are not properly configured on the server');
-        }
+        // Mark as initialized
+        initializationRef.current.hasInitialized = true;
+        initializationRef.current.isInitializing = false;
         
-        if (!configCheck.csrfConfigured) {
-          toast.warning('CSRF protection may not be properly configured');
-        }
-        
-        // Then try to restore session
-        const restored = await authService.restoreSession();
-        logger.debug('Session restoration attempt completed', { 
-          success: restored,
-          timestamp: new Date().toISOString(),
-          component: COMPONENT
+        logger.info(`Auth initialization completed (attempt #${attemptId})`, { 
+          success: initialized,
+          component: COMPONENT 
         });
         
-        if (!restored) {
-          logger.info('Session could not be restored, clearing any stale data', { component: COMPONENT });
-          // Clear any stale session data
+        // Only clear data if initialization failed and we need to clean up
+        if (!initialized) {
+          logger.info('Auth initialization failed, ensuring clean state', { component: COMPONENT });
           try {
             await sessionService.clearSessionData();
             await tokenService.clearTokens();
-          } catch (clearError) {
-            logger.warn('Error while clearing session data', { 
-              error: clearError.message || 'Unknown error',
-              component: COMPONENT 
+          } catch (cleanupError) {
+            logger.warn('Error during cleanup after failed initialization', {
+              component: COMPONENT,
+              error: cleanupError
             });
+            // Continue despite cleanup errors
           }
         }
       } catch (error) {
-        // Extract error message safely
-        let errorMessage = 'Unknown error';
-        
-        if (error) {
-          if (typeof error === 'string') {
-            errorMessage = error;
-          } else if (error.message) {
-            errorMessage = error.message;
-          } else if (error.error) {
-            if (typeof error.error === 'string') {
-              errorMessage = error.error;
-            } else if (error.error.message) {
-              errorMessage = error.error.message;
-            }
-          }
+        // Only log if component is still mounted
+        if (isMounted) {
+          logger.error(`Application initialization failed (attempt #${attemptId})`, {
+            error,
+            component: COMPONENT
+          });
         }
         
-        logger.error('Failed to restore session', { errorMessage, component: COMPONENT });
+        // Reset initialization state to allow retry
+        if (isMounted) {
+          initializationRef.current.isInitializing = false;
+        }
       }
     };
 
-    restoreUserSession();
+    initializeAuth();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (

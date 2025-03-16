@@ -515,6 +515,39 @@ class TokenService {
       throw error;
     }
   }
+
+  /**
+   * Verify access token
+   * @param {String} token - JWT access token to verify
+   * @returns {Object|null} Decoded token payload or null if invalid
+   */
+  async verifyAccessToken(token) {
+    try {
+      // Decode token to get payload
+      const decoded = jwt.verify(token, this.accessTokenSecret);
+      
+      // Check if token is blacklisted
+      const isBlacklisted = await this.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        logger.warn('Attempt to use blacklisted token', { component: COMPONENT });
+        return null;
+      }
+      
+      // Check token type
+      if (decoded.type !== 'access') {
+        logger.warn('Invalid token type', { component: COMPONENT, type: decoded.type });
+        return null;
+      }
+      
+      return decoded;
+    } catch (error) {
+      logger.error('Token verification failed', { 
+        component: COMPONENT, 
+        error: error.message 
+      });
+      return null;
+    }
+  }
 }
 
 module.exports = TokenService;

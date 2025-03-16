@@ -68,39 +68,11 @@ export const useAuth = () => {
       try {
         setIsInitializing(true);
         
-        // Check for existing session
-        const hasSession = localStorage.getItem('has_session') === 'true';
-        
-        if (hasSession && !isAuthenticated) {
-          logger.info('Found persisted session, attempting to restore', {
-            component: COMPONENT,
-            action: 'initializeAuth'
-          });
-          
-          // Restore session if valid token exists but state is not authenticated
-          const restored = await authService.restoreSession();
-          
-          if (restored) {
-            logger.info('Session restored successfully', {
-              component: COMPONENT,
-              action: 'initializeAuth'
-            });
-          } else {
-            logger.warn('Failed to restore session', {
-              component: COMPONENT,
-              action: 'initializeAuth'
-            });
-            
-            // Clear any invalid session data
-            localStorage.removeItem('has_session');
-            await sessionService.clearSessionData();
-          }
-        }
-        
-        // Set up network status monitoring
+        // Don't attempt to restore session here - App.tsx handles it
+        // Just set up network monitoring
         setupNetworkMonitoring();
       } catch (error) {
-        logger.error('Auth initialization failed', {
+        logger.error('Auth hook initialization failed', {
           component: COMPONENT,
           action: 'initializeAuth',
           error

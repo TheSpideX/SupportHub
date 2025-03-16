@@ -71,6 +71,15 @@ class AuthService {
   private loginAttempts: Map<string, { count: number; lastAttempt: Date }>;
   private readonly MAX_LOGIN_ATTEMPTS = 5;
   private readonly LOCKOUT_DURATION = 30 * 60 * 1000; // 30 minutes
+  private isInitialized = false;
+
+  // Add a static initialization promise to prevent race conditions
+  private static initializationPromise: Promise<boolean> | null = null;
+
+  // Add a static flag to track initialization status across instances
+  private static isInitializing: boolean = false;
+  private static isInitialized: boolean = false;
+  private static initializationCount: number = 0;
 
   private constructor() {
     this.logger = new Logger("AuthService");
@@ -910,6 +919,7 @@ class AuthService {
     csrfConfigured: boolean;
   }> {
     try {
+      // Only log once at the beginning
       this.logger.info('Checking server configuration');
       
       // Test CORS with a simple OPTIONS request
@@ -959,6 +969,7 @@ class AuthService {
         csrfConfigured
       };
       
+      // Only log once at the end
       this.logger.info('Server configuration check results', results);
       
       return results;
@@ -970,6 +981,63 @@ class AuthService {
         csrfConfigured: false
       };
     }
+  }
+
+  /**
+   * Initialize auth service and restore session if possible
+   * This centralized method prevents duplicate initialization
+   */
+  async initialize(): Promise<boolean> {
+    // Track initialization attempts for debugging
+    const attemptId = ++AuthService.initializationCount;
+    this.logger.debug(`Auth service initialization attempt #${attemptId}`);
+    
+    // If already initialized, return immediately
+    if (AuthService.isInitialized) {
+      this.logger.debug(`Auth service already initialized, skipping attempt #${attemptId}`);
+      return true;
+    }
+    
+    // If initialization is already in progress, return the existing promise
+    if (AuthService.isInitializing && AuthService.initializationPromise) {
+      this.logger.debug(`Auth service initialization already in progress, waiting (attempt #${attemptId})`);
+      return AuthService.initializationPromise;
+    }
+    
+    // Set initializing flag
+    AuthService.isInitializing = true;
+    
+    // Create a new initialization promise
+    AuthService.initializationPromise = (async () => {
+      try {
+        this.logger.info(`Starting auth service initialization (attempt #${attemptId})`);
+        
+        // Check server configuration - results are already logged in the method
+        const configCheck = await this.checkServerConfiguration();
+        // Remove duplicate logging here
+        
+        // Attempt to restore session
+        const restored = await this.restoreSession();
+        
+        // Mark as initialized regardless of restoration result
+        AuthService.isInitialized = true;
+        
+        this.logger.info(`Auth service initialization completed (attempt #${attemptId})`, { 
+          success: restored 
+        });
+        
+        return restored;
+      } catch (error) {
+        this.logger.error(`Auth service initialization failed (attempt #${attemptId})`, { error });
+        return false;
+      } finally {
+        // Clear the initialization promise but keep isInitialized flag
+        AuthService.isInitializing = false;
+        AuthService.initializationPromise = null;
+      }
+    })();
+    
+    return AuthService.initializationPromise;
   }
 }
 

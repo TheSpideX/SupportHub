@@ -373,8 +373,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Run initialization on component mount
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    const initializeAuth = async () => {
+      try {
+        // Don't attempt to restore session here - App.tsx handles it
+        // Just set up monitoring if we're already authenticated
+        const state = store.getState();
+        if (state.auth.isAuthenticated) {
+          // Set up session monitoring
+          setupSessionMonitoring();
+          setupActivityTracking();
+        }
+        
+        // Set up network status monitoring
+        setupNetworkMonitoring();
+        
+        dispatch(setAuthLoading(false));
+      } catch (error) {
+        logger.error('Auth provider initialization failed', {
+          component: COMPONENT,
+          action: 'initialize',
+          error
+        });
+        dispatch(setAuthLoading(false));
+      }
+    };
+
+    initializeAuth();
+  }, [dispatch, setupSessionMonitoring, setupActivityTracking, setupNetworkMonitoring]);
 
   // Update session monitoring when authentication state changes
   useEffect(() => {
