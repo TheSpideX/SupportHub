@@ -326,17 +326,17 @@ export const useAuth = () => {
       dispatch(setAuthLoading(true));
       dispatch(setRememberMe(!!credentials.rememberMe));
       
-      // Add more detailed logging before login attempt
       logger.info('Attempting login', { 
         component: COMPONENT,
         action: 'login',
         email: credentials.email ? credentials.email.substring(0, 3) + '***' : 'empty'
       });
       
-      // Get device info for security context
+      // Get device info once and use consistently
       const deviceInfo = await securityService.getDeviceInfo();
+      dispatch(setSecurityContext(deviceInfo));
       
-      // Perform login
+      // Perform login with the device info
       const result = await authService.login({
         ...credentials,
         deviceInfo
@@ -400,8 +400,12 @@ export const useAuth = () => {
     navigate(from);
   };
 
-  // Handle login error
+  // Create a centralized error handler
   const handleLoginError = async (error: any) => {
+    // Clear loading state
+    dispatch(setAuthLoading(false));
+    
+    // Process error through the auth error handler
     const errorDetails = await handleAuthError(error);
     
     if (errorDetails.requiresAction) {
@@ -412,6 +416,8 @@ export const useAuth = () => {
       // Show error toast
       toast.error(errorDetails.message || 'Login failed');
     }
+    
+    return errorDetails;
   };
 
   // Logout function

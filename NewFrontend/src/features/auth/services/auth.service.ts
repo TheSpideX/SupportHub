@@ -146,14 +146,17 @@ class AuthService {
       };
       
       // Make the login request directly using axios
-      const response = await axiosInstance.post(API_ROUTES.AUTH.LOGIN, loginData);
+      const response = await axiosInstance.post(API_ROUTES.AUTH.LOGIN, loginData, {
+        withCredentials: true // Ensure cookies are sent/received
+      });
       
       if (!response.data || !response.data.success) {
         const message = response.data?.message || 'Login failed';
         throw createAuthError('AUTH_LOGIN_FAILED', message);
       }
       
-      // Store token expiry times
+      // No need to manually store tokens as they're in HTTP-only cookies
+      // Just store expiry times for UI purposes
       if (response.data.tokens) {
         await tokenService.storeTokenExpiry(response.data.tokens);
       }

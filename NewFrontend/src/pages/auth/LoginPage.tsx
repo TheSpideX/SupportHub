@@ -51,58 +51,13 @@ export const LoginPage = () => {
   useEffect(() => {
     const setupCsrf = async () => {
       try {
-        // Force refresh the CSRF token on login page load
-        logger.debug('Attempting to fetch CSRF token', { component: COMPONENT });
-        
-        // Try up to 3 times with a delay between attempts
-        let attempts = 0;
-        let success = false;
-        
-        while (attempts < 3 && !success) {
-          try {
-            // Use AuthApi's ensureCsrfToken method
-            const token = await AuthApi.ensureCsrfToken(true);
-            
-            if (token) {
-              success = true;
-              logger.debug('CSRF token successfully retrieved', { component: COMPONENT });
-            } else {
-              // Check if we got a cookie with the token as fallback
-              const cookieToken = AuthApi.getCsrfTokenFromCookie();
-              if (cookieToken) {
-                AuthApi.setCsrfToken(cookieToken);
-                success = true;
-                logger.debug('CSRF token successfully retrieved from cookie', { component: COMPONENT });
-              } else {
-                throw new Error('No CSRF token returned or found in cookie');
-              }
-            }
-          } catch (err) {
-            attempts++;
-            logger.warn(`CSRF token fetch attempt ${attempts} failed`, { 
-              component: COMPONENT,
-              error: err
-            });
-            
-            if (attempts < 3) {
-              // Wait before retrying
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          }
-        }
-        
-        // Continue with login page rendering even without CSRF token
-        if (!success) {
-          logger.warn('Failed to get CSRF token, but continuing with login page', {
-            component: COMPONENT
-          });
-        }
+        await AuthApi.ensureCsrfToken(true);
+        logger.debug('CSRF token successfully retrieved', { component: COMPONENT });
       } catch (error) {
-        logger.error('Failed to get CSRF token', {
+        logger.warn('Failed to get CSRF token, continuing with login page', {
           component: COMPONENT,
-          error: {}
+          error: getErrorMessage(error)
         });
-        // Continue with login page rendering even if CSRF token fetch fails
       }
     };
     
