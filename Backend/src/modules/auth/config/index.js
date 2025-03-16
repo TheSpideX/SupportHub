@@ -26,10 +26,10 @@ module.exports = {
             resetAfterHours: isDevelopment ? 1 : 24,
             progressiveDelay: isDevelopment ? false : true // Disable in development
         },
-        session: {
-            maxConcurrentSessions: isDevelopment ? 10000 : 10, // Increased for development
-            sessionTimeout: isDevelopment ? 7 * 24 * 60 * 60 : 24 * 60 * 60, // 7 days in dev
-            extendSessionBeforeExpiry: 15 * 60, // 15 minutes
+        session: {  // This is singular "session", not plural "sessions"
+            maxConcurrentSessions: isDevelopment ? 10000 : 10,
+            sessionTimeout: isDevelopment ? 7 * 24 * 60 * 60 : 24 * 60 * 60,
+            extendSessionBeforeExpiry: 15 * 60,
             enforceDeviceBinding: !isDevelopment,
             requireMfaOnNewDevice: !isDevelopment
         },
