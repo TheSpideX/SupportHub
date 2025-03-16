@@ -46,8 +46,6 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
-import { useTokenAndSessionMonitor } from '../../hooks/useTokenAndSessionMonitor';
-
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const COMPONENT = 'AuthProvider';
   const dispatch = useDispatch();
@@ -67,9 +65,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     rememberMe,
     isOffline
   } = useSelector((state: RootState) => state.auth);
-
-  // Use the token and session monitor hook
-  const { checkStatus, extendSessionAndToken } = useTokenAndSessionMonitor();
 
   // Initialize authentication state
   const initialize = useCallback(async () => {
