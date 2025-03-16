@@ -1,0 +1,329 @@
+openapi: 3.0.0
+info:
+  title: Authentication API
+  version: 1.0.0
+  description: Authentication and authorization endpoints for Tech Support CRM
+
+paths:
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login user
+      description: |
+        Authenticate user with email and password. Returns JWT tokens and user info.
+        If 2FA is enabled, returns a temporary token for 2FA verification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "john.doe@example.com"
+              password: "SecurePass123!"
+              deviceInfo:
+                fingerprint: "device-unique-id-123"
+                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                ip: "192.168.1.1"
+      responses:
+        200:
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                user:
+                  id: "user123"
+                  email: "john.doe@example.com"
+                  name: "John Doe"
+                  role: "TECHNICAL"
+                tokens:
+                  accessToken: "eyJhbGciOiJIUzI1NiIs..."
+                  refreshToken: "eyJhbGciOiJIUzI1NiIs..."
+                requiresTwoFactor: false
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        429:
+          $ref: '#/components/responses/TooManyRequestsError'
+
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: |
+        Create a new user account. Password must meet security requirements:
+        - Minimum 8 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one number
+        - At least one special character
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: "new.user@example.com"
+              password: "SecurePass123!"
+              name: "New User"
+              role: "SUPPORT"
+              deviceInfo:
+                fingerprint: "device-unique-id-123"
+                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                ip: "192.168.1.1"
+      responses:
+        201:
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+              example:
+                user:
+                  id: "user124"
+                  email: "new.user@example.com"
+                  name: "New User"
+                  role: "SUPPORT"
+                tokens:
+                  accessToken: "eyJhbGciOiJIUzI1NiIs..."
+                  refreshToken: "eyJhbGciOiJIUzI1NiIs..."
+        409:
+          $ref: '#/components/responses/ConflictError'
+        422:
+          $ref: '#/components/responses/ValidationError'
+
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Retrieve current user's profile
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: User profile retrieved successfully
+        401:
+          description: Unauthorized
+
+  /api/auth/2fa/enable:
+    post:
+      tags:
+        - Two-Factor Authentication
+      summary: Enable 2FA
+      description: Generate 2FA setup for user
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: 2FA setup generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  qrCode:
+                    type: string
+                  secret:
+                    type: string
+        401:
+          description: Unauthorized
+
+  /api/auth/2fa/verify:
+    post:
+      tags:
+        - Two-Factor Authentication
+      summary: Verify 2FA code
+      description: Verify two-factor authentication code
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - deviceInfo
+              properties:
+                code:
+                  type: string
+                deviceInfo:
+                  type: object
+                  properties:
+                    fingerprint:
+                      type: string
+                    userAgent:
+                      type: string
+                    ip:
+                      type: string
+      responses:
+        200:
+          description: 2FA code verified successfully
+        400:
+          description: Invalid 2FA code
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+        - deviceInfo
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        deviceInfo:
+          $ref: '#/components/schemas/DeviceInfo'
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+        - deviceInfo
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        name:
+          type: string
+        role:
+          type: string
+          enum: [SUPPORT, TECHNICAL, TEAM_LEAD, ADMIN]
+        deviceInfo:
+          $ref: '#/components/schemas/DeviceInfo'
+
+    DeviceInfo:
+      type: object
+      required:
+        - fingerprint
+        - userAgent
+      properties:
+        fingerprint:
+          type: string
+        userAgent:
+          type: string
+        ip:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+        requiresTwoFactor:
+          type: boolean
+
+    RegisterResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [SUPPORT, TECHNICAL, TEAM_LEAD, ADMIN]
+        twoFactorEnabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    UnauthorizedError:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "INVALID_CREDENTIALS"
+            message: "Invalid email or password"
+
+    TooManyRequestsError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "RATE_LIMIT_EXCEEDED"
+            message: "Too many attempts. Please try again in 15 minutes"
+            details:
+              remainingTime: 900
+
+    ConflictError:
+      description: User already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "USER_ALREADY_EXISTS"
+            message: "A user with this email already exists"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "VALIDATION_ERROR"
+            message: "Invalid input"
+            details:
+              errors: [
+                { field: "email", message: "Email is required" },
+                { field: "password", message: "Password must be at least 8 characters long" }
+              ]

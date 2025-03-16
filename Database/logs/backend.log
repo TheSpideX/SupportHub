@@ -1,0 +1,169 @@
+
+> backend@1.0.0 start
+> node server.js
+
+[32minfo[39m: MongoDB Connected: localhost {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+[32minfo[39m: MongoDB connected successfully {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+[32minfo[39m: Redis connected to localhost:6379 DB:0 {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+[32minfo[39m: Redis connected to localhost:6379 DB:0 {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+[32minfo[39m: Redis connected to localhost:6379 DB:0 {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+[32minfo[39m: Redis connected successfully {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+[32minfo[39m: Server running in development mode on port 4290 {"service":"tech-support-crm","timestamp":"2025-03-10 03:35:07"}
+Incoming request body: {
+  "email": "test@example.com",
+  "password": "test123",
+  "deviceInfo": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "fingerprint": "eyJ1c2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvMTMzLjAuMC4wIFNhZmFyaS81MzcuMzYiLCJsYW5ndWFnZSI6ImVuLUdCIiwidGltZXpvbmUiOiJBc2lhL0NhbGN1dHRhIiwic2NyZWVuUmVzb2x1dGlvbiI6IjE0NDB4OTAwIn0=",
+    "location": {}
+  },
+  "rememberMe": false
+}
+Schema being used: {
+  type: 'object',
+  flags: { presence: 'required' },
+  keys: {
+    email: {
+      type: 'string',
+      flags: [Object],
+      rules: [Array],
+      preferences: [Object]
+    },
+    password: { type: 'string', flags: [Object], preferences: [Object] },
+    deviceInfo: { type: 'object', flags: [Object], keys: [Object] },
+    rememberMe: { type: 'boolean', flags: [Object] }
+  }
+}
+Login attempt: {
+  email: 'test@example.com',
+  deviceInfo: {
+    ip: undefined,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+  }
+}
+Login error: AuthError: Invalid email or password
+    at login (/Users/kumarsatyam/Desktop/CRM/Backend/src/modules/auth/controllers/auth.controller.js:75:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'INVALID_CREDENTIALS',
+  details: {},
+  statusCode: 401
+}
+[0mPOST /api/auth/login [33m401[0m 304.565 ms - 97[0m
+Incoming request body: {
+  "email": "test@example.com",
+  "password": "test123",
+  "deviceInfo": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "fingerprint": "eyJ1c2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvMTMzLjAuMC4wIFNhZmFyaS81MzcuMzYiLCJsYW5ndWFnZSI6ImVuLUdCIiwidGltZXpvbmUiOiJBc2lhL0NhbGN1dHRhIiwic2NyZWVuUmVzb2x1dGlvbiI6IjE0NDB4OTAwIn0=",
+    "location": {}
+  },
+  "rememberMe": false
+}
+Schema being used: {
+  type: 'object',
+  flags: { presence: 'required' },
+  keys: {
+    email: {
+      type: 'string',
+      flags: [Object],
+      rules: [Array],
+      preferences: [Object]
+    },
+    password: { type: 'string', flags: [Object], preferences: [Object] },
+    deviceInfo: { type: 'object', flags: [Object], keys: [Object] },
+    rememberMe: { type: 'boolean', flags: [Object] }
+  }
+}
+Login attempt: {
+  email: 'test@example.com',
+  deviceInfo: {
+    ip: undefined,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+  }
+}
+Login error: AuthError: Invalid email or password
+    at login (/Users/kumarsatyam/Desktop/CRM/Backend/src/modules/auth/controllers/auth.controller.js:75:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'INVALID_CREDENTIALS',
+  details: {},
+  statusCode: 401
+}
+[0mPOST /api/auth/login [33m401[0m 279.391 ms - 97[0m
+Incoming request body: {
+  "email": "test@example.com",
+  "password": "ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae",
+  "deviceInfo": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "fingerprint": "eyJ1c2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvMTMzLjAuMC4wIFNhZmFyaS81MzcuMzYiLCJsYW5ndWFnZSI6ImVuLUdCIiwidGltZXpvbmUiOiJBc2lhL0NhbGN1dHRhIiwic2NyZWVuUmVzb2x1dGlvbiI6IjE0NDB4OTAwIn0=",
+    "location": {
+      "country": "India",
+      "city": "New Delhi",
+      "ip": "117.250.76.240"
+    }
+  },
+  "rememberMe": false
+}
+Schema being used: {
+  type: 'object',
+  flags: { presence: 'required' },
+  keys: {
+    email: {
+      type: 'string',
+      flags: [Object],
+      rules: [Array],
+      preferences: [Object]
+    },
+    password: { type: 'string', flags: [Object], preferences: [Object] },
+    deviceInfo: { type: 'object', flags: [Object], keys: [Object] },
+    rememberMe: { type: 'boolean', flags: [Object] }
+  }
+}
+Login attempt: {
+  email: 'test@example.com',
+  deviceInfo: {
+    ip: undefined,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+  }
+}
+[0mPOST /api/auth/login [32m200[0m 322.328 ms - -[0m
+[31merror[39m: Not Found - /api/auth/login {"method":"GET","path":"/api/auth/login","service":"tech-support-crm","stack":"Error: Not Found - /api/auth/login\n    at notFoundHandler (/Users/kumarsatyam/Desktop/CRM/Backend/src/middleware/errorMiddleware.js:4:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at trim_prefix (/Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:328:13)\n    at /Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:286:9\n    at Function.process_params (/Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:280:10)\n    at /Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:646:15\n    at next (/Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:265:14)\n    at /Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:646:15\n    at next (/Users/kumarsatyam/Desktop/CRM/Backend/node_modules/express/lib/router/index.js:265:14)","timestamp":"2025-03-10 03:36:36"}
+[0mGET /api/auth/login [33m404[0m 2.797 ms - -[0m
+Incoming request body: {
+  "email": "test@example.com",
+  "password": "ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae",
+  "deviceInfo": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "fingerprint": "eyJ1c2VyQWdlbnQiOiJNb3ppbGxhLzUuMCAoTWFjaW50b3NoOyBJbnRlbCBNYWMgT1MgWCAxMF8xNV83KSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvMTMzLjAuMC4wIFNhZmFyaS81MzcuMzYiLCJsYW5ndWFnZSI6ImVuLUdCIiwidGltZXpvbmUiOiJBc2lhL0NhbGN1dHRhIiwic2NyZWVuUmVzb2x1dGlvbiI6IjE0NDB4OTAwIn0=",
+    "location": {
+      "country": "India",
+      "city": "New Delhi",
+      "ip": "117.250.76.240"
+    }
+  },
+  "rememberMe": false
+}
+Schema being used: {
+  type: 'object',
+  flags: { presence: 'required' },
+  keys: {
+    email: {
+      type: 'string',
+      flags: [Object],
+      rules: [Array],
+      preferences: [Object]
+    },
+    password: { type: 'string', flags: [Object], preferences: [Object] },
+    deviceInfo: { type: 'object', flags: [Object], keys: [Object] },
+    rememberMe: { type: 'boolean', flags: [Object] }
+  }
+}
+Login attempt: {
+  email: 'test@example.com',
+  deviceInfo: {
+    ip: undefined,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+  }
+}
+[0mPOST /api/auth/login [32m200[0m 309.341 ms - -[0m
+[32minfo[39m: Initiating graceful shutdown... {"service":"tech-support-crm","timestamp":"2025-03-10 03:41:59"}
+[31merror[39m: Error during shutdown: redisClient is not defined {"service":"tech-support-crm","stack":"ReferenceError: redisClient is not defined\n    at process.gracefulShutdown (/Users/kumarsatyam/Desktop/CRM/Backend/server.js:152:5)\n    at process.emit (node:events:518:28)","timestamp":"2025-03-10 03:41:59"}
