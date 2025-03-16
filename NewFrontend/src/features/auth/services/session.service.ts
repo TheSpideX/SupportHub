@@ -834,6 +834,12 @@ export class SessionService {
   // Initialize from existing tokens
   private async initializeFromExistingTokens(): Promise<boolean> {
     try {
+      // Check if we have tokens
+      if (!tokenService.hasStoredTokens()) {
+        this.logger.debug('No tokens found');
+        return false;
+      }
+      
       // Check if we have a persisted session
       const persistedSession = await this.loadPersistedSession();
       if (!persistedSession) {
@@ -845,7 +851,11 @@ export class SessionService {
       const accessToken = await tokenService.getAccessToken();
       if (!accessToken) {
         this.logger.debug('No access token found');
-        return false;
+        // Try to refresh tokens
+        const refreshed = await tokenService.refreshTokens();
+        if (!refreshed) {
+          return false;
+        }
       }
       
       // Verify session with server
@@ -856,16 +866,17 @@ export class SessionService {
         return false;
       }
       
-      // Set the current session
-      await this.setSession(persistedSession);
+      // Session is valid, update last activity
+      await this.updateSessionActivity();
       
-      // Start monitoring
-      this.startSessionMonitoring();
+      // Emit session initialized event
+      this.events.emit('sessionInitialized', { session: persistedSession });
       
-      this.logger.info('Session restored from persisted data', { sessionId: persistedSession.id });
       return true;
     } catch (error) {
-      this.logger.error('Failed to initialize from existing tokens', { error });
+      this.logger.error('Failed to initialize from existing tokens', { 
+        error: error instanceof Error ? error.message : String(error)
+      });
       return false;
     }
   }
@@ -1234,17 +1245,85 @@ export class SessionService {
     }
   }
 
-  async verifySessionWithServer(sessionId: string): Promise<boolean> {
+  /**
+   * Verify session with server
+   */
+  private async verifySessionWithServer(sessionId: string): Promise<boolean> {
     try {
-      const response = await axiosInstance.post(API_ROUTES.AUTH.VERIFY_SESSION, {
-        sessionId,
-        timestamp: Date.now()
+      // Get device info for validation
+      const deviceInfo = await deviceService.getDeviceInfo();
+      
+      console.log('Verifying session with server:', {
+        sessionId: sessionId.substring(0, 8) + '...',
+        deviceFingerprint: deviceInfo.fingerprint.substring(0, 8) + '...'
       });
       
-      return response.data && response.data.valid === true;
+      // Check if we have an access token in storage
+      const accessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken');
+      console.log('Access token present:', !!accessToken);
+      
+      // Check if we have cookies
+      console.log('Document cookies present:', !!document.cookie);
+      
+      const response = await axiosInstance.post(API_ROUTES.AUTH.VALIDATE_SESSION, {
+        sessionId,
+        deviceInfo,
+        timestamp: Date.now() // Prevent caching
+      }, {
+        withCredentials: true, // Ensure cookies are sent
+        headers: {
+          'X-Debug-Info': 'session-validation-request'
+        }
+      });
+      
+      console.log('Session verification response:', {
+        status: response.status,
+        sessionValid: response.data.sessionValid,
+        hasUserData: !!response.data.user
+      });
+      
+      return response.data.sessionValid === true;
     } catch (error) {
-      this.logger.error('Session verification failed', { error, sessionId });
+      console.error('Session verification failed:', error);
+      
+      this.logger.error('Session verification failed', { 
+        error: error instanceof Error ? error.message : String(error),
+        sessionId,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      
+      if (error.response && error.response.status === 401) {
+        // Invalid session, clear it
+        console.log('Clearing session data due to 401 response');
+        await this.clearSessionData();
+        this.events.emit('sessionInvalid', { sessionId });
+      }
       return false;
+    }
+  }
+
+  /**
+   * Clear all session data
+   */
+  async clearSessionData(): Promise<void> {
+    try {
+      // Clear session from storage
+      await this.secureStorage.removeItem('current_session');
+      
+      // Clear session state
+      sessionStorage.removeItem('session_state');
+      localStorage.removeItem(this.ACTIVITY_KEY);
+      
+      // Reset metrics
+      this.metrics = this.createDefaultMetrics();
+      
+      // Emit event
+      this.events.emit('sessionCleared', { timestamp: new Date() });
+    } catch (error) {
+      this.logger.error('Failed to clear session data', { 
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 

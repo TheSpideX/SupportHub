@@ -131,8 +131,8 @@ export const AuthGuard = ({
         refreshAttempted = true;
         
         if (isAuth) {
-          // Check if token is expiring soon
-          const isExpiring = await tokenService.isTokenExpiring(120); // 2 minutes threshold
+          // Check if token is expiring soon - use isTokenExpiringSoon instead of isTokenExpiring
+          const isExpiring = await tokenService.isTokenExpiringSoon(120); // 2 minutes threshold
           
           if (isExpiring) {
             // Use the auth hook's refreshToken method

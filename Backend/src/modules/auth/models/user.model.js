@@ -558,6 +558,49 @@ UserSchema.index({ "status.isActive": 1 });
 UserSchema.index({ "security.loginAttempts": 1 });
 UserSchema.index({ "security.trustedDevices.fingerprint": 1 });
 
+// Add a static method to help with debugging
+UserSchema.statics.findByIdWithLogging = async function(id) {
+  console.log('Looking up user by ID:', id);
+  console.log('ID type:', typeof id);
+  console.log('Is valid ObjectId:', mongoose.Types.ObjectId.isValid(id));
+  
+  try {
+    const user = await this.findById(id);
+    console.log('User found:', !!user);
+    return user;
+  } catch (error) {
+    console.error('Error finding user by ID:', error);
+    return null;
+  }
+};
+
+// Add a method to check if a user exists with a specific ID
+UserSchema.statics.checkUserExists = async function(id) {
+  try {
+    // Try different formats of the ID
+    const formats = [
+      id,
+      id.toString(),
+      new mongoose.Types.ObjectId(id)
+    ];
+    
+    for (const format of formats) {
+      console.log(`Checking user existence with ID format: ${format}`);
+      const exists = await this.exists({ _id: format });
+      console.log(`User exists with format ${format}:`, !!exists);
+      
+      if (exists) {
+        return { exists: true, format };
+      }
+    }
+    
+    return { exists: false };
+  } catch (error) {
+    console.error('Error checking user existence:', error);
+    return { exists: false, error: error.message };
+  }
+};
+
 const User = mongoose.model("User", UserSchema);
 
 module.exports = User;

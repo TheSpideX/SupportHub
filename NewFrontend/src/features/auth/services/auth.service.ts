@@ -39,6 +39,7 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
+  withCredentials: true, // Add this to ensure cookies are sent
   ...CORS_CONFIG
 });
 
@@ -133,7 +134,7 @@ class AuthService {
   /**
    * Login user with email and password
    */
-  async login(credentials: LoginCredentials): Promise<LoginResponse> {
+  async login(credentials: LoginCredentials): Promise<LoginResult> {
     try {
       // Get device info for security context
       const deviceInfo = await deviceService.getDeviceInfo();
@@ -173,6 +174,9 @@ class AuthService {
       }, {
         rememberMe: credentials.rememberMe || false
       });
+      
+      // After successful login, set the token flag
+      localStorage.setItem('has_tokens', 'true');
       
       return {
         success: true,
@@ -851,64 +855,94 @@ class AuthService {
    */
   async restoreSession(): Promise<boolean> {
     try {
-      const COMPONENT = 'AuthService';
-      
+      const COMPONENT = 'AuthService.restoreSession';
       this.logger.info('Attempting to restore session', { component: COMPONENT });
       
-      // Check if we have valid access token
-      const hasValidToken = await tokenService.hasValidAccessToken();
-      if (!hasValidToken) {
-        this.logger.info('No valid token found or token expired', { component: COMPONENT });
+      // First check if we have tokens stored before attempting to restore
+      if (!tokenService.hasStoredTokens()) {
+        this.logger.debug('No stored tokens found, skipping session restoration', { component: COMPONENT });
         return false;
       }
       
+      // Ensure we have a CSRF token before validating session
       try {
-        // Validate session with server
+        // First try to get CSRF token from cookie
+        let csrfToken = this.getCsrfTokenFromCookie();
+        
+        // If no token in cookie, fetch a new one
+        if (!csrfToken) {
+          this.logger.debug('No CSRF token found in cookie, fetching new token', { component: COMPONENT });
+          const csrfResponse = await axiosInstance.get(API_ROUTES.AUTH.CSRF_TOKEN, {
+            withCredentials: true
+          });
+          
+          if (csrfResponse.data && csrfResponse.data.csrfToken) {
+            csrfToken = csrfResponse.data.csrfToken;
+            this.logger.debug('New CSRF token fetched successfully', { component: COMPONENT });
+          }
+        }
+        
+        // Now validate the session with the CSRF token
+        const deviceInfo = await deviceService.getDeviceInfo();
+        
         const response = await axiosInstance.post(API_ROUTES.AUTH.VALIDATE_SESSION, {
-          timestamp: Date.now() // Add timestamp to prevent caching
+          timestamp: Date.now(),
+          deviceInfo
+        }, {
+          headers: {
+            'X-CSRF-Token': csrfToken
+          },
+          withCredentials: true
         });
         
-        if (response.data.sessionValid && response.data.user) {
+        this.logger.debug('Session validation response', response.data);
+        
+        // Check if we have a successful response with user data
+        if (response.data.success && response.data.user) {
+          // Transform user data if needed (handle _id vs id difference)
+          const userData = {
+            id: response.data.user._id || response.data.user.id,
+            email: response.data.user.email,
+            role: response.data.user.role,
+            // Add other fields as needed
+          };
+          
           this.logger.info('Session validated successfully', {
-            userId: response.data.user.id,
+            userId: userData.id,
             component: COMPONENT
           });
           
           // Store user data in Redux
           store.dispatch(
             setCredentials({
-              user: response.data.user,
+              user: userData,
               isAuthenticated: true,
               isOfflineMode: !navigator.onLine,
             })
           );
           
-          // Update stored auth state
-          await authPersistenceService.persistAuthState({
-            user: response.data.user,
-            isAuthenticated: true
-          });
+          // Set token flag
+          localStorage.setItem('has_tokens', 'true');
+          
+          // Update session activity
+          await sessionService.updateSessionActivity();
           
           return true;
         }
       } catch (error) {
-        this.logger.warn('Session validation failed', { 
+        this.logger.error('Session validation failed', {
+          component: COMPONENT,
           error: error.message,
-          component: COMPONENT
+          status: error.response?.status
         });
       }
       
-      // If server validation fails, clear token data
-      await tokenService.clearTokenData();
       return false;
     } catch (error) {
-      this.logger.error('Session restoration failed', { 
-        error: error.message,
-        component: 'AuthService'
+      this.logger.error('Session restoration failed', {
+        component: COMPONENT,
+        error: error.message
       });
-      
-      // Clear token data on error
-      await tokenService.clearTokenData();
       return false;
     }
   }
@@ -1037,6 +1071,18 @@ class AuthService {
     })();
     
     return AuthService.initializationPromise;
+  }
+
+  // Helper function to get CSRF token from cookie
+  private getCsrfTokenFromCookie(): string | null {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'XSRF-TOKEN') {
+        return decodeURIComponent(value);
+      }
+    }
+    return null;
   }
 }
 

@@ -197,7 +197,7 @@ export const useAuth = () => {
   let lastSessionCheckTime = 0;
   const SESSION_CHECK_THROTTLE = 5000; // 5 seconds minimum between checks
 
-  // Check session status
+  // Check session status - simplified to not handle token refresh
   const checkSessionStatus = async () => {
     try {
       const now = Date.now();
@@ -216,13 +216,9 @@ export const useAuth = () => {
         return;
       }
       
-      // Check if session is about to expire
+      // Only check if session is about to expire
       if (sessionService.isSessionExpiringSoon()) {
         await handleSessionExpiringSoon();
-      } 
-      // Check if token needs refresh
-      else if (tokenService.isTokenExpiringSoon()) {
-        await handleTokenRefresh();
       }
       
       sessionCheckInProgress = false;
@@ -231,7 +227,11 @@ export const useAuth = () => {
       logger.error('Session check failed', {
         component: COMPONENT,
         action: 'checkSessionStatus',
-        error
+        error: error instanceof Error ? { 
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        } : error
       });
     }
   };

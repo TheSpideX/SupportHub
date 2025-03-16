@@ -29,7 +29,24 @@ class TokenService {
   private readonly ACCESS_TOKEN_EXPIRY_KEY = 'access_token_expiry';
   private readonly REFRESH_TOKEN_EXPIRY_KEY = 'refresh_token_expiry';
   private readonly HAS_TOKENS_KEY = 'has_tokens';
-  private events = new EventEmitter();
+  private events = {
+    listeners: {
+      tokenRefresh: [] as Array<(success: boolean) => void>
+    },
+    
+    emit(event: 'tokenRefresh', data: boolean): void {
+      this.listeners[event].forEach(listener => listener(data));
+    },
+    
+    on(event: 'tokenRefresh', callback: (success: boolean) => void): () => void {
+      this.listeners[event].push(callback);
+      
+      // Return unsubscribe function
+      return () => {
+        this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+      };
+    }
+  };
   private refreshPromise: Promise<boolean> | null = null;
   private tokenRefreshTimer: NodeJS.Timeout | null = null;
 
@@ -46,60 +63,61 @@ class TokenService {
     return TokenService.instance;
   }
 
-  // Event subscription methods
+  // Event handling for token refresh
+  /**
+   * Subscribe to token refresh events
+   * @param callback Function to call when token is refreshed
+   * @returns Unsubscribe function
+   */
   onTokenRefresh(callback: (success: boolean) => void): () => void {
     return this.events.on('tokenRefresh', callback);
   }
 
-  onTokenExpiring(callback: () => void): () => void {
-    return this.events.on('tokenExpiring', callback);
-  }
-
   // Store token expiry times (tokens themselves are in HTTP-only cookies)
-  async storeTokenExpiry(tokenData: any): Promise<void> {
+  async storeTokenExpiry(tokens: { accessTokenExpiry?: number, refreshTokenExpiry?: number }): Promise<void> {
     try {
-      const COMPONENT = 'TokenService';
+      const COMPONENT = 'TokenService.storeTokenExpiry';
+      this.logger.debug('Storing token expiry data', { component: COMPONENT });
       
-      // Store expiration times
-      if (tokenData.accessTokenExpiry) {
-        await this.secureStorage.setItem(
-          this.ACCESS_TOKEN_EXPIRY_KEY, 
-          tokenData.accessTokenExpiry.toString()
-        );
+      if (tokens.accessTokenExpiry) {
+        await this.secureStorage.setItem(this.ACCESS_TOKEN_EXPIRY_KEY, tokens.accessTokenExpiry.toString());
       }
       
-      if (tokenData.refreshTokenExpiry) {
-        await this.secureStorage.setItem(
-          this.REFRESH_TOKEN_EXPIRY_KEY, 
-          tokenData.refreshTokenExpiry.toString()
-        );
+      if (tokens.refreshTokenExpiry) {
+        await this.secureStorage.setItem(this.REFRESH_TOKEN_EXPIRY_KEY, tokens.refreshTokenExpiry.toString());
       }
       
-      // Store token status
-      await this.secureStorage.setItem(this.HAS_TOKENS_KEY, 'true');
+      // Store token status in localStorage for quick checks
+      localStorage.setItem(this.HAS_TOKENS_KEY, 'true');
       
       this.logger.debug('Token expiry times stored successfully', { component: COMPONENT });
-      
-      // Schedule token refresh based on new expiry
-      this.scheduleTokenRefresh();
     } catch (error) {
       this.logger.error('Failed to store token expiry data', { 
-        error: error.message 
+        error: error instanceof Error ? error.message : String(error)
       });
       throw new Error('TOKEN_STORAGE_FAILED');
     }
   }
 
-  // Check if we have valid access token (based on expiry time)
+  /**
+   * Check if access token is valid and not expired
+   */
   async hasValidAccessToken(): Promise<boolean> {
     try {
+      // For HTTP-only cookies, we can't directly check the token
+      // Instead, we check if we have a stored expiry time
       const expiryStr = await this.secureStorage.getItem(this.ACCESS_TOKEN_EXPIRY_KEY);
       if (!expiryStr) return false;
       
-      const expiryTime = parseInt(expiryStr, 10);
-      return expiryTime > Date.now();
+      const expiry = parseInt(expiryStr, 10);
+      const now = Date.now();
+      
+      // Check if token is expired with a small buffer (10 seconds)
+      return expiry > now + 10000;
     } catch (error) {
-      this.logger.error('Error checking access token expiry', { error: error.message });
+      this.logger.error('Error checking access token validity', { 
+        error: error instanceof Error ? error.message : String(error)
+      });
       return false;
     }
   }
@@ -134,60 +152,64 @@ class TokenService {
     }
   }
 
-  // Clear token expiry data
+  /**
+   * Clear all token data
+   */
   async clearTokenData(): Promise<void> {
     try {
+      // Remove token expiry data
       await this.secureStorage.removeItem(this.ACCESS_TOKEN_EXPIRY_KEY);
       await this.secureStorage.removeItem(this.REFRESH_TOKEN_EXPIRY_KEY);
-      await this.secureStorage.removeItem(this.HAS_TOKENS_KEY);
       
-      this.logger.debug('Token data cleared successfully');
+      // Remove token status flag
+      localStorage.removeItem(this.HAS_TOKENS_KEY);
       
-      // Clear any scheduled refresh
-      if (this.tokenRefreshTimer) {
-        clearTimeout(this.tokenRefreshTimer);
-        this.tokenRefreshTimer = null;
+      // For HTTP-only cookies, we need to call the logout endpoint
+      // to clear the cookies on the server side
+      try {
+        await axiosInstance.post(API_ROUTES.AUTH.LOGOUT, {
+          timestamp: Date.now() // Prevent caching
+        });
+      } catch (error) {
+        // If the logout endpoint fails, we still want to clear local data
+        this.logger.warn('Failed to clear server-side tokens', {
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
     } catch (error) {
       this.logger.error('Failed to clear token data', { 
-        error: error.message 
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
 
   /**
-   * Check if the token is expiring soon
-   * @param bufferTime Time in seconds before expiry to consider token as expiring
-   * @returns Boolean indicating if token is expiring soon
+   * Check if the access token is expiring soon
+   * @param {number} thresholdMs - Threshold in milliseconds (default: 5 minutes)
+   * @returns {boolean} - True if token is expiring soon
    */
-  async isTokenExpiring(bufferTime = 300): Promise<boolean> {
+  async isTokenExpiringSoon(thresholdMs = 5 * 60 * 1000): Promise<boolean> {
     try {
-      const tokenExpiry = await this.getTokenExpiry();
-      if (!tokenExpiry) return true;
+      const expiryTimeStr = await this.secureStorage.getItem(this.ACCESS_TOKEN_EXPIRY_KEY);
       
-      // Convert to seconds for comparison with bufferTime
-      const now = Math.floor(Date.now() / 1000);
+      if (!expiryTimeStr) {
+        return false;
+      }
       
-      // Convert tokenExpiry from milliseconds to seconds if needed
-      const expiryInSeconds = tokenExpiry > 1000000000000 
-        ? Math.floor(tokenExpiry / 1000) // If in milliseconds (13 digits), convert to seconds
-        : tokenExpiry; // Already in seconds
+      const expiryTime = parseInt(expiryTimeStr, 10);
+      const now = Date.now();
       
-      const expiresIn = expiryInSeconds - now;
-      
-      this.logger.debug('Token expiry check', { 
-        expiresIn, 
-        bufferTime,
-        now,
-        tokenExpiry: expiryInSeconds,
-        isExpiring: expiresIn <= bufferTime
-      });
-      
-      return expiresIn <= bufferTime;
+      // Check if token expires within the threshold
+      return expiryTime - now < thresholdMs && expiryTime > now;
     } catch (error) {
-      this.logger.error('Error checking token expiration', { error });
-      return true; // Assume token is expiring if we can't check
+      this.logger.error('Error checking token expiry', { error });
+      return false;
     }
+  }
+
+  // Add an alias for backward compatibility
+  async isTokenExpiring(thresholdMs = 5 * 60 * 1000): Promise<boolean> {
+    return this.isTokenExpiringSoon(thresholdMs);
   }
 
   /**
@@ -215,56 +237,40 @@ class TokenService {
     }
   }
 
-  // Refresh tokens
+  /**
+   * Refresh tokens using the refresh token
+   */
   async refreshTokens(): Promise<boolean> {
-    // If a refresh is already in progress, return that promise
-    if (this.refreshPromise) {
-      return this.refreshPromise;
-    }
-
-    // Create a new refresh promise
-    this.refreshPromise = this.performTokenRefresh();
-    
     try {
-      const result = await this.refreshPromise;
-      // Notify listeners about token refresh
-      this.events.emit('tokenRefresh', result);
-      return result;
-    } finally {
-      this.refreshPromise = null;
-    }
-  }
-
-  private async performTokenRefresh(): Promise<boolean> {
-    try {
-      // Get device info for security context
-      const deviceInfo = await deviceService.getDeviceInfo();
+      const COMPONENT = 'TokenService.refreshTokens';
+      this.logger.debug('Attempting to refresh tokens', { component: COMPONENT });
       
-      // Call refresh endpoint (refresh token is in HTTP-only cookie)
-      const response = await axiosInstance.post(API_ROUTES.AUTH.REFRESH_TOKEN, { 
-        deviceInfo
+      // For HTTP-only cookies, we don't need to extract the refresh token
+      // The browser will automatically send it with the request
+      
+      const response = await axiosInstance.post(API_ROUTES.AUTH.REFRESH_TOKEN, {
+        timestamp: Date.now() // Prevent caching
       });
       
-      if (!response.data.success) {
-        this.logger.warn('Token refresh failed', { 
-          reason: response.data.message || 'Unknown reason'
+      if (response.data.success) {
+        // Store token expiry times
+        await this.storeTokenExpiry({
+          accessTokenExpiry: response.data.accessTokenExpiry,
+          refreshTokenExpiry: response.data.refreshTokenExpiry
         });
-        return false;
+        
+        this.logger.debug('Tokens refreshed successfully', { component: COMPONENT });
+        return true;
       }
       
-      // Store new token expiry times
-      await this.storeTokenExpiry(response.data.tokens);
-      
-      this.logger.info('Tokens refreshed successfully');
-      return true;
+      return false;
     } catch (error) {
       this.logger.error('Token refresh failed', { 
-        error: error.response?.data?.message || error.message,
-        status: error.response?.status
+        error: error instanceof Error ? error.message : String(error)
       });
       
-      // If refresh fails with 401/403, clear token data
-      if (error.response?.status === 401 || error.response?.status === 403) {
+      // If refresh fails due to invalid token, clear token data
+      if (error.response?.status === 401) {
         await this.clearTokenData();
       }
       
@@ -280,14 +286,22 @@ class TokenService {
         const hasValidToken = await this.hasValidAccessToken();
         if (!hasValidToken) return;
         
-        if (await this.isTokenExpiringSoon(120)) {
+        // Get access token expiry time
+        const expiryTime = await this.getAccessTokenExpiry();
+        if (!expiryTime) return;
+        
+        const currentTime = Date.now();
+        const timeUntilExpiry = expiryTime - currentTime;
+        
+        // Only refresh if token expires within 5 minutes (300000ms)
+        if (timeUntilExpiry < 300000 && timeUntilExpiry > 0) {
           this.logger.debug('Token is expiring soon, triggering refresh');
           this.events.emit('tokenExpiring');
           await this.refreshTokens();
         }
       } catch (error) {
         this.logger.error('Token refresh scheduler error', { 
-          error: error.message 
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }, 60000); // Check every minute
@@ -346,6 +360,13 @@ class TokenService {
       });
       return false;
     }
+  }
+
+  /**
+   * Check if we have tokens stored
+   */
+  hasStoredTokens(): boolean {
+    return localStorage.getItem(this.HAS_TOKENS_KEY) === 'true';
   }
 }
 

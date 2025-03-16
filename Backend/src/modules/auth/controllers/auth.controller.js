@@ -445,17 +445,40 @@ exports.validateSession = asyncHandler(async (req, res) => {
       hasAccessTokenCookie: !!req.cookies?.accessToken,
       hasAuthHeader: !!req.headers.authorization,
       tokenPresent: !!token,
-      tokenFirstChars: token ? token.substring(0, 10) + '...' : 'none'
+      tokenLength: token ? token.length : 0,
+      tokenFirstChars: token ? token.substring(0, 10) + '...' : 'none',
+      requestPath: req.path,
+      requestMethod: req.method,
+      requestIP: req.ip
     });
     
     if (!token) {
-      logger.warn('No token provided for session validation', { component: 'ValidateSession' });
+      logger.warn('No token provided for session validation', { 
+        component: 'ValidateSession',
+        headers: Object.keys(req.headers),
+        cookies: Object.keys(req.cookies || {})
+      });
       return res.status(401).json({ message: 'Authentication required' });
     }
 
     // Debug token before validation
-    console.log('Token before validation:', token.substring(0, 15) + '...');
-    
+    logger.debug('Token before validation', {
+      component: 'ValidateSession',
+      tokenFirstChars: token.substring(0, 15) + '...',
+      tokenLength: token.length
+    });
+
+    // Check if tokenService is properly initialized
+    if (!tokenService || typeof tokenService.validateToken !== 'function') {
+      logger.error('Token service not properly initialized', {
+        component: 'ValidateSession',
+        tokenServiceExists: !!tokenService,
+        availableMethods: tokenService ? Object.keys(tokenService) : 'none'
+      });
+      
+      return res.status(500).json({ message: 'Internal server error - token service unavailable' });
+    }
+
     // Verify the token
     const result = await tokenService.validateToken(token, {
       expectedType: 'access'

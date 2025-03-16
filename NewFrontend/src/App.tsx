@@ -27,6 +27,7 @@ import { authService } from './features/auth/services/auth.service';
 import { tokenService } from './features/auth/services/token.service';
 import { sessionService } from './features/auth/services/session.service';
 import { logger } from './utils/logger';
+import { getSecurityService } from './features/auth/services';
 
 // Define the component name for logging
 const COMPONENT = 'App';

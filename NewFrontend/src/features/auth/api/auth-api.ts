@@ -12,6 +12,7 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
+  withCredentials: true, // Add this to ensure cookies are sent
   ...CORS_CONFIG
 });
 

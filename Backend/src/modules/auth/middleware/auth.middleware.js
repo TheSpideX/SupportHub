@@ -66,17 +66,38 @@ const verifyToken = async (token) => {
 };
 
 /**
- * Authentication middleware
+ * Middleware to authenticate user based on JWT token
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Extract token from request
-    const token = extractToken(req);
+    // Get token from Authorization header or cookies
+    let token = null;
+    
+    // Check Authorization header
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+      console.log('Token extracted from Authorization header');
+    }
+    
+    // Check cookies if no token in header
+    if (!token && req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
+      console.log('Token extracted from cookies');
+    }
+    
+    // Log token presence
+    console.log('Token present:', !!token);
+    if (token) {
+      console.log('Token first 15 chars:', token.substring(0, 15) + '...');
+    }
     
     if (!token) {
       logger.warn('No authentication token provided', {
         path: req.path,
-        method: req.method
+        method: req.method,
+        headers: JSON.stringify(req.headers),
+        cookies: JSON.stringify(req.cookies || {})
       });
       return res.status(401).json({
         success: false,
@@ -85,26 +106,30 @@ const authenticate = async (req, res, next) => {
     }
     
     // Verify token
-    const decoded = await tokenService.verifyAccessToken(token);
-    
-    if (!decoded) {
-      logger.warn('Invalid token provided', {
-        path: req.path,
-        method: req.method
-      });
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid or expired token'
-      });
-    }
+    console.log('Verifying token...');
+    const decoded = await tokenService.verifyToken(token, 'access');
+    console.log('Token verified, decoded payload:', JSON.stringify(decoded, null, 2));
     
     // Get user from database using Mongoose model directly
-    const user = await User.findById(decoded.userId);
+    console.log('Looking up user with ID:', decoded.userId || decoded.sub);
+    const user = await User.findById(decoded.userId || decoded.sub);
+    console.log('User found:', !!user);
     
     if (!user) {
+      // Try to find if user exists with different ID format
+      console.log('User not found, checking database...');
+      const userCount = await User.countDocuments({});
+      console.log('Total users in database:', userCount);
+      
+      if (userCount > 0) {
+        const sampleUsers = await User.find({}).limit(3);
+        console.log('Sample user IDs:', sampleUsers.map(u => u._id.toString()));
+      }
+      
       logger.warn('User not found for token', {
-        userId: decoded.userId,
-        path: req.path
+        userId: decoded.userId || decoded.sub,
+        path: req.path,
+        tokenIssueTime: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : 'unknown'
       });
       return res.status(401).json({
         success: false,
@@ -123,10 +148,17 @@ const authenticate = async (req, res, next) => {
     req.userId = user._id;
     req.sessionId = decoded.sessionId;
     
+    console.log('Authentication successful for user:', user.email);
+    
     // Continue to next middleware
     next();
   } catch (error) {
-    logger.error('Authentication error', error);
+    console.error('Authentication error:', error);
+    logger.error('Authentication error', {
+      error: error.message,
+      stack: error.stack,
+      path: req.path
+    });
     return res.status(401).json({
       success: false,
       message: 'Authentication failed'

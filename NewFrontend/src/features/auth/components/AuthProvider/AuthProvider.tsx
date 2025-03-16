@@ -428,35 +428,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [isAuthenticated, user]);
 
-  // Add this effect to restore session on mount
+  // Attempt to restore session on mount
   useEffect(() => {
     const restoreUserSession = async () => {
-      setIsLoading(true);
       try {
-        // Check if we have token expiry info in storage
-        const hasTokens = await tokenService.secureStorage.getItem('has_tokens');
+        setIsLoading(true);
         
-        if (hasTokens === 'true') {
+        // Check if we have tokens
+        if (tokenService.hasStoredTokens()) {
           const restored = await authService.restoreSession();
           if (restored) {
-            // Session restored successfully
             console.log('Session restored successfully');
             
-            // Schedule token refresh
-            const accessTokenExpiry = await tokenService.getAccessTokenExpiry();
-            if (accessTokenExpiry) {
-              const timeUntilRefresh = Math.max(0, accessTokenExpiry - Date.now() - 60000); // 1 minute before expiry
-              
-              if (tokenRefreshTimeoutRef.current) {
-                clearTimeout(tokenRefreshTimeoutRef.current);
-              }
-              
-              tokenRefreshTimeoutRef.current = setTimeout(() => {
-                handleTokenRefresh();
-              }, timeUntilRefresh);
-            }
+            // Initialize session service
+            await sessionService.initializeFromExistingTokens();
+            
+            // Set up session monitoring
+            setupSessionMonitoring();
           } else {
             console.log('Failed to restore session');
+            // Clear any invalid session data
+            await sessionService.clearSessionData();
+            await tokenService.clearTokenData(); // Use clearTokenData instead of clearTokens
           }
         }
       } catch (error) {
@@ -465,16 +458,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setIsLoading(false);
       }
     };
-
+    
     restoreUserSession();
     
-    // Cleanup function
     return () => {
-      if (tokenRefreshTimeoutRef.current) {
-        clearTimeout(tokenRefreshTimeoutRef.current);
+      // Clean up any listeners or timers
+      if (sessionMonitoringInterval) {
+        clearInterval(sessionMonitoringInterval);
       }
     };
   }, []);
+  
+  // Set up session monitoring
+  const setupSessionMonitoring = () => {
+    // Check session every minute
+    sessionMonitoringInterval = setInterval(async () => {
+      try {
+        // Only check if authenticated
+        if (isAuth) {
+          const isValid = await sessionService.isSessionValid();
+          if (!isValid) {
+            // Try to recover session
+            const recovered = await sessionService.attemptSessionRecovery();
+            if (!recovered) {
+              // Force logout if recovery fails
+              await authService.logout(true);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Session monitoring error:', error);
+      }
+    }, 60000); // Check every minute
+  };
 
   // Context value
   const contextValue: AuthContextType = {

@@ -114,6 +114,18 @@ router.get(
     rateLimitMiddleware.apiRateLimit(),
     asyncHandler(async (req, res) => {
         try {
+            // Log request details
+            logger.debug('Validate session request received', {
+                component: 'ValidateSession',
+                headers: {
+                    authorization: req.headers.authorization ? 'Present' : 'Missing',
+                    cookie: req.headers.cookie ? 'Present' : 'Missing'
+                },
+                cookies: Object.keys(req.cookies || {}),
+                query: req.query,
+                method: req.method
+            });
+            
             // Extract token from cookies
             const token = req.cookies.accessToken;
             
@@ -133,11 +145,38 @@ router.get(
             // Log token info before verification
             logger.debug('Verifying token', {
                 component: 'ValidateSession',
-                tokenFirstChars: token.substring(0, 10) + '...'
+                tokenLength: token.length,
+                tokenFirstChars: token.substring(0, 10) + '...',
+                tokenLastChars: '...' + token.substring(token.length - 10)
             });
             
+            // Check if tokenService is properly initialized
+            if (!tokenService || typeof tokenService.verifyToken !== 'function') {
+                logger.error('Token service not properly initialized', {
+                    component: 'ValidateSession',
+                    tokenServiceExists: !!tokenService,
+                    availableMethods: tokenService ? Object.keys(tokenService) : 'none'
+                });
+                
+                return res.status(500).json({
+                    success: false,
+                    message: "Internal server error - token service unavailable"
+                });
+            }
+            
             // Verify token using the correct method from tokenService
+            logger.debug('Attempting to verify token', {
+                component: 'ValidateSession',
+                method: 'verifyToken'
+            });
+            
             const decoded = await tokenService.verifyToken(token, 'access');
+            
+            logger.debug('Token verification result', {
+                component: 'ValidateSession',
+                success: !!decoded,
+                decodedExists: !!decoded
+            });
             
             if (!decoded) {
                 logger.debug('Invalid or expired token', {
@@ -153,9 +192,17 @@ router.get(
             // Log decoded token payload
             logger.debug('Token decoded successfully', {
                 component: 'ValidateSession',
-                decodedPayload: decoded,
+                decodedPayload: {
+                    ...decoded,
+                    // Don't log the full token payload for security
+                    iat: decoded.iat,
+                    exp: decoded.exp,
+                    sub: decoded.sub || decoded.userId,
+                    type: decoded.type
+                },
                 userId: decoded.userId || decoded.sub,
-                tokenType: decoded.type
+                tokenType: decoded.type,
+                expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'unknown'
             });
             
             // Check if we're using the right field for user ID
@@ -164,7 +211,12 @@ router.get(
             if (!userId) {
                 logger.warn('No user ID in token payload', {
                     component: 'ValidateSession',
-                    decodedPayload: decoded
+                    decodedPayload: {
+                        ...decoded,
+                        // Redact sensitive information
+                        iat: decoded.iat,
+                        exp: decoded.exp
+                    }
                 });
                 
                 return res.status(401).json({
@@ -173,8 +225,22 @@ router.get(
                 });
             }
             
+            // Log before database query
+            logger.debug('Attempting to find user in database', {
+                component: 'ValidateSession',
+                userId: userId,
+                isValidObjectId: mongoose.Types.ObjectId.isValid(userId)
+            });
+            
             // Get user from database
             const user = await User.findById(userId);
+            
+            // Log after database query
+            logger.debug('User lookup result', {
+                component: 'ValidateSession',
+                userId: userId,
+                userFound: !!user
+            });
             
             if (!user) {
                 // Try to count users to verify DB connection
@@ -183,7 +249,8 @@ router.get(
                 logger.warn('User not found for token', {
                     userId: userId,
                     component: 'ValidateSession',
-                    totalUsers: userCount
+                    totalUsers: userCount,
+                    databaseConnected: !!mongoose.connection.readyState
                 });
                 
                 return res.status(401).json({
@@ -200,6 +267,12 @@ router.get(
                 role: user.role
             };
             
+            logger.debug('Session validation successful', {
+                component: 'ValidateSession',
+                userId: user._id,
+                email: user.email
+            });
+            
             return res.status(200).json({
                 success: true,
                 user: sanitizedUser
@@ -208,7 +281,9 @@ router.get(
             logger.error('Session validation error', {
                 component: 'ValidateSession',
                 error: error.message,
-                stack: error.stack
+                stack: error.stack,
+                name: error.name,
+                code: error.code
             });
             
             return res.status(401).json({

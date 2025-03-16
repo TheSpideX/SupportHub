@@ -135,37 +135,100 @@ class SessionService {
    */
   async validateSession(sessionId, deviceInfo) {
     try {
+      logger.debug('Session validation started', { 
+        component: 'SessionService',
+        sessionId,
+        deviceFingerprint: deviceInfo?.fingerprint ? 'Present' : 'Missing'
+      });
+      
       const session = await this.getSessionById(sessionId);
       
+      logger.debug('Session lookup result', {
+        component: 'SessionService',
+        sessionId,
+        sessionFound: !!session,
+        isActive: session?.isActive,
+        expiresAt: session?.expiresAt
+      });
+      
       if (!session) {
-        logger.warn('Session validation failed: Session not found', { sessionId });
+        logger.warn('Session validation failed: Session not found', { 
+          component: 'SessionService',
+          sessionId 
+        });
         return { isValid: false, reason: 'SESSION_NOT_FOUND' };
       }
 
       // Check if session is active
       if (!session.isActive) {
-        logger.warn('Session validation failed: Session inactive', { sessionId });
+        logger.warn('Session validation failed: Session inactive', { 
+          component: 'SessionService',
+          sessionId,
+          endReason: session.endReason,
+          endedAt: session.endedAt
+        });
         return { isValid: false, reason: 'SESSION_INACTIVE' };
       }
 
       // Check if session has expired
-      if (new Date() > session.expiresAt) {
-        logger.warn('Session validation failed: Session expired', { sessionId });
+      const now = new Date();
+      const isExpired = now > session.expiresAt;
+      
+      logger.debug('Session expiration check', {
+        component: 'SessionService',
+        sessionId,
+        currentTime: now.toISOString(),
+        expiresAt: session.expiresAt.toISOString(),
+        isExpired,
+        timeRemaining: isExpired ? 'Expired' : `${Math.floor((session.expiresAt - now) / 1000)} seconds`
+      });
+      
+      if (isExpired) {
+        logger.warn('Session validation failed: Session expired', { 
+          component: 'SessionService',
+          sessionId,
+          expiresAt: session.expiresAt,
+          currentTime: now
+        });
         await this.terminateSession(sessionId, 'expired');
         return { isValid: false, reason: 'SESSION_EXPIRED' };
       }
 
+      // Check if securityConfig is defined
+      const enforceDeviceBinding = typeof securityConfig !== 'undefined' && 
+                                  securityConfig?.session?.enforceDeviceBinding;
+      
+      logger.debug('Device binding check configuration', {
+        component: 'SessionService',
+        securityConfigExists: typeof securityConfig !== 'undefined',
+        enforceDeviceBinding,
+        deviceFingerprintProvided: !!deviceInfo?.fingerprint,
+        sessionDeviceFingerprint: session.deviceInfo.fingerprint
+      });
+
       // Check device fingerprint if available and enforced
-      if (securityConfig.session.enforceDeviceBinding && 
+      if (enforceDeviceBinding && 
           deviceInfo?.fingerprint && 
           session.deviceInfo.fingerprint !== deviceInfo.fingerprint) {
-        logger.warn('Session validation failed: Device fingerprint mismatch', { sessionId });
+        logger.warn('Session validation failed: Device fingerprint mismatch', { 
+          component: 'SessionService',
+          sessionId,
+          expectedFingerprint: session.deviceInfo.fingerprint,
+          providedFingerprint: deviceInfo.fingerprint
+        });
         return { isValid: false, reason: 'DEVICE_MISMATCH' };
       }
 
       // Update last activity
       session.lastActivity = new Date();
       await session.save();
+      
+      logger.debug('Session validated successfully', {
+        component: 'SessionService',
+        sessionId,
+        userId: session.user,
+        lastActivity: session.lastActivity
+      });
 
       return { 
         isValid: true, 
@@ -178,8 +241,13 @@ class SessionService {
         }
       };
     } catch (error) {
-      logger.error('Error validating session:', error);
-      return { isValid: false, reason: 'VALIDATION_ERROR' };
+      logger.error('Error validating session', {
+        component: 'SessionService',
+        sessionId,
+        error: error.message,
+        stack: error.stack
+      });
+      return { isValid: false, reason: 'VALIDATION_ERROR', error: error.message };
     }
   }
 

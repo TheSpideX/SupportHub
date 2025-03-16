@@ -33,13 +33,26 @@ axiosInstance.interceptors.request.use(config => {
 
 // Add request interceptor to include CSRF token
 axiosInstance.interceptors.request.use(
-  (config) => {
-    // Get CSRF token from storage or state
-    const csrfToken = localStorage.getItem('csrfToken') || '';
+  async (config) => {
+    // Get CSRF token from cookie first
+    const csrfToken = getCsrfTokenFromCookie();
     
     // Add CSRF token to headers if available
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
+    } else {
+      // If no CSRF token in cookie, try to fetch a new one
+      try {
+        const response = await axios.get(`${API_CONFIG.BASE_URL}/api/auth/csrf-token`, {
+          withCredentials: true
+        });
+        
+        if (response.data && response.data.csrfToken) {
+          config.headers['X-CSRF-Token'] = response.data.csrfToken;
+        }
+      } catch (error) {
+        console.error('Failed to fetch CSRF token', error);
+      }
     }
     
     return config;
@@ -108,3 +121,15 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
+
+// Helper function to get CSRF token from cookie
+function getCsrfTokenFromCookie(): string | null {
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'XSRF-TOKEN') {
+      return decodeURIComponent(value);
+    }
+  }
+  return null;
+}
