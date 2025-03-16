@@ -232,44 +232,58 @@ export function useSession(): UseSessionReturn {
       }
 
       // Get remaining time with proper error handling
-      const timeRemaining = await sessionService.getSessionTimeRemaining().catch(error => {
-        logger.error('Failed to get session time remaining', {
+      let timeRemaining = 0;
+      try {
+        timeRemaining = await sessionService.getSessionTimeRemaining();
+      } catch (error) {
+        logger.warn('Failed to get session time remaining', {
           component: COMPONENT,
           action: 'getSessionTimeRemaining',
           error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error)
         });
-        return 0;
-      });
+        // Continue with session check even if this fails
+      }
       
       // Check if session is valid with better error handling
+      let isValid = false;
       try {
-        const isValid = await sessionService.isSessionValid();
-        if (!isValid) {
-          // Try to recover session
-          try {
-            const recovered = await sessionService.attemptSessionRecovery();
-            if (!recovered) {
-              await endSession('EXPIRED');
-              checkInProgress.current = false;
-              return;
-            }
-          } catch (recoveryError) {
-            logger.error('Session recovery failed', {
-              component: COMPONENT,
-              action: 'attemptSessionRecovery',
-              error: recoveryError instanceof Error ? { message: recoveryError.message, stack: recoveryError.stack } : String(recoveryError)
-            });
+        isValid = await sessionService.isSessionValid();
+      } catch (validationError) {
+        logger.warn('Session validation threw an error', {
+          component: COMPONENT,
+          action: 'isSessionValid',
+          error: validationError instanceof Error ? { 
+            message: validationError.message, 
+            stack: validationError.stack 
+          } : String(validationError)
+        });
+        
+        // Try to recover session if validation fails
+        try {
+          const recovered = await sessionService.attemptSessionRecovery();
+          if (!recovered) {
             await endSession('EXPIRED');
             checkInProgress.current = false;
             return;
           }
+          isValid = true; // Recovery succeeded
+        } catch (recoveryError) {
+          logger.error('Session recovery failed', {
+            component: COMPONENT,
+            action: 'attemptSessionRecovery',
+            error: recoveryError instanceof Error ? { 
+              message: recoveryError.message, 
+              stack: recoveryError.stack 
+            } : String(recoveryError)
+          });
+          await endSession('EXPIRED');
+          checkInProgress.current = false;
+          return;
         }
-      } catch (validityError) {
-        logger.error('Session validity check failed', {
-          component: COMPONENT,
-          action: 'isSessionValid',
-          error: validityError instanceof Error ? { message: validityError.message, stack: validityError.stack } : String(validityError)
-        });
+      }
+      
+      if (!isValid) {
+        await endSession('EXPIRED');
         checkInProgress.current = false;
         return;
       }
@@ -315,8 +329,8 @@ export function useSession(): UseSessionReturn {
         action: 'checkSessionStatus',
         error: error instanceof Error ? { 
           message: error.message, 
-          stack: error.stack,
-          name: error.name
+          name: error.name,
+          stack: error.stack
         } : String(error)
       });
     }
