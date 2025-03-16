@@ -42,6 +42,7 @@ interface AuthState {
   isOffline: boolean;
   tokens: AuthTokens | null;
   isOfflineMode: boolean;
+  isInitialized: boolean;
 }
 
 const initialState: AuthState = {
@@ -62,7 +63,8 @@ const initialState: AuthState = {
   pendingSync: false,
   isOffline: false,
   tokens: null,
-  isOfflineMode: false
+  isOfflineMode: false,
+  isInitialized: false
 };
 
 // Async thunks
@@ -167,7 +169,10 @@ const authSlice = createSlice({
         state.sessionExpiry = Date.now() + 30 * 60 * 1000;
         state.sessionAlert = null;
       }
-    }
+    },
+    setAuthInitialized: (state, action: PayloadAction<boolean>) => {
+      state.isInitialized = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -244,6 +249,7 @@ export const {
   setOfflineStatus,
   updateTokens,
   extendSession,
+  setAuthInitialized,
 } = authSlice.actions;
 
 // Create backward compatible aliases
