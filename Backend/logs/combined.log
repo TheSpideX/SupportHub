@@ -5467,3 +5467,10 @@
 {"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-16 09:33:04"}
 {"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-16 09:33:04"}
 {"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-16 09:33:04"}
+{"component":"AuthController","deviceInfo":{"fingerprint":"568fe3e5","userAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"},"email":"test@example.com","level":"info","message":"Login attempt","service":"tech-support-crm","timestamp":"2025-03-16 09:43:17"}
+{"component":"AuthService","email":"test@example.com","level":"info","message":"Authentication attempt","service":"tech-support-crm","timestamp":"2025-03-16 09:43:17"}
+{"deviceFingerprint":"568fe3e5","level":"info","message":"Creating/updating session","service":"tech-support-crm","timestamp":"2025-03-16 09:43:18","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"New session created","service":"tech-support-crm","sessionId":"67d64fdeea03e7075958c361","timestamp":"2025-03-16 09:43:18","userId":"67d4a0b43019eebd5829ef34"}
+{"component":"AuthService","level":"info","message":"Authentication successful","service":"tech-support-crm","sessionId":"67d64fdeea03e7075958c361","timestamp":"2025-03-16 09:43:18","userId":"67d4a0b43019eebd5829ef34"}
+{"component":"AuthController","level":"info","message":"Login successful","responseTime":523,"service":"tech-support-crm","timestamp":"2025-03-16 09:43:18","userId":"67d4a0b43019eebd5829ef34"}
+{"accessTokenSet":true,"component":"AuthController","cookiesSet":true,"level":"info","message":"Login successful - cookies set","refreshTokenSet":true,"service":"tech-support-crm","timestamp":"2025-03-16 09:43:18","userId":"67d4a0b43019eebd5829ef34"}
