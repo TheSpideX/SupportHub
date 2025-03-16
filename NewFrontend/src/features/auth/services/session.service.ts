@@ -832,52 +832,72 @@ export class SessionService {
   }
 
   // Initialize from existing tokens
-  private async initializeFromExistingTokens(): Promise<boolean> {
+  private async initializeFromExistingTokens(): Promise<void> {
     try {
-      // Check if we have tokens
-      if (!tokenService.hasStoredTokens()) {
-        this.logger.debug('No tokens found');
-        return false;
+      // Check if we have valid tokens
+      const hasValidTokens = await tokenService.hasTokens();
+
+      if (!hasValidTokens) {
+        this.logger.debug('No valid tokens found during initialization');
+        return;
       }
       
-      // Check if we have a persisted session
-      const persistedSession = await this.loadPersistedSession();
-      if (!persistedSession) {
-        this.logger.debug('No persisted session found');
-        return false;
-      }
-      
-      // Verify tokens are valid
-      const accessToken = await tokenService.getAccessToken();
-      if (!accessToken) {
-        this.logger.debug('No access token found');
-        // Try to refresh tokens
-        const refreshed = await tokenService.refreshTokens();
-        if (!refreshed) {
-          return false;
+      // Try to load persisted session first
+      try {
+        const persistedSession = await this.loadPersistedSession();
+        if (persistedSession) {
+          await this.setSession(persistedSession);
+          this.logger.info('Session initialized from persisted data');
+          return;
         }
+      } catch (persistError) {
+        this.logger.warn('Failed to load persisted session', { 
+          error: persistError instanceof Error ? persistError.message : String(persistError) 
+        });
+        // Continue to token-based initialization
       }
       
-      // Verify session with server
-      const isValid = await this.verifySessionWithServer(persistedSession.id);
-      if (!isValid) {
-        this.logger.warn('Server rejected session', { sessionId: persistedSession.id });
-        await this.clearSessionData();
-        return false;
+      // If no persisted session, try to create a new one from tokens
+      this.logger.debug('Attempting to initialize session from tokens');
+      const tokenData = await tokenService.getTokenData();
+      if (!tokenData || !tokenData.userId) {
+        this.logger.warn('Invalid token data during initialization');
+        return;
       }
       
-      // Session is valid, update last activity
-      await this.updateSessionActivity();
+      // Create minimal session from token data
+      const minimalSession = {
+        id: crypto.randomUUID(),
+        user: {
+          id: tokenData.userId,
+          // Add other required user fields with placeholder values
+          email: tokenData.email || 'unknown',
+          role: tokenData.role || 'user'
+        },
+        startTime: Date.now(),
+        lastActivity: Date.now(),
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform
+        },
+        securityContext: await securityService.getSecurityContext(),
+        state: 'active',
+        metadata: {
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          locale: navigator.language
+        }
+      };
       
-      // Emit session initialized event
-      this.events.emit('sessionInitialized', { session: persistedSession });
+      await this.setSession(minimalSession);
+      this.logger.info('Session initialized from tokens');
       
-      return true;
     } catch (error) {
+      // Improved error logging with proper error object formatting
       this.logger.error('Failed to initialize from existing tokens', { 
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        code: error instanceof Error ? (error as any).code : undefined
       });
-      return false;
     }
   }
   
@@ -1300,30 +1320,6 @@ export class SessionService {
         this.events.emit('sessionInvalid', { sessionId });
       }
       return false;
-    }
-  }
-
-  /**
-   * Clear all session data
-   */
-  async clearSessionData(): Promise<void> {
-    try {
-      // Clear session from storage
-      await this.secureStorage.removeItem('current_session');
-      
-      // Clear session state
-      sessionStorage.removeItem('session_state');
-      localStorage.removeItem(this.ACTIVITY_KEY);
-      
-      // Reset metrics
-      this.metrics = this.createDefaultMetrics();
-      
-      // Emit event
-      this.events.emit('sessionCleared', { timestamp: new Date() });
-    } catch (error) {
-      this.logger.error('Failed to clear session data', { 
-        error: error instanceof Error ? error.message : String(error)
-      });
     }
   }
 
