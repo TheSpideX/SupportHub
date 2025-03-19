@@ -198,7 +198,7 @@ export const authApi = {
   },
   
   refreshToken: async (refreshToken) => {
-    return apiInstance.post('/api/auth/refresh', { refreshToken });
+    return apiInstance.post('/api/auth/refresh-token', { refreshToken });
   },
   
   /**

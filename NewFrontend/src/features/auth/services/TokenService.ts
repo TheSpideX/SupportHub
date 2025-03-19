@@ -94,6 +94,7 @@ export class TokenService {
   private deviceFingerprint: string | null = null;
   private offlineTokenCache: Map<string, string> = new Map();
   private isRefreshing: boolean = false;
+  private lastRefreshTime: number | null = null;
 
   // Add a static instance tracker
   private static instance: TokenService | null = null;
@@ -502,12 +503,14 @@ export class TokenService {
     this.offlineTokenCache.clear();
   }
 
-  // /**
-  //  * Checks if authentication tokens exist
-  //  */
-  // public hasTokens(): boolean {
-  //   return hasAuthTokens();
-  // }
+  /**
+   * Check if authentication tokens exist
+   * For HTTP-only cookies, we can't directly access them,
+   * so we check for the existence flag cookie
+   */
+  public hasTokens(): boolean {
+    return !!getCookie(TOKEN_EXISTS_FLAG);
+  }
 
   /**
    * Validates the current token state
@@ -594,90 +597,22 @@ export class TokenService {
    * Refreshes the access token using the refresh token
    */
   public async refreshToken(): Promise<boolean> {
-    // If a refresh is already in progress, return that promise
-    if (this.refreshPromise) {
-      return this.refreshPromise;
-    }
-    
-    // If we're offline, return false
-    if (!navigator.onLine) {
-      logger.warn('Token refresh failed: offline');
-      return false;
-    }
-
-    // Create a new refresh promise
-    this.isRefreshing = true;
-    this.refreshPromise = this.performTokenRefresh();
-    
     try {
-      const result = await this.refreshPromise;
-      
-      // Reset retry count on success
-      if (result) {
-        this.refreshRetryCount = 0;
-      }
-      
-      return result;
-    } catch (error) {
-      logger.error('Token refresh failed:', error);
-      return false;
-    } finally {
-      // Clear the promise when done
-      this.refreshPromise = null;
-      this.isRefreshing = false;
-      
-      // Process any queued operations
-      if (this.operationQueue.length > 0) {
-        this.processOperationQueue();
-      }
-    }
-  }
-
-  /**
-   * Performs the actual token refresh with retry logic
-   */
-  private async performTokenRefresh(): Promise<boolean> {
-    try {
-      // Include device fingerprint and token version in request
-      const requestBody: Record<string, any> = {};
-      
-      if (this.deviceFingerprint) {
-        requestBody.deviceFingerprint = this.deviceFingerprint;
-      }
-      
-      if (this.tokenVersion > 0) {
-        requestBody.tokenVersion = this.tokenVersion;
-      }
-      
+      // For HTTP-only cookies, we don't need to send the refresh token
+      // The browser will automatically include it in the request
       const response = await fetch(`${this.config.apiBaseUrl}${this.config.refreshEndpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          [this.config.csrfHeaderName]: this.getCsrfToken() || ''
+          'X-Requested-With': 'XMLHttpRequest'
         },
-        body: Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : undefined,
-        credentials: 'include' // Important: This includes cookies in the request
+        credentials: 'include', // Important for cookies
+        body: JSON.stringify({
+          deviceFingerprint: this.getDeviceFingerprint()
+        })
       });
-
+      
       if (!response.ok) {
-        // If we get a 401 or 403, clear tokens and force re-login
-        if (response.status === 401 || response.status === 403) {
-          this.clearTokens();
-          return false;
-        }
-        
-        // For other errors, try to retry
-        if (this.refreshRetryCount < this.config.maxRefreshRetries) {
-          this.refreshRetryCount++;
-          
-          // Wait with exponential backoff
-          const delay = this.config.refreshRetryDelay * Math.pow(2, this.refreshRetryCount - 1);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
-          // Try again
-          return this.performTokenRefresh();
-        }
-        
         throw new Error(`Token refresh failed: ${response.status}`);
       }
 
@@ -1071,6 +1006,70 @@ export class TokenService {
           logger.warn('Failed to validate synced tokens', error);
           localStorage.removeItem('auth_session_active');
         });
+    }
+  }
+
+  /**
+   * Check if a token refresh is currently in progress
+   */
+  public getRefreshingStatus(): boolean {
+    return this.isRefreshing;
+  }
+
+  /**
+   * Get the last refresh time
+   */
+  public getLastRefreshTime(): number {
+    return this.lastRefreshTime || 0;
+  }
+
+  /**
+   * Trigger a token refresh event
+   */
+  private emitTokenRefreshedEvent(): void {
+    this.lastRefreshTime = Date.now();
+    
+    // Dispatch event for monitoring
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('token-refreshed'));
+    }
+  }
+
+  /**
+   * Get access token expiry date
+   * @returns Date object representing expiry time or null if not available
+   */
+  public getAccessTokenExpiry(): Date | null {
+    try {
+      // For HTTP-only cookies, we need to rely on stored metadata
+      const tokenMetadata = localStorage.getItem('auth_token_metadata');
+      if (tokenMetadata) {
+        const metadata = JSON.parse(tokenMetadata);
+        return metadata.accessTokenExpiry ? new Date(metadata.accessTokenExpiry) : null;
+      }
+      return null;
+    } catch (error) {
+      logger.error('Error getting access token expiry', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get refresh token expiry date
+   * @returns Date object representing expiry time or null if not available
+   */
+  public getRefreshTokenExpiry(): Date | null {
+    try {
+      // For HTTP-only cookies, we need to rely on stored metadata
+      const tokenMetadata = localStorage.getItem('auth_token_metadata');
+      if (tokenMetadata) {
+        const metadata = JSON.parse(tokenMetadata);
+        return metadata.refreshTokenExpiry ? new Date(metadata.refreshTokenExpiry) : null;
+      }
+      return null;
+    } catch (error) {
+      logger.error('Error getting refresh token expiry', error);
+      return null;
     }
   }
 }

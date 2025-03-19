@@ -45,7 +45,7 @@ apiClient.interceptors.response.use(
         logger.debug('Token expired, attempting refresh');
         
         // Attempt to refresh the token
-        const refreshResponse = await apiClient.post('/api/auth/refresh', {}, { 
+        const refreshResponse = await apiClient.post('/api/auth/refresh-token', {}, { 
           withCredentials: true,
           // Add headers to help with CSRF protection
           headers: {
