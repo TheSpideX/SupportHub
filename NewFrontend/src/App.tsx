@@ -10,45 +10,37 @@ import { store } from "@/store";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
-import { AuthGuard } from "@/features/auth/components/AuthGuard/AuthGuard";
+import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { Toaster } from "react-hot-toast";
 import { ErrorBoundary } from './core/errors/ErrorBoundary';
-import { SessionAlert } from '@/features/auth/components/SessionAlert/SessionAlert';
-import { SessionTimeout } from '@/features/auth/components/SessionTimeout/SessionTimeout';
 import { APP_ROUTES } from '@/config/routes';
-import { lazyLoad } from './utils/lazyLoad';
-import { useEffect, useRef } from 'react';
-import { toast } from 'react-toastify';
-import { ServerStatusIndicator } from '@/components/ui/ServerStatusIndicator';
-import { networkMonitorService } from '@/services/network-monitor.service';
+import { useEffect, useRef, useMemo, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
-import { authService } from './features/auth/services/auth.service';
-import { tokenService } from './features/auth/services/token.service';
-import { sessionService } from './features/auth/services/session.service';
 import { logger } from './utils/logger';
-import { getSecurityService } from './features/auth/services';
+import { clearAuthState, setInitialized, setLoading } from '@/features/auth/store';
+// Import the auth initialization function
+import { initAuth } from '@/features/auth/init';
+import { getAuthService } from './features/auth/services';
+// Import the toast service
+import { ToastService } from './utils/toast.service';
 
-// Define the component name for logging
+// Component name for logging
 const COMPONENT = 'App';
 
-// Define RootLayout component first
-const RootLayout = () => {
-  return (
-    <>
-      <Outlet />
-      <Toaster position="top-right" />
-      <SessionAlert />
-      <SessionTimeout />
-      {process.env.NODE_ENV !== 'production' && <ServerStatusIndicator />}
-    </>
-  );
-};
+// Root layout with common UI elements
+const RootLayout = () => (
+  <>
+    <Outlet />
+    <Toaster position="top-right" />
+  </>
+);
 
-// Then define routes using the RootLayout
+// Application routes configuration
 const routes = [
   {
-    path: APP_ROUTES.COMMON.HOME,
+    path: APP_ROUTES.ROOT,
     element: <RootLayout />,
     children: [
       {
@@ -83,109 +75,101 @@ const routes = [
 // Create router instance
 const router = createBrowserRouter(routes);
 
+// Create a stable QueryClient instance
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
+
 export function App() {
+  const dispatch = useDispatch();
+  const [authInitialized, setAuthInitialized] = useState(false);
+  // Add a ref to track initialization
+  const initRef = useRef(false);
+  // Initialize the auth service
+  const authService = getAuthService();
+  
+  // Initialize auth on app load
   useEffect(() => {
-    const handleOnlineStatus = () => {
-      if (!navigator.onLine) {
-        toast.warning('You are currently offline. Some features may be limited.');
-      }
-    };
-
-    window.addEventListener('offline', handleOnlineStatus);
-    return () => window.removeEventListener('offline', handleOnlineStatus);
-  }, []);
-
-  // Add a ref to track initialization status
-  const initializationRef = useRef({
-    hasInitialized: false,
-    isInitializing: false,
-    attempt: 0
-  });
-
-  useEffect(() => {
-    const COMPONENT = 'App';
-    let isMounted = true;
-    
-    // Skip if already initialized or initializing
-    if (initializationRef.current.hasInitialized) {
-      logger.debug('App already initialized, skipping duplicate initialization', { component: COMPONENT });
+    // Skip if already initialized via ref
+    if (initRef.current) {
+      logger.debug('Auth initialization already triggered, skipping', { component: COMPONENT });
       return;
     }
     
-    if (initializationRef.current.isInitializing) {
-      logger.debug('App initialization already in progress, skipping duplicate call', { component: COMPONENT });
-      return;
-    }
-    
-    // Track initialization attempt
-    initializationRef.current.attempt++;
-    initializationRef.current.isInitializing = true;
-    
-    const attemptId = initializationRef.current.attempt;
+    // Mark as initialized immediately
+    initRef.current = true;
     
     const initializeAuth = async () => {
       try {
-        logger.info(`Initializing application (attempt #${attemptId})`, { component: COMPONENT });
-        
-        // Use the centralized initialization method
-        const initialized = await authService.initialize();
-        
-        // Check if component is still mounted before updating state
-        if (!isMounted) {
-          logger.debug(`Initialization completed but component unmounted (attempt #${attemptId})`);
+        // Additional check from service
+        if (authService.isInitialized()) {
+          logger.debug('Auth already initialized in service, skipping', { component: COMPONENT });
           return;
         }
         
-        // Mark as initialized
-        initializationRef.current.hasInitialized = true;
-        initializationRef.current.isInitializing = false;
+        logger.info('Starting auth initialization (attempt #1)', { component: COMPONENT });
+        dispatch(setLoading(true));
         
-        logger.info(`Auth initialization completed (attempt #${attemptId})`, { 
-          success: initialized,
-          component: COMPONENT 
-        });
+        // Initialize auth and check for existing session
+        const isAuthenticated = await authService.initialize();
         
-        // Only clear data if initialization failed and we need to clean up
-        if (!initialized) {
-          logger.info('Auth initialization failed, ensuring clean state', { component: COMPONENT });
-          try {
-            await sessionService.clearSessionData();
-            await tokenService.clearTokens();
-          } catch (cleanupError) {
-            logger.warn('Error during cleanup after failed initialization', {
-              component: COMPONENT,
-              error: cleanupError
-            });
-            // Continue despite cleanup errors
-          }
+        if (isAuthenticated) {
+          logger.info('User session restored successfully', { component: COMPONENT });
+          // You can dispatch additional actions here if needed
+        } else {
+          logger.info('No active session found, user is not authenticated', { component: COMPONENT });
+          dispatch(clearAuthState());
         }
+        
+        dispatch(setInitialized(true));
+        setAuthInitialized(true);
+        logger.info('Auth initialized successfully', { component: COMPONENT });
       } catch (error) {
-        // Only log if component is still mounted
-        if (isMounted) {
-          logger.error(`Application initialization failed (attempt #${attemptId})`, {
-            error,
-            component: COMPONENT
-          });
-        }
-        
-        // Reset initialization state to allow retry
-        if (isMounted) {
-          initializationRef.current.isInitializing = false;
-        }
+        logger.error('Auth initialization failed', { component: COMPONENT, error });
+        dispatch(setInitialized(true));
+        dispatch(clearAuthState());
+        setAuthInitialized(true);
+        toast.error('Failed to initialize authentication');
+      } finally {
+        dispatch(setLoading(false));
       }
     };
-
-    initializeAuth();
     
-    // Cleanup function to prevent state updates after unmount
+    initializeAuth();
+    // Empty dependency array to run only once
+  }, []);
+
+  // Network status monitoring
+  useEffect(() => {
+    const toastService = ToastService.getInstance();
+    
+    const handleOffline = () => {
+      // Use the warning method from our custom service
+      toastService.warning('You are currently offline. Some features may be limited.');
+    };
+    
+    const handleOnline = () => {
+      toast.success('You are back online.');
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    
     return () => {
-      isMounted = false;
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
     };
   }, []);
 
   return (
     <Provider store={store}>
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <ErrorBoundary>
             <RouterProvider router={router} />

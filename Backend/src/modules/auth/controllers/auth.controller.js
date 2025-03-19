@@ -1,664 +1,358 @@
-const { asyncHandler } = require("../../../utils/errorHandlers");
-const { AuthError } = require("../errors");
-const logger = require("../../../utils/logger");
-const authService = require("../services/auth.service");
+const { AuthError } = require('../errors');
+const authService = require('../services/auth.service');
 const tokenService = require('../services/token.service');
-const SessionService = require("../services/session.service");
-const DeviceService = require("../services/device.service");
-const SecurityService = require("../services/security.service");
-const User = require('../models/user.model');
+const securityService = require('../services/security.service');
+const logger = require('../../../utils/logger');
+const csrfUtils = require('../utils/csrf.utils');
+const securityUtils = require('../utils/security.utils');
 
-const COMPONENT = "AuthController";
+const COMPONENT = 'AuthController';
 
 /**
- * Process user login request
- * @route POST /api/auth/login
+ * Login user
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
  */
-exports.login = asyncHandler(async (req, res, next) => {
-  const { email, password, deviceInfo, rememberMe } = req.body;
+exports.login = async (req, res, next) => {
   const requestStartTime = Date.now();
-
-  // Validate device info
-  if (!deviceInfo?.fingerprint) {
-    logger.warn("Login attempt without device fingerprint", {
-      component: COMPONENT,
-      email,
-    });
-    return next(
-      new AuthError(
-        "Device fingerprint is required",
-        "DEVICE_INFO_MISSING",
-        400
-      )
-    );
-  }
-
+  const { email, password, rememberMe = false, deviceInfo = {} } = req.body;
+  
   try {
-    // Initialize security service
-    const securityService = new SecurityService();
-
-    // Log login attempt
     logger.info("Login attempt", {
       component: COMPONENT,
-      email,
-      deviceInfo: {
-        fingerprint: deviceInfo.fingerprint,
-        userAgent: deviceInfo.userAgent,
-      },
+      email: email.substring(0, 3) + '***', // Log only part of the email for privacy
+      hasDeviceInfo: !!deviceInfo
     });
-
-    // Add IP to deviceInfo if not present
-    if (!deviceInfo.ip) {
-      deviceInfo.ip = req.ip;
-    }
-
-    // Check rate limits before processing
-    await securityService.checkRateLimit(email, deviceInfo);
-
-    // Add random delay to prevent timing attacks
-    const randomDelay = Math.floor(Math.random() * 200) + 100; // 100-300ms
-    await new Promise((resolve) => setTimeout(resolve, randomDelay));
-
-    // Debugging: Log password details
-    console.log("DEBUG - Login request password details:", {
-      passwordProvided: password ? "Yes" : "No",
-      passwordLength: password?.length || 0,
-      passwordFirstChar: password ? password.charCodeAt(0) : "N/A",
-      passwordLastChar: password
-        ? password.charCodeAt(password.length - 1)
-        : "N/A",
-    });
-
-    // Check for invisible characters or encoding issues
-    const passwordBytes = Buffer.from(password);
-    console.log("DEBUG - Password bytes:", Array.from(passwordBytes));
-
+    
+    // Get client IP
+    const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    
+    // Merge device info with request data
+    const enhancedDeviceInfo = {
+      ...deviceInfo,
+      ip: clientIp,
+      userAgent: req.headers['user-agent'] || deviceInfo.userAgent
+    };
+    
     // Authenticate user
     const authResult = await authService.authenticateUser({
       email,
       password,
-      deviceInfo,
-      rememberMe: !!rememberMe,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
+      rememberMe,
+      deviceInfo: enhancedDeviceInfo
     });
-
-    // Handle 2FA if required
-    if (authResult.requiresTwoFactor) {
-      logger.info("2FA required for login", {
-        component: COMPONENT,
-        userId: authResult.user.id,
-      });
-
-      return res.status(200).json({
-        success: true,
-        requiresTwoFactor: true,
-        twoFactorToken: authResult.twoFactorToken,
-        user: {
-          id: authResult.user.id,
-          email: authResult.user.email,
-          name: authResult.user.name,
-        },
-      });
-    }
-
-    // Set refresh token in HTTP-only cookie
-    res.cookie("refreshToken", authResult.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: authResult.rememberMe
-        ? 30 * 24 * 60 * 60 * 1000
-        : 24 * 60 * 60 * 1000,
+    
+    // Set tokens in cookies
+    await tokenService.setTokenCookies(res, authResult.user, {
+      rememberMe,
+      deviceFingerprint: enhancedDeviceInfo.fingerprint,
+      sessionId: authResult.session._id
     });
-
-    // Set access token in HTTP-only cookie
-    res.cookie("accessToken", authResult.accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000, // 15 minutes in milliseconds
+    
+    // Generate CSRF token
+    const csrfToken = csrfUtils.generateToken();
+    res.cookie('csrf_token', csrfToken, {
+      httpOnly: false, // Must be accessible to JavaScript
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 // 30 days or 1 day
     });
-
+    
     // Log successful login
     logger.info("Login successful", {
       component: COMPONENT,
-      userId: authResult.user.id,
+      userId: authResult.user._id,
       responseTime: Date.now() - requestStartTime,
     });
-
-    // Log successful login - cookies set
-    logger.info('Login successful - cookies set', {
-      component: COMPONENT,
-      userId: authResult.user.id,
-      cookiesSet: true,
-      accessTokenSet: !!res.getHeader('Set-Cookie')?.some(c => c.includes('accessToken')),
-      refreshTokenSet: !!res.getHeader('Set-Cookie')?.some(c => c.includes('refreshToken'))
-    });
-
-    // Return success response
-    return res.status(200).json({
+    
+    // Return user data without sensitive information
+    res.json({
       success: true,
-      user: authResult.user,
-      tokens: {
-        accessTokenExpiry: Date.now() + 900 * 1000, // 15 minutes in milliseconds
-        refreshTokenExpiry:
-          Date.now() +
-          (authResult.rememberMe
-            ? 30 * 24 * 60 * 60 * 1000
-            : 24 * 60 * 60 * 1000),
-      },
-      expiresAt: authResult.expiresAt,
+      message: 'Login successful',
+      data: {
+        user: authService.sanitizeUser(authResult.user),
+        csrfToken,
+        // Include session info for frontend
+        session: {
+          id: authResult.session._id,
+          expiresAt: authResult.session.expiresAt
+        }
+      }
     });
   } catch (error) {
-    // Add random delay to prevent timing attacks even on failure
-    const randomDelay = Math.floor(Math.random() * 200) + 100; // 100-300ms
-    await new Promise((resolve) => setTimeout(resolve, randomDelay));
-
     logger.error("Login failed", {
       component: COMPONENT,
-      email,
+      email: email.substring(0, 3) + '***',
       error: error.message,
-      code: error.code || "UNKNOWN_ERROR",
-      responseTime: Date.now() - requestStartTime,
+      stack: error.stack,
+      responseTime: Date.now() - requestStartTime
     });
-
-    // Set appropriate status code based on error type
-    if (error instanceof AuthError) {
-      error.statusCode = error.statusCode || 401; // Default to 401 for auth errors
-    }
-
-    // Return appropriate error
-    return next(error);
+    
+    next(error);
   }
-});
+}
 
 /**
- * Verify two-factor authentication
- * @route POST /api/auth/verify-2fa
+ * Logout user
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
-exports.verifyTwoFactor = asyncHandler(async (req, res, next) => {
-  const { twoFactorToken, code, trustDevice } = req.body;
-  const deviceInfo = req.body.deviceInfo || {};
-
-  try {
-    // Initialize services
-    const authService = new AuthService();
-    const twoFactorService = new TwoFactorService();
-
-    // Verify the 2FA token first
-    const tokenPayload = await twoFactorService.verifyTwoFactorToken(
-      twoFactorToken
-    );
-    if (!tokenPayload || !tokenPayload.userId) {
-      return next(
-        new AuthError("Invalid verification session", "INVALID_2FA_SESSION")
-      );
-    }
-
-    // Find the user
-    const user = await User.findById(tokenPayload.userId);
-    if (!user) {
-      return next(new AuthError("User not found", "USER_NOT_FOUND"));
-    }
-
-    // Verify the 2FA code
-    const isValid = await twoFactorService.verify2FACode(
-      code,
-      user.security.twoFactorSecret
-    );
-    if (!isValid) {
-      return next(
-        new AuthError("Invalid verification code", "INVALID_MFA_CODE", {
-          remainingAttempts: 3, // You might want to track this in the user model
-        })
-      );
-    }
-
-    // Complete authentication
-    const authResult = await authService.completeAuthentication(
-      user,
-      deviceInfo
-    );
-
-    // Mark device as trusted if requested
-    if (trustDevice) {
-      const deviceService = new DeviceService();
-      await deviceService.trustDevice(user.id, deviceInfo.fingerprint);
-    }
-
-    // Set refresh token in HTTP-only cookie
-    res.cookie("refreshToken", authResult.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: authResult.rememberMe
-        ? 30 * 24 * 60 * 60 * 1000
-        : 24 * 60 * 60 * 1000,
-    });
-
-    // Return auth response
-    return res.status(200).json({
-      success: true,
-      user: authResult.user,
-      tokens: {
-        accessTokenExpiry: Date.now() + 900 * 1000, // 15 minutes in milliseconds
-        refreshTokenExpiry:
-          Date.now() +
-          (authResult.rememberMe
-            ? 30 * 24 * 60 * 60 * 1000
-            : 24 * 60 * 60 * 1000),
-      },
-      securityContext: authResult.securityContext,
-    });
-  } catch (error) {
-    logger.error("2FA verification failed", {
-      component: COMPONENT,
-      error: error.message,
-      code: error.code,
-    });
-    return next(error);
-  }
-});
-
-/**
- * Refresh authentication tokens
- * @route POST /api/auth/refresh
- */
-exports.refreshToken = asyncHandler(async (req, res, next) => {
-  // Get refresh token from cookie or request body
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
-
-  if (!refreshToken) {
-    return next(
-      new AuthError("Refresh token is required", "REFRESH_TOKEN_MISSING")
-    );
-  }
-
-  try {
-    // Initialize services
-    const tokenService = new TokenService();
-    const sessionService = new SessionService();
-
-    // Verify the refresh token
-    const decoded = await tokenService.verifyToken(refreshToken, "refresh");
-    if (!decoded || !decoded.userId) {
-      throw new AuthError("Invalid refresh token", "INVALID_REFRESH_TOKEN");
-    }
-
-    // Find the user
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      throw new AuthError("User not found", "USER_NOT_FOUND");
-    }
-
-    // Verify token version (for token rotation)
-    if (decoded.version !== user.security.tokenVersion) {
-      throw new AuthError("Token has been revoked", "TOKEN_REVOKED");
-    }
-
-    // Find the session
-    const session = await sessionService.findSessionByRefreshToken(
-      refreshToken
-    );
-    if (!session) {
-      throw new AuthError("Session not found", "SESSION_NOT_FOUND");
-    }
-
-    // Check if session is active
-    if (!session.isActive) {
-      throw new AuthError("Session has been terminated", "SESSION_TERMINATED");
-    }
-
-    // Generate new token pair
-    const tokens = await tokenService.generateTokenPair(user, {
-      deviceFingerprint: session.deviceInfo.fingerprint,
-      rememberMe: session.metadata?.rememberMe,
-    });
-
-    // Update session with new refresh token
-    await sessionService.updateSessionToken(session._id, tokens.refreshToken);
-
-    // Update session activity
-    await sessionService.updateSessionActivity(session._id);
-
-    // Set new refresh token in cookie
-    res.cookie("refreshToken", tokens.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: session.metadata?.rememberMe
-        ? 30 * 24 * 60 * 60 * 1000
-        : 24 * 60 * 60 * 1000,
-    });
-
-    // Return new access token
-    return res.status(200).json({
-      success: true,
-      tokens: {
-        accessTokenExpiry: Date.now() + (tokens.expiresIn || 900) * 1000, // Convert seconds to milliseconds
-        refreshTokenExpiry:
-          Date.now() +
-          (session.metadata?.rememberMe
-            ? 30 * 24 * 60 * 60 * 1000
-            : 24 * 60 * 60 * 1000),
-      },
-    });
-  } catch (error) {
-    // Clear the invalid refresh token
-    res.clearCookie("refreshToken");
-
-    logger.error("Token refresh failed", {
-      component: COMPONENT,
-      error: error.message,
-      code: error.code,
-    });
-
-    return next(
-      new AuthError("Invalid refresh token", "INVALID_REFRESH_TOKEN")
-    );
-  }
-});
-
-/**
- * Process user logout
- * @route POST /api/auth/logout
- */
-exports.logout = asyncHandler(async (req, res, next) => {
-  // Get refresh token from cookie or request body
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
-
-  try {
-    // Initialize services
-    const tokenService = new TokenService();
-    const sessionService = new SessionService();
-
-    if (refreshToken) {
-      // Try to decode the token to get user ID
-      try {
-        const decoded = await tokenService.verifyToken(refreshToken, "refresh");
-        if (decoded && decoded.userId) {
-          // Find and terminate the session
-          await sessionService.terminateSessionByRefreshToken(refreshToken);
-
-          // Blacklist the refresh token
-          await tokenService.blacklistToken(refreshToken);
-
-          logger.info("User logged out", {
+exports.logout = async (req, res) => {
+    const requestStartTime = Date.now();
+    const COMPONENT = 'AuthController.logout';
+    
+    try {
+        const { allDevices } = req.body;
+        const userId = req.user._id;
+        const sessionId = req.decodedToken?.sessionId;
+        
+        // Log logout attempt
+        logger.info("Logout attempt", {
             component: COMPONENT,
-            userId: decoded.userId,
-          });
-        }
-      } catch (error) {
-        // Token might be invalid, but we still want to clear cookies
-        logger.debug("Invalid token during logout", {
-          component: COMPONENT,
-          error: error.message,
+            userId,
+            sessionId,
+            allDevices
         });
-      }
+        
+        // Perform logout
+        await authService.logoutUser({
+            userId,
+            sessionId,
+            allDevices
+        });
+        
+        // Clear auth cookies
+        res.clearCookie('access_token');
+        res.clearCookie('refresh_token');
+        res.clearCookie('csrf_token');
+        
+        // Log successful logout
+        logger.info("Logout successful", {
+            component: COMPONENT,
+            userId,
+            responseTime: Date.now() - requestStartTime,
+        });
+        
+        res.json({
+            success: true,
+            message: 'Logout successful'
+        });
+    } catch (error) {
+        // Log error
+        logger.error("Logout error", {
+            component: COMPONENT,
+            error: error.message,
+            stack: error.stack,
+            responseTime: Date.now() - requestStartTime,
+        });
+        
+        // Return error response
+        res.status(500).json({
+            success: false,
+            message: 'Logout failed',
+            error: error.message
+        });
     }
-
-    // Clear cookies regardless of token validity
-    res.clearCookie("refreshToken");
-
-    return res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
-  } catch (error) {
-    logger.error("Logout failed", {
-      component: COMPONENT,
-      error: error.message,
-    });
-
-    // Still clear cookies even if there was an error
-    res.clearCookie("refreshToken");
-
-    return res.status(200).json({
-      success: true,
-      message: "Logged out successfully",
-    });
-  }
-});
+};
 
 /**
- * Validate user session
- * @route GET /api/auth/validate-session
+ * Refresh access token
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next
  */
-exports.validateSession = asyncHandler(async (req, res) => {
-  try {
-    // Initialize token service
-    const tokenService = new TokenService();
-    
-    // Log database connection status
-    console.log('Database connection state:', mongoose.connection.readyState);
-    // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-    
-    // Extract token from cookies or authorization header
-    const token = req.cookies.accessToken || 
-                 (req.headers.authorization && req.headers.authorization.split(' ')[1]);
-    
-    // Debug token presence and value
-    logger.debug('Validate session request details', {
-      component: 'ValidateSession',
-      hasCookies: !!req.cookies,
-      hasAccessTokenCookie: !!req.cookies?.accessToken,
-      hasAuthHeader: !!req.headers.authorization,
-      tokenPresent: !!token,
-      tokenLength: token ? token.length : 0,
-      tokenFirstChars: token ? token.substring(0, 10) + '...' : 'none',
-      requestPath: req.path,
-      requestMethod: req.method,
-      requestIP: req.ip
-    });
-    
-    if (!token) {
-      logger.warn('No token provided for session validation', { 
-        component: 'ValidateSession',
-        headers: Object.keys(req.headers),
-        cookies: Object.keys(req.cookies || {})
-      });
-      return res.status(401).json({ message: 'Authentication required' });
+exports.refreshToken = async (req, res, next) => {
+    try {
+        const refreshToken = req.cookies?.refresh_token;
+        
+        if (!refreshToken) {
+            throw new AuthError('Refresh token required', 'REFRESH_TOKEN_REQUIRED');
+        }
+        
+        const { accessToken } = await tokenService.refreshAccessToken(refreshToken);
+        
+        // Set new access token in cookie
+        tokenService.setTokenCookies({ accessToken, refreshToken }, res);
+        
+        // Generate new CSRF token
+        const csrfToken = csrfUtils.generateToken();
+        res.cookie('csrf_token', csrfToken, {
+            httpOnly: false,
+            secure: process.env.NODE_ENV !== 'development',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 day
+        });
+        
+        res.json({
+            success: true,
+            message: 'Token refreshed successfully',
+            data: {
+                csrfToken
+            }
+        });
+    } catch (error) {
+        // Clear cookies on refresh error
+        tokenService.clearTokenCookies(res);
+        res.clearCookie('csrf_token');
+        
+        next(error);
     }
-
-    // Debug token before validation
-    logger.debug('Token before validation', {
-      component: 'ValidateSession',
-      tokenFirstChars: token.substring(0, 15) + '...',
-      tokenLength: token.length
-    });
-
-    // Check if tokenService is properly initialized
-    if (!tokenService || typeof tokenService.validateToken !== 'function') {
-      logger.error('Token service not properly initialized', {
-        component: 'ValidateSession',
-        tokenServiceExists: !!tokenService,
-        availableMethods: tokenService ? Object.keys(tokenService) : 'none'
-      });
-      
-      return res.status(500).json({ message: 'Internal server error - token service unavailable' });
-    }
-
-    // Verify the token
-    const result = await tokenService.validateToken(token, {
-      expectedType: 'access'
-    });
-    
-    // Log the entire result object
-    console.log('Token validation result:', JSON.stringify(result, null, 2));
-    
-    if (!result.valid) {
-      logger.warn('Token validation failed', { 
-        component: 'ValidateSession',
-        reason: result.reason,
-        details: JSON.stringify(result)
-      });
-      return res.status(401).json({ message: 'Invalid authentication' });
-    }
-    
-    // Extract user ID from token and log it
-    const userId = result.payload?.sub;
-    console.log('Extracted userId:', userId);
-    
-    if (!userId) {
-      logger.warn('No user ID in token payload', {
-        component: 'ValidateSession',
-        payload: JSON.stringify(result.payload)
-      });
-      return res.status(401).json({ message: 'Invalid token format' });
-    }
-
-    // Check if userId is a valid MongoDB ObjectId
-    const isValidObjectId = mongoose.Types.ObjectId.isValid(userId);
-    console.log('Is valid ObjectId:', isValidObjectId);
-    
-    if (!isValidObjectId) {
-      logger.warn('Invalid ObjectId format in token', {
-        component: 'ValidateSession',
-        userId
-      });
-      return res.status(401).json({ message: 'Invalid user identifier' });
-    }
-
-    // Add more detailed logging
-    logger.debug('Attempting to find user', { 
-      component: 'ValidateSession',
-      userId,
-      tokenPayload: JSON.stringify(result.payload)
-    });
-
-    // Ensure User model is properly imported
-    const User = require('../../user/models/user.model');
-    console.log('User model imported:', !!User);
-
-    // Find the user
-    const user = await User.findById(userId);
-    console.log('User lookup result:', user ? 'Found' : 'Not found');
-
-    if (!user) {
-      // Try to count total users in the database
-      const userCount = await User.countDocuments({});
-      console.log('Total users in database:', userCount);
-      
-      logger.warn('User not found for token', { 
-        component: 'ValidateSession',
-        userId,
-        tokenIssueTime: result.payload.iat ? new Date(result.payload.iat * 1000).toISOString() : 'unknown',
-        tokenExpiry: result.payload.exp ? new Date(result.payload.exp * 1000).toISOString() : 'unknown'
-      });
-      return res.status(401).json({ message: 'Invalid authentication' });
-    }
-
-    // Return user data
-    return res.status(200).json({
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      },
-      sessionValid: true
-    });
-  } catch (error) {
-    // Log the full error
-    console.error('Session validation error:', error);
-    logger.error('Session validation error', { 
-      component: 'ValidateSession',
-      error: error.message || error.toString(),
-      stack: error.stack
-    });
-    return res.status(401).json({ message: 'Session validation failed' });
-  }
-});
+};
 
 /**
- * Generate and return a CSRF token
- * @route GET /api/auth/csrf-token
+ * Get current user
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
  */
-exports.getCsrfToken = asyncHandler(async (req, res, next) => {
+exports.getCurrentUser = async (req, res) => {
   try {
-    // Initialize services
-    const csrfService = new CsrfService();
-
-    // Generate a new CSRF token
-    const token = await csrfService.generateToken();
-
-    // Return the token
-    return res.status(200).json({
-      success: true,
-      csrfToken: token,
-    });
-  } catch (error) {
-    logger.error("CSRF token generation failed", {
-      component: COMPONENT,
-      error: error.message,
-    });
-
-    return next(error);
-  }
-});
-
-/**
- * Terminate all sessions except current
- * @route POST /api/auth/terminate-sessions
- */
-exports.terminateOtherSessions = asyncHandler(async (req, res, next) => {
-  try {
-    // User should be attached by auth middleware
+    // The user should be attached to req by the auth middleware
     if (!req.user) {
-      return next(new AuthError("Authentication required", "AUTH_REQUIRED"));
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated',
+        error: 'AUTHENTICATION_REQUIRED'
+      });
     }
-
-    // Initialize services
-    const sessionService = new SessionService();
-
-    // Get current session ID
-    const currentSessionId = req.user.sessionId;
-
-    // Terminate all other sessions
-    const result = await sessionService.terminateOtherSessions(
-      req.user.id,
-      currentSessionId
-    );
-
-    logger.info("Terminated other sessions", {
-      component: COMPONENT,
-      userId: req.user.id,
-      terminatedCount: result.terminatedCount,
-    });
-
+    
+    // Return user data (excluding sensitive information)
     return res.status(200).json({
       success: true,
-      terminatedCount: result.terminatedCount,
+      data: {
+        user: {
+          id: req.user._id,
+          email: req.user.email,
+          name: req.user.name,
+          role: req.user.role,
+          // Add other non-sensitive user fields
+        }
+      }
     });
   } catch (error) {
-    logger.error("Failed to terminate sessions", {
-      component: COMPONENT,
-      error: error.message,
-      userId: req.user?.id,
+    console.error('Error in getCurrentUser:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve user data',
+      error: 'INTERNAL_SERVER_ERROR'
     });
-
-    return next(error);
   }
-});
+};
 
 /**
- * Get current user information
- * @route GET /api/auth/me
+ * Register new user
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ * @param {Function} next - Express next
  */
-exports.getCurrentUser = asyncHandler(async (req, res) => {
-  // The user is already available in req.user thanks to the auth middleware
-  const user = req.user;
+exports.register = async (req, res, next) => {
+    try {
+        const { email, password, firstName, lastName } = req.body;
+        
+        // Get device info from request
+        const deviceInfo = req.body.deviceInfo || {};
+        const safeDeviceInfo = sanitizeDeviceInfo(deviceInfo);
+        
+        // Register user
+        const user = await authService.registerUser({
+            email,
+            password,
+            firstName,
+            lastName,
+            deviceInfo: safeDeviceInfo
+        });
+        
+        res.status(201).json({
+            success: true,
+            message: 'Registration successful',
+            data: {
+                user: authService.sanitizeUser(user)
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
-  // Return user data (excluding sensitive information)
-  return res.status(200).json({
-    success: true,
-    user: {
-      id: user._id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      preferences: user.preferences || {},
-    },
-  });
-});
+/**
+ * Get authentication status
+ * @param {Object} req - Express request
+ * @param {Object} res - Express response
+ */
+exports.getAuthStatus = async (req, res) => {
+  try {
+    // If the request has a user property, they're authenticated
+    const isAuthenticated = !!req.user;
+    
+    return res.status(200).json({
+      success: true,
+      isAuthenticated,
+      // Only include user data if authenticated
+      user: isAuthenticated ? {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name,
+        roles: req.user.roles,
+        permissions: req.user.permissions
+      } : null
+    });
+  } catch (error) {
+    logger.error('Error checking auth status', {
+      component: COMPONENT,
+      error: error.message
+    });
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to check authentication status',
+      error: {
+        code: 'AUTH_STATUS_ERROR',
+        message: error.message
+      }
+    });
+  }
+};
+
+/**
+ * Sync session with frontend
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+exports.syncSession = async (req, res, next) => {
+    const requestStartTime = Date.now();
+    const COMPONENT = 'AuthController.syncSession';
+    
+    try {
+        const { sessionId, lastActivity, metrics, deviceInfo } = req.body;
+        
+        // If user is authenticated, use their session
+        if (req.user) {
+            const result = await authService.syncSession({
+                sessionId: sessionId || req.decodedToken?.sessionId,
+                lastActivity,
+                metrics,
+                deviceInfo
+            });
+            
+            return res.json({
+                status: result.status,
+                expiresAt: result.expiresAt
+            });
+        }
+        
+        // For unauthenticated requests, return a generic response
+        return res.json({
+            status: 'valid',
+            expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutes from now
+        });
+    } catch (error) {
+        logger.error("Session sync failed", {
+            component: COMPONENT,
+            error: error.message,
+            responseTime: Date.now() - requestStartTime
+        });
+        
+        next(error);
+    }
+};

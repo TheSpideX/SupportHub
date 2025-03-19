@@ -13,29 +13,30 @@ export class ToastService {
     return ToastService.instance;
   }
   
-  success(message: string, options?: ToastOptions): Toast {
+  // Fix return type to string (toast ID) instead of Toast object
+  success(message: string, options?: ToastOptions): string {
     return toast.success(message, options);
   }
   
-  error(message: string, options?: ToastOptions): Toast {
+  error(message: string, options?: ToastOptions): string {
     return toast.error(message, options);
   }
   
-  info(message: string, options?: ToastOptions): Toast {
+  info(message: string, options?: ToastOptions): string {
     return toast(message, {
       icon: 'ℹ️',
       ...options
     });
   }
   
-  warning(message: string, options?: ToastOptions): Toast {
+  warning(message: string, options?: ToastOptions): string {
     return toast(message, {
       icon: '⚠️',
       ...options
     });
   }
   
-  loading(message: string, options?: ToastOptions): Toast {
+  loading(message: string, options?: ToastOptions): string {
     return toast.loading(message, options);
   }
   
@@ -47,7 +48,7 @@ export class ToastService {
     }
   }
   
-  custom(message: string, options?: ToastOptions): Toast {
+  custom(message: string, options?: ToastOptions): string {
     return toast(message, options);
   }
 }

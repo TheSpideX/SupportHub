@@ -5,226 +5,93 @@ import { LoginForm } from '@/features/auth/components/LoginForm/LoginForm';
 import { SocialLogin } from '@/features/auth/components/SocialLogin/SocialLogin';
 import { AuthBackground } from '@/features/auth/components/AuthBackground/AuthBackground';
 import { FaShieldAlt, FaUsersCog, FaChartLine, FaRocket } from 'react-icons/fa';
-import { useAuth } from '@/features/auth/hooks/useAuth';
-import type { LoginFormData } from '@/features/auth/types';
+import type { LoginFormData } from '@/features/auth/components/LoginForm/LoginForm.types';
 import { Logger } from '@/utils/logger';
-import { getErrorMessage } from "@/utils/error.utils";
-import { handleAuthError } from '@/features/auth/utils/auth.utils';
-import { createAuthError } from '@/features/auth/utils/auth-error';
-import { authService } from '@/features/auth/services/auth.service';
-import { securityService } from '@/features/auth/services/security.service';
 import toast from "react-hot-toast";
 import { useDispatch } from 'react-redux';
-import { setCredentials } from '@/features/auth/store/authSlice';
-import { AuthApi } from '@/features/auth/api/auth-api';
+import { useAuth } from '@/features/auth/hooks/useAuth';
+// Import the services from our centralized auth system
+import { getSecurityService, getTokenService } from '@/features/auth/services';
 
 const COMPONENT = 'LoginPage';
 const logger = new Logger(COMPONENT);
 
 export const LoginPage = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [deviceInfo, setDeviceInfo] = useState<any>(null);
+  const [activeFeature, setActiveFeature] = useState<string | number>('login');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { isAuthenticated, login } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeFeature, setActiveFeature] = useState(0);
+  const { login } = useAuth();
+  
+  // Get services from our centralized auth system instead of creating new instances
+  const tokenService = getTokenService();
+  const securityService = getSecurityService();
+  
+  // Get redirect path from location state or default to dashboard
+  const from = location.state?.from?.pathname || "/dashboard";
 
+  // Get security info on component mount
   useEffect(() => {
-    if (isAuthenticated) {
-      logger.debug('User already authenticated, redirecting', {
-        component: COMPONENT,
-        action: 'checkAuth'
-      });
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveFeature((prev) => (prev + 1) % features.length);
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Add useEffect to ensure CSRF token on page load with better error handling
-  useEffect(() => {
-    const setupCsrf = async () => {
+    const getSecurityInfo = async () => {
       try {
-        await AuthApi.ensureCsrfToken(true);
-        logger.debug('CSRF token successfully retrieved', { component: COMPONENT });
+        // Use the correct method from your SecurityService
+        const info = await securityService.getDeviceFingerprint();
+        setDeviceInfo(info);
       } catch (error) {
-        logger.warn('Failed to get CSRF token, continuing with login page', {
-          component: COMPONENT,
-          error: getErrorMessage(error)
+        logger.error('Failed to get security info', { 
+          component: COMPONENT, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
         });
       }
     };
     
-    setupCsrf();
-  }, []);
-
-  useEffect(() => {
-    const testCsrf = async () => {
-      try {
-        // Test the CSRF endpoint directly
-        logger.debug('Testing CSRF endpoint', { component: COMPONENT });
-        await AuthApi.testCsrfEndpoint();
-        
-        // Then try the regular CSRF token fetch
-        const token = await AuthApi.ensureCsrfToken(true);
-        logger.debug('CSRF token fetch result', { 
-          component: COMPONENT,
-          hasToken: !!token
-        });
-      } catch (error) {
-        logger.error('CSRF testing failed', {
-          component: COMPONENT,
-          error: error.message
-        });
-      }
-    };
-    
-    testCsrf();
-  }, []);
-
-  const onSubmit = async (formData: LoginFormData) => {
-    setIsLoading(true);
+    getSecurityInfo();
+  }, [securityService]);
+  
+  // Handle form submission
+  const handleSubmit = async (values: LoginFormData) => {
+    setIsSubmitting(true);
+    setError(null);
     
     try {
-      // Get device info for security tracking
-      const deviceInfo = await securityService.getDeviceInfo();
-      logger.debug('Device info obtained', { component: COMPONENT });
+      // Get device fingerprint if available
+      let fingerprint = deviceInfo || 
+        `${navigator.userAgent}|${navigator.language}|${new Date().getTimezoneOffset()}|${window.screen.width}x${window.screen.height}`;
       
-      // Prepare login request
-      const credentials = {
-        email: formData.email,
-        password: formData.password,
-        deviceInfo,
-        rememberMe: formData.rememberMe
+      // Add security context to login request
+      const loginRequest = {
+        ...values,
+        deviceInfo: {
+          fingerprint,
+          userAgent: navigator.userAgent,
+          screenResolution: `${window.screen.width}x${window.screen.height}`,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          location: {} // Add empty location object to match schema
+        }
       };
       
-      logger.debug('Attempting login', { 
-        component: COMPONENT, 
-        email: formData.email,
-        hasDeviceInfo: !!deviceInfo
-      });
+      // Call login function with enhanced request
+      await login(loginRequest);
       
-      // Add this console.log to verify the call is being made
-      console.log('About to call authService.login with:', {
-        email: formData.email,
-        hasPassword: !!formData.password,
-        hasDeviceInfo: !!deviceInfo
-      });
+      // If login successful, redirect to dashboard or requested page
+      const redirectTo = location.state?.from?.pathname || '/dashboard';
+      navigate(redirectTo);
       
-      // Attempt login
-      const response = await authService.login(credentials);
-      
-      console.log('Login response received:', response);
-      
-      logger.debug('Login API response received', { 
-        component: COMPONENT,
-        success: response?.success,
-        hasUser: !!response?.user,
-        hasTokens: !!response?.tokens,
-        requiresTwoFactor: !!response?.requiresTwoFactor,
-        responseKeys: response ? Object.keys(response) : []
-      });
-      
-      // Handle successful login
-      if (response && response.success) {
-        logger.debug('Login successful, processing response', { component: COMPONENT });
-        
-        // Store token expiration if available
-        if (response.tokens && response.tokens.expiresIn) {
-          logger.debug('Storing token expiration', { 
-            component: COMPONENT,
-            expiresIn: response.tokens.expiresIn
-          });
-          authService.storeTokenExpiration(response.tokens.expiresIn, formData.rememberMe);
-        } else {
-          logger.debug('No token expiration to store', { component: COMPONENT });
-        }
-        
-        // Redirect to appropriate page
-        if (response.requiresTwoFactor) {
-          logger.debug('Two-factor authentication required', { component: COMPONENT });
-          navigate('/auth/two-factor');
-        } else {
-          logger.debug('Setting authentication state', { component: COMPONENT });
-          // Set authentication state
-          try {
-            // Create safe user and tokens objects
-            const user = response.user || {};
-            const tokens = response.tokens || {};
-            
-            // Dispatch credentials to Redux store
-            dispatch(setCredentials({
-              user,
-              tokens
-            }));
-            
-            logger.debug('Authentication state set', { component: COMPONENT });
-            
-            // Navigate to destination
-            const redirectPath = location?.state?.from?.pathname || '/dashboard';
-            logger.debug('Navigating to destination', { 
-              component: COMPONENT,
-              destination: redirectPath
-            });
-            navigate(redirectPath);
-          } catch (dispatchError) {
-            logger.error('Error during state update', {
-              component: COMPONENT,
-              error: dispatchError
-            });
-            throw dispatchError;
-          }
-        }
-      } else {
-        // Handle unexpected response format
-        logger.error('Invalid login response format', {
-          component: COMPONENT,
-          hasSuccess: response ? !!response.success : false,
-          response: JSON.stringify(response)
-        });
-        toast.error('Login failed: Invalid server response');
-      }
+      logger.info('Login successful', { component: COMPONENT });
     } catch (error) {
-      // Handle specific error types
-      logger.error('Login error caught', {
-        component: COMPONENT,
-        error
+      // Handle login error
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      setError(errorMessage);
+      logger.error('Login failed', { 
+        component: COMPONENT, 
+        error: errorMessage
       });
-      
-      // Check if error is an object before accessing properties
-      if (error && typeof error === 'object') {
-        if (error.code === 'RATE_LIMITED') {
-          handleRateLimitError(error);
-        } else if (error.code === 'INVALID_CREDENTIALS') {
-          toast.error('Invalid email or password');
-        } else {
-          // Generic error handling
-          toast.error('Login failed: ' + (error.message || 'Unknown error'));
-          
-          // Log detailed error information
-          logger.error('Login submission failed', {
-            component: COMPONENT,
-            error
-          });
-        }
-      } else {
-        // Handle case where error is not an object
-        toast.error('Login failed: Unknown error');
-        logger.error('Login submission failed with non-object error', {
-          component: COMPONENT,
-          action: 'onSubmit',
-          errorType: typeof error,
-          error: String(error)
-        });
-      }
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -319,10 +186,10 @@ export const LoginPage = () => {
                           transition={{ duration: 0.3 }}
                           className={`flex items-start space-x-4 p-5 rounded-xl 
                                    border border-gray-700 cursor-pointer
-                                   ${activeFeature === index ? 'bg-gray-800' : 'bg-gray-900/60'}
-                                   hover:bg-gray-800 transition-all duration-300
-                                   group`} // Added group for hover effects
-                          onClick={() => setActiveFeature(index)}
+                                   ${activeFeature === index.toString() ? 'bg-gray-800' : 'bg-gray-900/60'}
+                                   hover:bg-gray-800 transition-all duration-300`}
+                          onClick={() => setActiveFeature(index.toString())}
+                          onMouseEnter={() => setActiveFeature(index.toString())}
                         >
                           <div className={`p-2.5 bg-gradient-to-br ${feature.gradient} rounded-lg 
                                         shadow-lg transform-gpu transition-transform 
@@ -352,7 +219,7 @@ export const LoginPage = () => {
                   transition={{ delay: 0.2 }}
                   className="bg-gray-800/50 p-6 rounded-xl border border-gray-700"
                 >
-                  <LoginForm onSubmit={onSubmit} isLoading={isLoading} />
+                  <LoginForm onSubmit={handleSubmit} isLoading={isLoading} />
                   <div className="mt-6">
                     <SocialLogin onSocialLogin={handleSocialLogin} />
                   </div>

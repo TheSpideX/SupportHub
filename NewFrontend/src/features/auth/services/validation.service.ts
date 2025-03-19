@@ -1,149 +1,117 @@
 import { z } from "zod";
-import zxcvbn from 'zxcvbn';
 
-// Add the missing loginSchema export
+// Registration schema with Zod
+export const registrationSchema = z.object({
+  firstName: z.string()
+    .min(2, "First name must be at least 2 characters")
+    .max(30, "First name cannot exceed 30 characters"),
+  lastName: z.string()
+    .min(2, "Last name must be at least 2 characters")
+    .max(30, "Last name cannot exceed 30 characters"),
+  email: z.string()
+    .email("Please enter a valid email address"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[@$!%*?&]/, "Password must contain at least one special character"),
+  type: z.enum(["customer", "company", "company_employee"]),
+  timezone: z.string(),
+  // Optional fields based on registration type
+  companyName: z.string()
+    .min(2, "Company name must be at least 2 characters")
+    .max(100, "Company name cannot exceed 100 characters")
+    .optional(),
+  inviteCode: z.string()
+    .min(6, "Invite code must be at least 6 characters")
+    .optional(),
+})
+.refine(data => {
+  // Company name is required for company registration
+  if (data.type === "company" && !data.companyName) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Company name is required",
+  path: ["companyName"]
+})
+.refine(data => {
+  // Invite code is required for company employee registration
+  if (data.type === "company_employee" && !data.inviteCode) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Invite code is required",
+  path: ["inviteCode"]
+});
+
+// Define the type based on the schema
+export type RegistrationFormData = z.infer<typeof registrationSchema>;
+
+// Login schema with enhanced validation
 export const loginSchema = z.object({
-  email: z
-    .string()
-    .email("Invalid email address")
-    .transform((val) => val.toLowerCase()),
-  password: z
-    .string()
+  email: z.string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address")
+    .trim()
+    .toLowerCase(),
+  password: z.string()
     .min(1, "Password is required"),
-  rememberMe: z
-    .boolean()
-    .default(false),
-  deviceInfo: z
-    .object({
-      userAgent: z.string(),
-      fingerprint: z.string(),
+  rememberMe: z.boolean().default(false),
+  securityContext: z.object({
+    deviceInfo: z.object({
+      userAgent: z.string().optional(),
+      fingerprint: z.string().optional(),
       location: z.object({
         country: z.string().optional(),
         city: z.string().optional(),
         ip: z.string().optional()
       }).optional().default({})
-    })
-    .optional()
+    }).optional().default({}),
+    captchaToken: z.string().optional()
+  }).optional().default({})
 });
 
 export type LoginFormData = z.infer<typeof loginSchema>;
 
-const PASSWORD_REQUIREMENTS = {
-  minLength: 8,
-  minScore: 3, // zxcvbn uses 0-4 scale, requiring 3 for strong
-};
+// Two-factor authentication schema
+export const twoFactorSchema = z.object({
+  code: z.string()
+    .min(6, "Code must be at least 6 characters")
+    .max(6, "Code cannot exceed 6 characters")
+    .regex(/^\d+$/, "Code must contain only numbers"),
+  twoFactorToken: z.string()
+});
 
-const PASSWORD_FEEDBACK = {
-  minLength: { valid: false, message: "At least 8 characters" },
-  hasUppercase: { valid: false, message: "At least one uppercase letter" },
-  hasLowercase: { valid: false, message: "At least one lowercase letter" },
-  hasNumber: { valid: false, message: "At least one number" },
-  hasSpecial: { valid: false, message: "At least one special character" },
-};
+export type TwoFactorFormData = z.infer<typeof twoFactorSchema>;
 
-export const getPasswordStrength = (password: string) => {
-  const result = zxcvbn(password);
-  return {
-    score: result.score, // 0-4
-    feedback: result.feedback,
-  };
-};
+// Password reset request schema
+export const passwordResetRequestSchema = z.object({
+  email: z.string()
+    .email("Please enter a valid email address")
+    .trim()
+    .toLowerCase()
+});
 
-export const getPasswordFeedback = (password: string) => {
-  return {
-    minLength: { 
-      valid: password.length >= PASSWORD_REQUIREMENTS.minLength,
-      message: PASSWORD_FEEDBACK.minLength.message 
-    },
-    hasUppercase: { 
-      valid: /[A-Z]/.test(password),
-      message: PASSWORD_FEEDBACK.hasUppercase.message 
-    },
-    hasLowercase: { 
-      valid: /[a-z]/.test(password),
-      message: PASSWORD_FEEDBACK.hasLowercase.message 
-    },
-    hasNumber: { 
-      valid: /[0-9]/.test(password),
-      message: PASSWORD_FEEDBACK.hasNumber.message 
-    },
-    hasSpecial: { 
-      valid: /[^A-Za-z0-9]/.test(password),
-      message: PASSWORD_FEEDBACK.hasSpecial.message 
-    },
-  };
-};
+export type PasswordResetRequestData = z.infer<typeof passwordResetRequestSchema>;
 
-export const registrationSchema = z
-  .object({
-    email: z
-      .string()
-      .email("Invalid email address")
-      .transform((val) => val.toLowerCase()),
+// Password reset schema
+export const passwordResetSchema = z.object({
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number")
+    .regex(/[@$!%*?&]/, "Password must contain at least one special character"),
+  confirmPassword: z.string()
+    .min(1, "Please confirm your password"),
+  token: z.string()
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"]
+});
 
-    password: z
-      .string()
-      .min(PASSWORD_REQUIREMENTS.minLength, PASSWORD_FEEDBACK.minLength.message)
-      .refine((password) => !/\s/.test(password), {
-        message: "Password cannot contain spaces",
-      })
-      .refine((password) => /[A-Z]/.test(password), {
-        message: PASSWORD_FEEDBACK.hasUppercase.message,
-      })
-      .refine((password) => /[a-z]/.test(password), {
-        message: PASSWORD_FEEDBACK.hasLowercase.message,
-      })
-      .refine((password) => /[0-9]/.test(password), {
-        message: PASSWORD_FEEDBACK.hasNumber.message,
-      })
-      .refine((password) => /[^A-Za-z0-9]/.test(password), {
-        message: PASSWORD_FEEDBACK.hasSpecial.message,
-      })
-      .refine((password) => {
-        const result = zxcvbn(password);
-        return result.score >= PASSWORD_REQUIREMENTS.minScore;
-      }, {
-        message: 'Password must be stronger. Try making it longer or more complex.'
-      }),
-
-    confirmPassword: z.string(),
-
-    firstName: z
-      .string()
-      .min(2, "First name is required")
-      .max(50, "First name is too long")
-      .regex(
-        /^[a-zA-Z\s-]+$/,
-        "First name can only contain letters, spaces, and hyphens"
-      ),
-
-    lastName: z
-      .string()
-      .min(2, "Last name is required")
-      .max(50, "Last name is too long")
-      .regex(
-        /^[a-zA-Z\s-]+$/,
-        "Last name can only contain letters, spaces, and hyphens"
-      ),
-
-    type: z.enum(["customer", "company", "company_employee"]),
-
-    companyName: z
-      .string()
-      .min(2, "Company name is required")
-      .max(100, "Company name is too long")
-      .optional()
-      .nullable(),
-
-    inviteCode: z.string().min(6, "Invalid invite code").optional().nullable(),
-
-    timezone: z
-      .string()
-      .default(() => Intl.DateTimeFormat().resolvedOptions().timeZone),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
-    path: ["confirmPassword"],
-  });
-
-export type RegistrationFormData = z.infer<typeof registrationSchema>;
+export type PasswordResetData = z.infer<typeof passwordResetSchema>;

@@ -7,18 +7,31 @@ import { toast } from 'react-hot-toast';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaExclamationTriangle, FaInfoCircle, FaWifi } from 'react-icons/fa';
 import { Button } from '@/components/ui/buttons/Button';
 import { Checkbox } from '@/components/ui/Checkbox';
-import { RateLimitAlert } from '../RateLimitAlert/RateLimitAlert';
-import { PasswordStrengthMeter } from '../PasswordStrengthMeter/PasswordStrengthMeter';
-import { useAuth } from '../../hooks/useAuth';
-import { useSession } from '../../hooks/useSession';
-import { securityService } from '../../services/security.service';
-import { loginSchema } from '../../services/validation.service';
 import { Logger } from '@/utils/logger';
-import { getErrorMessage } from '@/utils/error.utils';
-import { createAuthError, AuthError } from '../../errors/auth-error';
-import type { LoginFormData } from '../../types';
 import axios from 'axios';
-import { serverStatusService, type ServerStatus } from '@/services/server-status.service';
+import { loginSchema, LoginFormData } from '../../services/validation.service';
+import { formatAuthError } from '@/features/auth/utils/auth.utils';
+
+// Utility function to extract error messages
+const getErrorMessage = (error: any): string => {
+  if (!error) return 'An unknown error occurred';
+  
+  if (typeof error === 'string') return error;
+  
+  if (axios.isAxiosError(error)) {
+    // Handle Axios errors
+    if (!error.response) return 'Network error. Please check your connection.';
+    
+    const data = error.response.data;
+    if (data?.message) return data.message;
+    if (data?.error?.message) return data.error.message;
+    
+    return `Error ${error.response.status}: ${error.response.statusText}`;
+  }
+  
+  // Handle standard errors
+  return error.message || 'An unknown error occurred';
+};
 
 interface LoginFormProps {
   onSubmit: (data: LoginFormData) => Promise<void>;
@@ -33,146 +46,35 @@ const isOffline = !navigator.onLine;
 const logger = new Logger(COMPONENT);
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => {
-  // Form state management with React Hook Form
-  const { register, handleSubmit, formState: { errors }, setError, clearErrors, getValues, setValue } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    mode: 'onChange',
-    defaultValues: {
-      email: '',
-      password: '',
-      rememberMe: false,
-    }
-  });
-
   // State management
   const [showPassword, setShowPassword] = useState(false);
-  const [serverOnline, setServerOnline] = useState<boolean>(true);
-  const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'slow'>('online');
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
-  const [securityInfo, setSecurityInfo] = useState<any>(null);
-  const [lastLoginInfo, setLastLoginInfo] = useState<any>(null);
-  const [rememberMeChecked, setRememberMeChecked] = useState(false);
   const submitAttemptRef = useRef(0);
   const navigate = useNavigate();
-  const { getLastLoginInfo } = useSession();
-
-  // Check server status on mount
-  useEffect(() => {
-    // Use the serverStatusService instead of direct checks
-    const handleStatusChange = (status: ServerStatus) => {
-      setServerOnline(status.isOnline);
-      setConnectionStatus(status.status === 'degraded' ? 'slow' : status.status);
-    };
-    
-    // Subscribe to status changes
-    serverStatusService.events.on('statusChange', handleStatusChange);
-    
-    // Initial state
-    handleStatusChange(serverStatusService.status);
-    
-    // Clean up
-    return () => {
-      serverStatusService.events.off('statusChange', handleStatusChange);
-    };
-  }, []);
-
-  // Get last login info
-  useEffect(() => {
-    const fetchLastLoginInfo = async () => {
-      try {
-        // Check if there's any token or session data first
-        const hasExistingSession = await tokenService.hasTokens();
-        
-        if (!hasExistingSession) {
-          // First-time user or cleared storage - no need to fetch login info
-          return;
-        }
-        
-        const info = await getLastLoginInfo();
-        if (info) {
-          setLastLoginInfo(info);
-        }
-      } catch (error) {
-        // Log with reduced severity since this is expected for new users
-        logger.debug('No previous login information available', {
-          component: COMPONENT
-        });
-      }
-    };
-    
-    fetchLastLoginInfo();
-  }, [getLastLoginInfo]);
-
-  // Get device security info
-  useEffect(() => {
-    const getSecurityInfo = async () => {
-      try {
-        const info = await securityService.getDeviceInfo();
-        setSecurityInfo(info);
-      } catch (error) {
-        logger.error('Failed to get device info', {
-          component: COMPONENT,
-          error: getErrorMessage(error)
-        });
-      }
-    };
-    
-    getSecurityInfo();
-  }, []);
-
+  
   // Form submission handler
   const handleFormSubmit = async (data: LoginFormData) => {
     submitAttemptRef.current += 1;
     const currentAttempt = submitAttemptRef.current;
     
     try {
-      // Clear previous errors
-      clearErrors();
-      
       // Log the attempt with more details
       logger.debug('Login form submission attempt', {
         component: COMPONENT,
         action: 'handleFormSubmit',
         hasEmail: !!data.email,
-        hasPassword: !!data.password,
-        securityInfo: !!securityInfo
+        hasPassword: !!data.password
       });
-      
-      // Check if security info is available
-      if (!securityInfo) {
-        // Try to get security info again if it's missing
-        try {
-          const info = await securityService.getDeviceInfo();
-          setSecurityInfo(info);
-          logger.debug('Retrieved security info on submit', {
-            component: COMPONENT,
-            hasInfo: !!info
-          });
-        } catch (secError) {
-          logger.error('Failed to get device info on submit', {
-            component: COMPONENT,
-            error: getErrorMessage(secError)
-          });
-          // Continue with null security info
-        }
-      }
-      
-      // Add security context to login data
-      const enhancedData = {
-        ...data,
-        securityContext: securityInfo || {} // Provide empty object if null
-      };
       
       // Submit the form
       logger.debug('Calling onSubmit handler', {
-        component: COMPONENT,
-        hasSecurityContext: !!enhancedData.securityContext
+        component: COMPONENT
       });
       
       // Ensure onSubmit is properly awaited
       if (typeof onSubmit === 'function') {
-        await onSubmit(enhancedData);
+        await onSubmit(data);
       } else {
         throw new Error('onSubmit handler is not a function');
       }
@@ -201,7 +103,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
         if (!error.response) {
           // Network error
           toast.error('Network error. Please check your connection and try again.');
-          setConnectionStatus('offline');
         } else {
           // Server error
           const status = error.response.status;
@@ -217,8 +118,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
               message: 'Invalid email or password' 
             });
           } else {
-            // Other server errors
-            handleAuthError(error);
+            // Generic error handling
+            toast.error(getErrorMessage(error));
           }
         }
       } else {
@@ -229,11 +130,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
           action: 'handleFormSubmit',
           error: getErrorMessage(error)
         });
-      }
-      
-      // Auto-retry for network errors
-      if (!serverOnline && failedAttempts < 2) {
-        handleAutoRetry();
       }
     }
   };
@@ -259,25 +155,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
     });
   };
 
-  // Auto-retry mechanism for network errors
-  const handleAutoRetry = () => {
-    if (isRetrying) return;
-    
-    setIsRetrying(true);
-    toast.loading('Retrying connection...', { id: 'retry-toast' });
-    
-    setTimeout(() => {
-      setIsRetrying(false);
-      toast.dismiss('retry-toast');
-      
-      // Retry submission
-      const values = getValues();
-      if (values.email && values.password) {
-        handleSubmit(handleFormSubmit)();
-      }
-    }, 3000);
-  };
-
   // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword(prev => !prev);
@@ -291,30 +168,22 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
     }
   };
 
-  // Render connection status indicator
-  const renderConnectionStatus = () => {
-    // Don't show duplicate status since it's already in the right corner
-    return null;
-  };
-
-  // Render last login info
-  const renderLastLoginInfo = () => {
-    if (!lastLoginInfo) return null;
-    
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="text-xs text-gray-400 flex items-center gap-2 mt-2"
-      >
-        <FaInfoCircle className="flex-shrink-0" />
-        <span>
-          Last login: {new Date(lastLoginInfo.timestamp).toLocaleString()} 
-          {lastLoginInfo.location && ` from ${lastLoginInfo.location}`}
-        </span>
-      </motion.div>
-    );
-  };
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError,
+    clearErrors,
+    watch,
+    setValue
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      rememberMe: false
+    }
+  });
 
   return (
     <motion.div 
@@ -345,9 +214,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
       )}
 
       <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
-        <RateLimitAlert />
-        {renderConnectionStatus()}
-        
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -421,18 +287,14 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
         </div>
 
         <div className="flex items-center justify-between">
-          <Checkbox
-            id="rememberMe"
-            checked={rememberMeChecked}
-            label="Remember me"
-            onChange={(e) => {
-              // Update local state
-              setRememberMeChecked(e.target.checked);
-              
-              // Update form value manually
-              setValue('rememberMe', e.target.checked);
-            }}
-          />
+          <div className="flex items-center">
+            <Checkbox
+              id="rememberMe"
+              label="Remember me"
+              checked={watch("rememberMe")}
+              onChange={(e) => setValue("rememberMe", e.target.checked)}
+            />
+          </div>
           
           <Link
             to="/auth/forgot-password"
@@ -441,8 +303,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
             Forgot password?
           </Link>
         </div>
-
-        {renderLastLoginInfo()}
 
         <Button
           type="submit"

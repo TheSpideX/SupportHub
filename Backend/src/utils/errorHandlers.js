@@ -15,9 +15,9 @@ class ApiError extends Error {
 }
 
 /**
- * Async handler to avoid try-catch blocks in route handlers
- * @param {Function} fn - Express route handler function
- * @returns {Function} - Express middleware function
+ * Async handler to wrap async route handlers and middleware
+ * @param {Function} fn - Async function to wrap
+ * @returns {Function} Express middleware function
  */
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch((err) => next(err));

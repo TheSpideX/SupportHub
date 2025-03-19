@@ -15,94 +15,111 @@ const COMPONENT = 'SecurityService';
 class SecurityService {
     constructor() {
         this.redis = redisClient;
-        // Fix config structure access
         this.maxAttempts = config.security?.lockout?.maxAttempts || 5;
         this.lockoutDuration = (config.security?.lockout?.durationMinutes || 30) * 60;
         this.auditService = new AuditService();
     }
 
     /**
-     * Check rate limits for login attempts
-     * @param {string} identifier - User identifier (email/username)
+     * Centralized security validation for all authentication requests
+     * @param {Object} credentials - User credentials
      * @param {Object} deviceInfo - Device information
+     * @param {string} action - Action being performed (login, reset, etc.)
+     */
+    async validateSecurityContext(credentials, deviceInfo, action) {
+        // Validate IP restrictions
+        await this.validateIPRestrictions(deviceInfo.ip);
+        
+        // Check rate limits
+        await this.checkRateLimit(credentials.email, deviceInfo);
+        
+        // Validate device if needed
+        const needsVerification = await this._isNewDevice(credentials.email, deviceInfo);
+        
+        // Return comprehensive security context
+        return {
+            riskLevel: await this._calculateRiskLevel(credentials.email, deviceInfo),
+            requiresVerification: needsVerification && config.deviceVerification.requireVerification,
+            rateLimited: false,
+            suspiciousActivity: await this.detectSuspiciousActivity(credentials.email, deviceInfo)
+        };
+    }
+
+    /**
+     * Calculate risk level based on various factors
+     * @private
+     */
+    async _calculateRiskLevel(identifier, deviceInfo) {
+        // Implement risk scoring algorithm
+        let riskScore = 0;
+        
+        // Check for suspicious location
+        if (this._isHighRiskLocation(deviceInfo.location)) {
+            riskScore += 30;
+        }
+        
+        // Check for unusual login time
+        if (this._isUnusualLoginTime(identifier, deviceInfo.timezone)) {
+            riskScore += 20;
+        }
+        
+        // Check for impossible travel
+        const lastLogin = await this._getLastLoginLocation(identifier);
+        if (lastLogin && this._isImpossibleTravel(lastLogin.location, deviceInfo.location)) {
+            riskScore += 50;
+        }
+        
+        // Determine risk level
+        if (riskScore >= 50) return 'HIGH';
+        if (riskScore >= 30) return 'MEDIUM';
+        return 'LOW';
+    }
+
+    /**
+     * Check if the current request should be rate limited
+     * @param {string} identifier - User identifier (email)
+     * @param {Object} deviceInfo - Device information
+     * @returns {Promise<void>}
+     * @throws {AuthError} If rate limited
      */
     async checkRateLimit(identifier, deviceInfo = {}) {
-        // Check if we're in development mode
-        const isDevelopment = process.env.NODE_ENV === 'development';
-        
-        // In development mode, we can bypass rate limiting completely
-        if (isDevelopment) {
-            logger.debug('Rate limiting bypassed in development mode', { 
-                component: COMPONENT, 
-                identifier 
-            });
-            return true;
-        }
-        
-        // Ensure deviceInfo has required properties
-        const safeDeviceInfo = {
-            fingerprint: deviceInfo.fingerprint || 'unknown',
-            ip: deviceInfo.ip || '0.0.0.0',
-            userAgent: deviceInfo.userAgent || 'unknown'
-        };
-        
-        const key = `ratelimit:${identifier}:${safeDeviceInfo.fingerprint}`;
-        const ipKey = `ratelimit:ip:${safeDeviceInfo.ip}`;
-        
-        // Increment counters
-        const attempts = await this.redis.incr(key);
-        await this.redis.incr(ipKey);
-        
-        // Set expiration on first attempt
-        if (attempts === 1) {
-            await this.redis.expire(key, this.lockoutDuration);
-        }
-
-        // Default values in case config is undefined
-        const maxAttemptsPerIP = this.config?.lockout?.maxAttemptsPerIP || 10;
-        
-        // Check IP-based rate limit (global)
-        const ipAttempts = parseInt(await this.redis.get(ipKey));
-        if (ipAttempts > maxAttemptsPerIP) {
-            logger.warn('IP-based rate limit exceeded', { 
-                component: COMPONENT, 
-                ip: safeDeviceInfo.ip,
-                attempts: ipAttempts
-            });
+        try {
+            // Generate a key for rate limiting
+            const fingerprint = deviceInfo.fingerprint || 'unknown';
+            const ip = deviceInfo.ip || '0.0.0.0';
+            const key = `ratelimit:login:${identifier}:${fingerprint}:${ip}`;
             
-            if (this.auditService && this.auditService.logSecurityEvent) {
-                await this.auditService.logSecurityEvent('IP_RATE_LIMIT_EXCEEDED', {
-                    ip: safeDeviceInfo.ip,
-                    attempts: ipAttempts
+            // Get current attempts from Redis
+            const attempts = parseInt(await this.redis.get(key) || '0', 10);
+            const maxAttempts = config.security.lockout.maxAttempts || 5;
+            
+            // Check if rate limited
+            if (attempts >= maxAttempts) {
+                logger.warn('Rate limit exceeded', { 
+                    component: COMPONENT, 
+                    identifier,
+                    attempts 
+                });
+                
+                throw new AuthError('RATE_LIMIT_EXCEEDED', {
+                    message: 'Too many login attempts. Please try again later.',
+                    remainingTime: config.security.lockout.durationMinutes * 60
                 });
             }
             
-            // Throw with status code 429 (Too Many Requests)
-            throw new AuthError('RATE_LIMIT_EXCEEDED', {
-                remainingTime: await this.redis.ttl(ipKey),
-                statusCode: 429
-            });
-        }
-
-        // Check user+device rate limit
-        if (attempts > this.maxAttempts) {
-            logger.warn('User rate limit exceeded', { 
-                component: COMPONENT, 
-                identifier,
-                attempts
-            });
+            // Apply progressive delay if enabled
+            await this._applyProgressiveDelay(identifier, deviceInfo);
             
-            await this.auditService.logSecurityEvent('USER_RATE_LIMIT_EXCEEDED', {
-                identifier,
-                deviceFingerprint: safeDeviceInfo.fingerprint,
-                attempts
-            });
-            
-            // Throw with status code 429 (Too Many Requests)
-            throw new AuthError('RATE_LIMIT_EXCEEDED', {
-                remainingTime: await this.redis.ttl(key),
-                statusCode: 429
-            });
+            return true;
+        } catch (error) {
+            // If it's not our specific AuthError, log and rethrow
+            if (error.name !== 'AuthError') {
+                logger.error('Rate limit check error', {
+                    component: COMPONENT,
+                    error: error.message
+                });
+            }
+            throw error;
         }
     }
 
@@ -125,7 +142,7 @@ class SecurityService {
 
             // Check if user exists and is active
             if (!user || !user.isActive) {
-                await this._handleFailedAttempt(credentials.email, deviceInfo);
+                await this.handleFailedAttempt(credentials.email, deviceInfo);
                 throw new AuthError('INVALID_CREDENTIALS');
             }
 
@@ -143,7 +160,7 @@ class SecurityService {
             );
 
             if (!isPasswordValid) {
-                await this._handleFailedAttempt(credentials.email, deviceInfo);
+                await this.handleFailedAttempt(credentials.email, deviceInfo);
                 throw new AuthError('INVALID_CREDENTIALS');
             }
 
@@ -175,21 +192,25 @@ class SecurityService {
     }
 
     /**
-     * Handle failed login attempt
+     * Handle failed login attempt with consistent naming and behavior
      * @param {string} identifier - User identifier
      * @param {Object} deviceInfo - Device information
-     * @private
      */
-    async _handleFailedAttempt(identifier, deviceInfo) {
+    async handleFailedAttempt(identifier, deviceInfo = {}) {
         try {
+            // Standardize key naming
             const key = `failures:${identifier}`;
-            const attempts = await this.redis.incr(key);
+            const deviceKey = `failures:device:${deviceInfo.fingerprint || deviceInfo.ip || 'unknown'}`;
             
-            // Set expiration on first attempt
+            // Increment both user and device counters
+            const attempts = await this.redis.incr(key);
+            await this.redis.incr(deviceKey);
+            
+            // Set consistent expiration on first attempt
             if (attempts === 1) {
-                // Default lockout duration of 30 minutes if config is not available
-                const lockoutDuration = 30 * 60; // 30 minutes in seconds
+                const lockoutDuration = config.security.lockout.durationMinutes * 60;
                 await this.redis.expire(key, lockoutDuration);
+                await this.redis.expire(deviceKey, lockoutDuration);
             }
             
             // Log failed attempt
@@ -201,13 +222,18 @@ class SecurityService {
                 });
             }
             
-            // Check if max attempts reached
-            const maxAttempts = 5; // Default to 5 if config is not available
-            if (attempts >= maxAttempts) {
+            // Apply progressive delay if enabled
+            if (config.security.lockout.progressiveDelay) {
+                // Calculate delay: 1s, 2s, 4s, 8s, etc. (exponential backoff)
+                const delayMs = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+            
+            // Lock account if max attempts reached
+            if (attempts >= config.security.lockout.maxAttempts) {
                 await this._lockAccount(identifier);
-                logger.warn('Account locked due to too many failed attempts', {
-                    component: this.COMPONENT,
-                    identifier: typeof identifier === 'string' ? identifier.substring(0, 3) + '***' : 'unknown'
+                throw new AuthError('ACCOUNT_LOCKED', {
+                    remainingTime: config.security.lockout.durationMinutes * 60
                 });
             }
             
@@ -217,6 +243,10 @@ class SecurityService {
                 component: this.COMPONENT,
                 error: error.message
             });
+            // Rethrow if it's an AuthError
+            if (error.name === 'AuthError') {
+                throw error;
+            }
             // Return a default value to avoid breaking the flow
             return 1;
         }
@@ -731,7 +761,7 @@ class SecurityService {
             
             // If login failed, handle the failed attempt
             if (!success) {
-                await this._handleFailedAttempt(identifier, safeDeviceInfo);
+                await this.handleFailedAttempt(identifier, safeDeviceInfo);
             } else {
                 // Reset failed attempts on successful login
                 await this._resetFailedAttempts(identifier);

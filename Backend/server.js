@@ -33,18 +33,20 @@ const session = require('express-session');
 const csrfMiddleware = require('./src/modules/auth/middleware/csrf.middleware');
 
 // Make sure these are added before routes
-app.use(cookieParser()); // Required for parsing cookies
+app.use(cookieParser(process.env.COOKIE_SECRET || 'your-fallback-secret-key')); // Required for parsing cookies
 
 // Configure session middleware
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-fallback-secret-key',
-  name: 'session-id', // Custom name for the session cookie
+  name: 'app_session', // Custom name for the session cookie
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    sameSite: 'lax', // Changed from strict to lax for better UX
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/' // Ensure cookie is sent with all requests
   }
 }));
 
@@ -52,20 +54,21 @@ app.use(session({
 app.use('/api/auth/csrf-token', csrfMiddleware.generateToken);
 app.use('/api/auth/csrf', csrfMiddleware.generateToken);
 
-// Make sure CORS is configured properly before any route handlers
+// Configure CORS properly for cookies
 app.use(cors({
-  origin: process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5173'  // Vite's default port
-    : process.env.FRONTEND_URL,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL 
+    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://localhost:4290'],
+  credentials: true, // Critical for cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
     'X-CSRF-Token', 
+    'X-XSRF-Token',
     'X-Requested-With',
     'Accept',
-    'Cache-Control'  // Add this to allow cache-control header
+    'Cache-Control'
   ],
   exposedHeaders: ['X-CSRF-Token']
 }));
@@ -74,22 +77,28 @@ app.use(cors({
 app.get('/api/auth/csrf-token', csrfMiddleware.generateToken);
 app.get('/api/auth/csrf', csrfMiddleware.generateToken);
 
-// Make sure session middleware is applied before CSRF middleware
-app.use(session({
-  // Your session configuration
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
+// Remove duplicate routes
+// app.use('/api/auth/csrf-token', csrfMiddleware.generateToken);
+// app.use('/api/auth/csrf', csrfMiddleware.generateToken);
 
-// Make sure CSRF middleware is applied after session middleware
-app.use('/api/auth/csrf-token', csrfMiddleware.generateToken);
-app.use('/api/auth/csrf', csrfMiddleware.generateToken);
+// Add security headers
+app.use((req, res, next) => {
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Only set CSP in production to avoid development issues
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self';"
+    );
+  }
+  
+  next();
+});
 
 // Add a health check endpoint
 app.get('/api/health', (req, res) => {
@@ -133,33 +142,47 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
-// Update CORS configuration to include both development ports
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://localhost:4290'],
-  credentials: true, // Allow credentials (cookies)
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-CSRF-Token', 
-    'X-Requested-With',
-    'Accept',
-    'Cache-Control'
-  ],
-  exposedHeaders: ['X-CSRF-Token']
-}));
+// Remove duplicate CORS configuration
+// app.use(cors({
+//   origin: process.env.NODE_ENV === 'production' 
+//     ? process.env.FRONTEND_URL 
+//     : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://localhost:4290'],
+//   credentials: true, // Allow credentials (cookies)
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: [
+//     'Content-Type', 
+//     'Authorization', 
+//     'X-CSRF-Token', 
+//     'X-Requested-With',
+//     'Accept',
+//     'Cache-Control'
+//   ],
+//   exposedHeaders: ['X-CSRF-Token']
+// }));
 
-// Make sure cookie parser is before routes
-app.use(cookieParser()); // Required for parsing cookies
-
-// Add a debug middleware to log all requests
+// Add a debug middleware to log cookies
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    console.log('Headers:', req.headers['x-csrf-token'] ? 'CSRF Token present' : 'No CSRF Token');
+  if (req.path.includes('/auth/')) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Cookies:`, req.cookies);
   }
+  next();
+});
+
+// Add a debug middleware to log all requests and responses
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Request received`);
+  
+  // Capture the original end method
+  const originalEnd = res.end;
+  
+  // Override the end method
+  res.end = function(...args) {
+    const duration = Date.now() - start;
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Response sent: ${res.statusCode} (${duration}ms)`);
+    return originalEnd.apply(this, args);
+  };
+  
   next();
 });
 

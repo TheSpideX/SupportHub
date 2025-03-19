@@ -1,81 +1,128 @@
+/**
+ * Authentication system constants
+ * Based on the auth-system-architecture using HTTP-only cookies
+ */
 export const AUTH_CONSTANTS = {
-  SESSION: {
-    HEALTH_CHECK_INTERVAL: 60000, // 1 minute
-    HEALTH_CHECK_THROTTLE: 30000, // 30 seconds minimum between checks
-    EXPIRY_THRESHOLD: 300000, // 5 minutes
-    MAX_INACTIVITY: 1800000, // 30 minutes
+  // Cookie names (for HTTP-only cookies set by server)
+  COOKIES: {
+    ACCESS_TOKEN: 'access_token', // Match backend naming
+    REFRESH_TOKEN: 'refresh_token', // Match backend naming
+    CSRF_TOKEN: 'csrf_token', // Match backend naming
+    SESSION_ID: 'session-id',
   },
+  
+  // Token settings (for reference, actual tokens managed by server)
+  TOKENS: {
+    ACCESS_EXPIRY: 15 * 60 * 1000, // 15 minutes
+    REFRESH_EXPIRY: 7 * 24 * 60 * 60 * 1000, // 7 days
+    REFRESH_THRESHOLD: 5 * 60 * 1000, // 5 minutes before expiry
+  },
+  
+  // Session settings
+  SESSION: {
+    TIMEOUT: 30 * 60 * 1000, // 30 minutes
+    ACTIVITY_EVENTS: ['mousedown', 'keydown', 'scroll', 'touchstart'],
+    INACTIVITY_CHECK_INTERVAL: 60 * 1000, // 1 minute
+  },
+  
+  // Storage keys for localStorage/sessionStorage
   STORAGE_KEYS: {
     AUTH_TOKENS: 'auth_tokens',
-    REMEMBER_ME: 'remember_me',
-    DEVICE_ID: 'device_id',
-    SECURITY_CONTEXT: 'security_context'
+    SECURITY_CONTEXT: 'auth_security_context',
+    USER_DATA: 'auth_user_data',
+    SESSION_DATA: 'auth_session_data'
   },
-  ROUTES: {
-    LOGIN: '/auth/login',
-    REGISTER: '/auth/register',
-    VERIFY_EMAIL: '/auth/verify-email',
-    TWO_FACTOR: '/auth/2fa',
-    VERIFY_DEVICE: '/auth/verify-device',
-    REAUTH: '/auth/reauth',
-    FORGOT_PASSWORD: '/auth/forgot-password',
-    RESET_PASSWORD: '/auth/reset-password',
-    DASHBOARD: '/dashboard',
-  },
+  
+  // Error codes (matching backend)
   ERROR_CODES: {
     INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+    ACCOUNT_INACTIVE: 'ACCOUNT_INACTIVE',
+    ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+    INVALID_TOKEN: 'INVALID_TOKEN',
+    TOKEN_REVOKED: 'TOKEN_REVOKED',
     SESSION_EXPIRED: 'SESSION_EXPIRED',
-    REQUIRES_2FA: 'REQUIRES_2FA',
-    NETWORK_ERROR: 'NETWORK_ERROR',
+    DEVICE_NOT_TRUSTED: 'DEVICE_NOT_TRUSTED',
     RATE_LIMITED: 'RATE_LIMITED',
-    DEVICE_NOT_RECOGNIZED: 'DEVICE_NOT_RECOGNIZED',
-    SECURITY_ACTION_REQUIRED: 'SECURITY_ACTION_REQUIRED'
-  }
-};
-
-export const PASSWORD_REQUIREMENTS = {
-  minLength: 8,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumbers: true,
-  requireSpecialChars: true,
-};
-
-export const AUTH_ERROR_MESSAGES = {
-  INVALID_CREDENTIALS: 'Invalid email or password',
-  ACCOUNT_LOCKED: (time: number) => `Account locked. Try again in ${time} minutes`,
-  SESSION_EXPIRED: 'Your session has expired. Please login again',
-  DEVICE_NOT_TRUSTED: 'This device requires verification',
-  NETWORK_ERROR: 'Connection error. Please check your internet connection',
-  RATE_LIMITED: (time: number) => `Too many attempts. Try again in ${time} seconds`,
-  SECURITY_CHECK_FAILED: 'Additional security verification required',
-  MFA_REQUIRED: 'Two-factor authentication required',
-  TOKEN_EXPIRED: 'Your session has expired',
-  INVALID_TOKEN: 'Invalid authentication token',
-  DEVICE_CHANGED: 'Device verification required',
-  LOCATION_CHANGED: 'New location detected, verification required',
-  CONCURRENT_SESSION: 'Another session is active',
-  INVALID_MFA_CODE: 'Invalid verification code',
-  PASSWORD_EXPIRED: 'Password change required',
-  CSRF_ERROR: 'Security token error. Please refresh the page',
-  INVALID_STATE: 'Session state error. Please login again',
-  UNKNOWN_ERROR: 'An unexpected error occurred',
-  INVALID_2FA_TOKEN: 'Verification session expired. Please login again',
-  USER_NOT_FOUND: 'User not found',
-  PASSWORD_COMPROMISED: 'Your password appears in a data breach. Please change it immediately',
-  DEVICE_VERIFICATION_REQUIRED: 'This device needs to be verified',
-  IP_BLOCKED: 'Access blocked due to suspicious activity',
-  ACCOUNT_DISABLED: 'Your account has been disabled',
-  PERMISSION_DENIED: 'You do not have permission to perform this action',
-  SERVER_ERROR: 'Server error occurred. Please try again later',
-  SERVER_UNAVAILABLE: 'Authentication server is not available. Please check if the backend is running.'
-};
-
-// Map backend error codes to redirect paths
-export const AUTH_ERROR_REDIRECTS = {
-  DEVICE_NOT_TRUSTED: '/auth/verify-device',
-  MFA_REQUIRED: '/auth/two-factor',
-  PASSWORD_EXPIRED: '/auth/change-password',
-  LOCATION_CHANGED: '/auth/verify-location',
-  SECURITY_CHECK_FAILED: '/auth/security-check'
+    LOCATION_CHANGED: 'LOCATION_CHANGED',
+    IP_BLOCKED: 'IP_BLOCKED',
+    MFA_REQUIRED: 'MFA_REQUIRED',
+    PERMISSION_DENIED: 'PERMISSION_DENIED',
+    SERVER_ERROR: 'SERVER_ERROR',
+  },
+  
+  // API endpoints
+  ENDPOINTS: {
+    LOGIN: '/api/auth/login',
+    LOGOUT: '/api/auth/logout',
+    REGISTER: '/api/auth/register',
+    REFRESH: '/api/auth/refresh',
+    VERIFY_EMAIL: '/api/auth/verify-email',
+    FORGOT_PASSWORD: '/api/auth/forgot-password',
+    RESET_PASSWORD: '/api/auth/reset-password',
+    CHANGE_PASSWORD: '/api/auth/change-password',
+    TWO_FACTOR: '/api/auth/two-factor',
+    VERIFY_DEVICE: '/api/auth/verify-device',
+    CSRF_TOKEN: '/api/auth/csrf-token',
+    USER_INFO: '/api/auth/me',
+  },
+  
+  // Events for cross-component and cross-tab communication
+  EVENTS: {
+    LOGIN_SUCCESS: 'auth:login:success',
+    LOGIN_FAILURE: 'auth:login:failure',
+    LOGOUT: 'auth:logout',
+    SESSION_EXPIRED: 'auth:session:expired',
+    TOKEN_REFRESHED: 'auth:token:refreshed',
+    TOKEN_REFRESH_FAILED: 'auth:token:refresh:failed',
+    SECURITY_VIOLATION: 'auth:security:violation',
+    USER_UPDATED: 'auth:user:updated',
+    CROSS_TAB_SYNC: 'auth:cross-tab:sync',
+  },
+  
+  // CSRF protection settings
+  CSRF: {
+    HEADER_NAME: 'X-CSRF-Token',
+    COOKIE_NAME: 'XSRF-TOKEN',
+    METHODS_REQUIRING_TOKEN: ['POST', 'PUT', 'PATCH', 'DELETE'],
+  },
+  
+  // HTTP request settings
+  HTTP: {
+    WITH_CREDENTIALS: true, // Essential for sending cookies with requests
+    RETRY_COUNT: 3,
+    RETRY_DELAY: 1000,
+    TIMEOUT: 15000, // 15 seconds
+  },
+  
+  // Local storage keys (for non-sensitive data only)
+  STORAGE: {
+    USER_PREFERENCES: 'auth_user_prefs',
+    THEME: 'auth_theme',
+    LANGUAGE: 'auth_language',
+    LAST_ACTIVE: 'auth_last_active',
+  },
+  
+  // Security settings
+  SECURITY: {
+    LEVELS: {
+      LOW: 'low',
+      MEDIUM: 'medium',
+      HIGH: 'high',
+    },
+    DEFAULT_LEVEL: 'medium',
+    PASSWORD_MIN_LENGTH: 8,
+    PASSWORD_REQUIRES_MIXED_CASE: true,
+    PASSWORD_REQUIRES_NUMBERS: true,
+    PASSWORD_REQUIRES_SYMBOLS: true,
+  },
+  
+  // Feature flags
+  FEATURES: {
+    TWO_FACTOR_AUTH: true,
+    REMEMBER_ME: true,
+    PASSWORD_STRENGTH_METER: true,
+    SOCIAL_LOGIN: false,
+    CROSS_TAB_SYNC: true,
+    OFFLINE_SUPPORT: false,
+  },
 };

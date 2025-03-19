@@ -1,17 +1,22 @@
-import { configureStore, getDefaultMiddleware } from '@reduxjs/toolkit';
-import { sessionMiddleware } from '@/features/auth/middleware/sessionMiddleware';
-import { loggingMiddleware } from './middleware/loggingMiddleware';
+import { configureStore } from '@reduxjs/toolkit';
 import authReducer from '@/features/auth/store/authSlice';
+import sessionReducer from '@/features/auth/store/sessionSlice';
+import securityReducer from '@/features/auth/store/securitySlice';
+import { AuthState } from '@/features/auth/types/auth.types';
+
+// Define the shape of your RootState
+export interface RootState {
+  auth: AuthState;
+  session: ReturnType<typeof sessionReducer>;
+  security: ReturnType<typeof securityReducer>;
+}
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
+    session: sessionReducer,
+    security: securityReducer
   },
-  middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware()
-      .concat(sessionMiddleware)
-      .concat(loggingMiddleware),
 });
 
-export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

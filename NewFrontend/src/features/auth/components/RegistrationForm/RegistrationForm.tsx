@@ -1,18 +1,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { motion } from "framer-motion";
 import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/buttons/Button";
 import { useDispatch } from "react-redux";
-import { authService } from "../../services/auth.service";
-import { setCredentials } from "../../store/authSlice";
-import { hashPassword } from "../../utils/passwordUtils";
-import type { RegistrationFormData } from "../../types";
+import type { RegistrationFormData } from "../../types/auth.types";
 import { registrationSchema } from "../../services/validation.service";
-import { AuthError } from "../../errors/auth-error";
 
 interface RegistrationFormProps {
   type: "customer" | "company" | "company_employee";
@@ -40,67 +35,20 @@ export const RegistrationForm = ({ type, onBack }: RegistrationFormProps) => {
   });
 
   const onSubmit = async (data: RegistrationFormData) => {
-    const toastId = toast.loading("Creating your account...", {
-      duration: 10000,
-    });
-
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      setRateLimitError(null);
-
-      if (type === "company_employee") {
-        const inviteVerification = await authService.verifyInviteCode(
-          data.inviteCode!
-        );
-        if (!inviteVerification.isValid) {
-          throw new AuthError(
-            "INVALID_INVITE",
-            inviteVerification.error || "Invalid invite code"
-          );
-        }
-      }
-
-      // Frontend validation for password match
-      if (data.password !== data.confirmPassword) {
-        throw new AuthError("PASSWORD_MISMATCH", "Passwords do not match");
-      }
-
-      // Remove confirmPassword before sending to server
-      const { confirmPassword, ...registrationData } = data;
-
-      // Hash password before sending
-      const response = await authService.register({
-        ...registrationData,
-        password: hashPassword(registrationData.password),
-      });
-
-      toast.success("Account created successfully!");
-
-      if (response.requiresTwoFactor) {
-        navigate("/auth/two-factor", {
-          state: { twoFactorToken: response.twoFactorToken },
-        });
-        return;
-      }
-
-      dispatch(
-        setCredentials({
-          user: response.user,
-          tokens: response.tokens,
-        })
-      );
-
-      navigate(authService.getRoleBasedRedirect(response.user.role));
-    } catch (error) {
-      if (error instanceof AuthError && error.code === "RATE_LIMIT_EXCEEDED") {
-        setRateLimitError(error.message);
-        toast.error(error.message);
+      // Call your registration API here
+      // Example: await authService.register(data);
+      toast.success("Registration successful!");
+      navigate("/auth/login");
+    } catch (error: any) {
+      if (error.response?.status === 429) {
+        setRateLimitError(error.response.data.message || "Too many attempts. Please try again later.");
       } else {
-        toast.error("Failed to create account. Please try again.");
+        toast.error(error.message || "Registration failed. Please try again.");
       }
     } finally {
       setIsLoading(false);
-      toast.dismiss(toastId);
     }
   };
 

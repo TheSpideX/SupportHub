@@ -1,114 +1,145 @@
-// API Routes Configuration
-// export const API_ROUTES = {
-//   AUTH: {
-//     LOGIN: '/api/auth/login',
-//     LOGOUT: '/api/auth/logout',
-//     REFRESH_TOKEN: '/api/auth/refresh-token',
-//     VALIDATE_SESSION: '/api/auth/validate-session',
-//     REGISTER: '/api/auth/register',
-//     FORGOT_PASSWORD: '/api/auth/forgot-password',
-//     RESET_PASSWORD: '/api/auth/reset-password',
-//   },
-//   USER: {
-//     PROFILE: '/api/user/profile',
-//     UPDATE_PROFILE: '/api/user/profile/update',
-//     CHANGE_PASSWORD: '/api/user/change-password',
-//   },
-//   SECURITY: {
-//     VALIDATE_DEVICE: '/api/security/validate-device',
-//     REPORT_INCIDENT: '/api/security/report-incident',
-//     VERIFY_2FA: '/api/security/verify-2fa',
-//   }
-// } as const;
+// API Routes - Centralized endpoint definitions
+// Import environment variables from a separate config file
+import { API_CONFIG } from './api';
 
 export const API_ROUTES = {
-  BASE_URL: import.meta.env.VITE_API_URL || "http://localhost:4290",
+  BASE_URL: API_CONFIG.BASE_URL,
+  
+  // Auth endpoints
   AUTH: {
+    // Authentication
     LOGIN: "/api/auth/login",
     REGISTER: "/api/auth/register",
     LOGOUT: "/api/auth/logout",
     REFRESH_TOKEN: "/api/auth/refresh-token",
-    USER_INFO: "/api/auth/me", // This should match the backend endpoint
+    
+    // User information
+    USER_INFO: "/api/auth/me",
+    
+    // Email verification
     VERIFY_EMAIL: "/api/auth/verify-email",
+    RESEND_VERIFICATION: "/api/auth/resend-verification",
+    
+    // Two-factor authentication
+    VERIFY_2FA: "/api/auth/verify-2fa",
+    SETUP_2FA: "/api/auth/setup-2fa",
+    DISABLE_2FA: "/api/auth/disable-2fa",
+    GENERATE_BACKUP_CODES: "/api/auth/generate-backup-codes",
+    
+    // Password management
     FORGOT_PASSWORD: "/api/auth/forgot-password",
     RESET_PASSWORD: "/api/auth/reset-password",
+    CHANGE_PASSWORD: "/api/auth/change-password",
+    
+    // Profile management
+    UPDATE_PROFILE: "/api/auth/update-profile",
+    
+    // Session management
     VALIDATE_SESSION: "/api/auth/validate-session",
-    CSRF_TOKEN: "/api/auth/csrf-token"
+    SYNC_SESSION: "/api/auth/session/sync",
+    GET_SESSIONS: "/api/auth/sessions",
+    TERMINATE_SESSION: "/api/auth/sessions/terminate",
+    TERMINATE_ALL_SESSIONS: "/api/auth/sessions/terminate-all",
+    
+    // Security
+    CSRF_TOKEN: "/api/auth/csrf-token",
+    VERIFY_DEVICE: "/api/auth/verify-device",
+    REPORT_SECURITY_ISSUE: "/api/auth/report-security-issue"
   },
+  
+  // User management endpoints
+  USERS: {
+    BASE: "/api/users",
+    GET_ALL: "/api/users",
+    GET_BY_ID: (id: string) => `/api/users/${id}`,
+    CREATE: "/api/users",
+    UPDATE: (id: string) => `/api/users/${id}`,
+    DELETE: (id: string) => `/api/users/${id}`,
+    SEARCH: "/api/users/search"
+  },
+  
+  // Health and status endpoints
+  SYSTEM: {
+    HEALTH: "/api/system/health",
+    STATUS: "/api/system/status",
+    VERSION: "/api/system/version"
+  }
+} as const;
+
+// Extended API routes with dynamic path generation
+export const EXTENDED_API_ROUTES = {
+  ...API_ROUTES,
+  AUTH: {
+    ...API_ROUTES.AUTH,
+    LOGOUT_EVERYWHERE: `${API_ROUTES.AUTH.LOGOUT}/all`,
+    TERMINATE_SESSION: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate`,
+    TERMINATE_ALL_OTHER_SESSIONS: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate-others`,
+    GET_USER: API_ROUTES.AUTH.USER_INFO
+  }
 };
 
-// Frontend Routes Configuration
+// Frontend application routes
 export const APP_ROUTES = {
-  // Auth Routes
+  ROOT: "/",
+  
+  // Authentication routes
   AUTH: {
     ROOT: "/auth",
     LOGIN: "/auth/login",
     REGISTER: "/auth/register",
     FORGOT_PASSWORD: "/auth/forgot-password",
     RESET_PASSWORD: "/auth/reset-password",
+    VERIFY_EMAIL: "/auth/verify-email",
     VERIFY_2FA: "/auth/verify-2fa",
+    SETUP_2FA: "/auth/setup-2fa"
   },
-  // Dashboard Routes
+  
+  // Dashboard routes
   DASHBOARD: {
     ROOT: "/dashboard",
     OVERVIEW: "/dashboard/overview",
-    ANALYTICS: "/dashboard/analytics",
+    PROFILE: "/dashboard/profile",
+    SETTINGS: "/dashboard/settings",
+    SECURITY: "/dashboard/security",
+    SESSIONS: "/dashboard/sessions"
   },
-  // User Routes
-  USER: {
-    PROFILE: "/user/profile",
-    SETTINGS: "/user/settings",
-    PREFERENCES: "/user/preferences",
-  },
-  // Error Pages
-  ERROR: {
+  
+  // Error pages
+  ERRORS: {
     NOT_FOUND: "/404",
     FORBIDDEN: "/403",
     SERVER_ERROR: "/500",
-  },
-  // Common Routes
-  COMMON: {
-    HOME: "/",
-    LANDING: "/landing",
-  },
+    OFFLINE: "/offline"
+  }
 } as const;
 
-// Route Guards Configuration
-export const ROUTE_GUARDS = {
-  PUBLIC_ONLY: ["AUTH.LOGIN", "AUTH.REGISTER", "AUTH.FORGOT_PASSWORD"],
-  PROTECTED: ["DASHBOARD.ROOT", "USER.PROFILE", "USER.SETTINGS"],
-  ADMIN_ONLY: ["DASHBOARD.ANALYTICS"],
-} as const;
-
-// Route Metadata
-export const ROUTE_META = {
-  [APP_ROUTES.DASHBOARD.ROOT]: {
-    title: "Dashboard",
-    requiresAuth: true,
-    layout: "dashboard",
+// Route metadata for authorization and navigation
+export const ROUTE_METADATA = {
+  [APP_ROUTES.ROOT]: {
+    requiresAuth: false,
+    title: "Home",
+    description: "Welcome to the application"
   },
   [APP_ROUTES.AUTH.LOGIN]: {
-    title: "Login",
     requiresAuth: false,
-    layout: "auth",
+    title: "Login",
+    description: "Sign in to your account"
   },
-  // Add more route metadata as needed
+  [APP_ROUTES.DASHBOARD.ROOT]: {
+    requiresAuth: true,
+    title: "Dashboard",
+    description: "Your dashboard overview",
+    requiredRoles: ["user", "admin"]
+  },
+  [APP_ROUTES.DASHBOARD.SETTINGS]: {
+    requiresAuth: true,
+    title: "Settings",
+    description: "Manage your account settings",
+    requiredRoles: ["user", "admin"]
+  }
 } as const;
 
-// Type Exports
+// Type exports
 export type ApiRoutes = typeof API_ROUTES;
 export type AppRoutes = typeof APP_ROUTES;
-export type RouteGuards = typeof ROUTE_GUARDS;
-export type RouteMeta = typeof ROUTE_META;
-
-// Helper function to get route metadata
-export const getRouteMeta = (
-  path: string
-): (typeof ROUTE_META)[keyof typeof ROUTE_META] | undefined => {
-  return ROUTE_META[path as keyof typeof ROUTE_META];
-};
-
-// Helper function to check if route requires authentication
-export const requiresAuth = (path: string): boolean => {
-  return getRouteMeta(path)?.requiresAuth ?? false;
-};
+export type RouteMetadata = typeof ROUTE_METADATA;

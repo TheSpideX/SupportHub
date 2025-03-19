@@ -1,13 +1,11 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const mongoose = require('mongoose');
+const { promisify } = require('util');
+const config = require('../config');
 const logger = require('../../../utils/logger');
 const { AuthError } = require('../errors');
-const config = require('../config');
-
-// Token models
-const TokenModel = require('../models/token.model');
-const BlacklistedTokenModel = require('../models/blacklisted-token.model');
+const Token = require('../models/token.model');
+const redisClient = require('../../../config/redis');
 
 const COMPONENT = 'TokenService';
 
@@ -15,9 +13,14 @@ class TokenService {
   constructor() {
     this.accessTokenSecret = config.jwt.accessSecret;
     this.refreshTokenSecret = config.jwt.refreshSecret;
-    this.accessTokenExpiry = config.jwt.accessExpiry || '15m';
-    this.refreshTokenExpiry = config.jwt.refreshExpiry || '7d';
-    this.extendedRefreshTokenExpiry = config.jwt.extendedRefreshExpiry || '30d';
+    this.accessTokenExpiry = config.jwt.accessExpiry;
+    this.refreshTokenExpiry = config.jwt.refreshExpiry;
+    this.extendedRefreshTokenExpiry = config.jwt.extendedRefreshExpiry;
+    this.cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict'
+    };
   }
 
   /**
@@ -33,16 +36,11 @@ class TokenService {
       // Common payload for both tokens
       const basePayload = {
         sub: user._id.toString(),
+        userId: user._id.toString(),
+        email: user.email,
         role: user.role || 'user',
-        version: user.tokenVersion || 0,
+        version: user.security?.tokenVersion || 0,
       };
-
-      console.log('Token generation - user ID:', user._id.toString());
-      console.log('Token generation - user object:', JSON.stringify({
-        id: user._id,
-        role: user.role,
-        tokenVersion: user.tokenVersion
-      }));
 
       // Add device fingerprint if available
       if (deviceFingerprint) {
@@ -77,202 +75,154 @@ class TokenService {
         { expiresIn: refreshExpiry }
       );
 
-      // Calculate expiration time in seconds
-      const decoded = jwt.decode(accessToken);
-      const expiresIn = decoded.exp - Math.floor(Date.now() / 1000);
-
-      // Store refresh token in database for tracking
-      await this.storeToken(refreshToken, user._id, 'refresh', {
+      // Store refresh token in database for revocation capability
+      await this._storeRefreshToken(refreshToken, user._id, {
         deviceFingerprint,
+        expiresAt: new Date(Date.now() + this._getExpiryMilliseconds(refreshExpiry)),
         sessionId
       });
 
-      logger.debug('Generated token pair', { 
+      return { accessToken, refreshToken };
+    } catch (error) {
+      logger.error('Token generation error', { 
         component: COMPONENT, 
         userId: user._id,
-        expiresIn
-      });
-
-      return {
-        accessToken,
-        refreshToken,
-        expiresIn
-      };
-    } catch (error) {
-      logger.error('Failed to generate token pair', { 
-        component: COMPONENT, 
         error: error.message 
       });
-      throw new AuthError('TOKEN_GENERATION_FAILED');
+      throw new AuthError('Failed to generate tokens', 'TOKEN_GENERATION_ERROR');
     }
   }
 
   /**
-   * Verify and decode a token
-   * @param {string} token - JWT token to verify
-   * @param {string} type - Token type ('access' or 'refresh')
-   * @returns {Object} Decoded token payload
+   * Set tokens in cookies
+   * @param {Object} res - Express response object
+   * @param {Object} user - User object
+   * @param {Object} options - Token options
+   * @returns {Object} Token pair
+   */
+  async setTokenCookies(res, user, options = {}) {
+    try {
+      logger.debug('Setting token cookies', { 
+        component: COMPONENT, 
+        userId: user._id,
+        rememberMe: !!options.rememberMe
+      });
+      
+      // Generate token pair
+      const { accessToken, refreshToken } = await this.generateTokenPair(user, options);
+      
+      // Set access token cookie
+      const accessExpiry = this._getExpiryMilliseconds(this.accessTokenExpiry);
+      
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'strict',
+        maxAge: accessExpiry
+      });
+      
+      // Set refresh token cookie with longer expiry if rememberMe is true
+      const refreshExpiry = options.rememberMe ? 
+        this._getExpiryMilliseconds(this.extendedRefreshTokenExpiry) : 
+        this._getExpiryMilliseconds(this.refreshTokenExpiry);
+      
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'strict',
+        maxAge: refreshExpiry
+      });
+      
+      // Return tokens for debugging purposes
+      return { accessToken, refreshToken };
+    } catch (error) {
+      logger.error('Error setting token cookies', { 
+        component: COMPONENT, 
+        userId: user._id,
+        error: error.message 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Verify a token
+   * @param {String} token - JWT token
+   * @param {String} type - Token type (access or refresh)
+   * @returns {Object} Decoded token
    */
   async verifyToken(token, type = 'access') {
     try {
-      // Log token details for debugging (remove in production)
-      logger.debug('Token verification attempt', { 
-        component: COMPONENT,
-        tokenLength: token ? token.length : 0,
-        tokenType: type,
-        tokenFirstChars: token ? token.substring(0, 10) + '...' : 'none'
-      });
+      const secret = type === 'access' ? this.accessTokenSecret : this.refreshTokenSecret;
       
-      // Verify the token with the appropriate secret
-      const secret = type === 'access' 
-        ? this.accessTokenSecret  // Fix: use instance property instead of this.config
-        : this.refreshTokenSecret; // Fix: use instance property instead of this.config
-      
+      // Verify token signature and expiration
       const decoded = jwt.verify(token, secret);
       
-      // Check if token is blacklisted
-      const isBlacklisted = await this.isTokenBlacklisted(token);
-      if (isBlacklisted) {
-        const error = new Error('Token has been revoked');
-        error.code = 'TOKEN_REVOKED';
-        throw error;
+      // Ensure token type matches
+      if (decoded.type !== type) {
+        throw new AuthError('Invalid token type', 'INVALID_TOKEN_TYPE');
+      }
+      
+      // Check if refresh token has been revoked
+      if (type === 'refresh' && decoded.jti) {
+        const isRevoked = await this._isTokenRevoked(decoded.jti);
+        if (isRevoked) {
+          throw new AuthError('Token has been revoked', 'TOKEN_REVOKED');
+        }
       }
       
       return decoded;
     } catch (error) {
-      // Handle specific JWT errors
       if (error.name === 'TokenExpiredError') {
-        const err = new Error('Token has expired');
-        err.code = 'TOKEN_EXPIRED';
-        throw err;
-      } else if (error.name === 'JsonWebTokenError') {
-        const err = new Error('Invalid token');
-        err.code = 'INVALID_TOKEN';
-        throw err;
+        throw new AuthError('Token has expired', 'TOKEN_EXPIRED');
+      }
+      if (error.name === 'JsonWebTokenError') {
+        throw new AuthError('Invalid token', 'INVALID_TOKEN');
       }
       throw error;
     }
   }
 
   /**
-   * Decode a token without verification
-   * @param {String} token - JWT token
-   * @returns {Object} Decoded token payload
+   * Refresh access token using refresh token
+   * @param {String} refreshToken - Refresh token
+   * @returns {Object} New access token
    */
-  decodeToken(token) {
+  async refreshAccessToken(refreshToken) {
     try {
-      return jwt.decode(token);
-    } catch (error) {
-      logger.warn('Failed to decode token', { 
-        component: COMPONENT, 
-        error: error.message 
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Check if a token is blacklisted
-   * @param {String} token - JWT token
-   * @returns {Boolean} Whether token is blacklisted
-   */
-  async isTokenBlacklisted(token) {
-    try {
-      // Hash token for lookup
-      const tokenHash = this.hashToken(token);
-      
-      // Check blacklist
-      const blacklistedToken = await BlacklistedTokenModel.findOne({ token: tokenHash });
-      
-      return !!blacklistedToken;
-    } catch (error) {
-      logger.error('Error checking blacklisted token', { 
-        component: COMPONENT, 
-        error: error.message 
-      });
-      // Default to not blacklisted on error
-      return false;
-    }
-  }
-
-  /**
-   * Add a token to the blacklist
-   * @param {String} token - JWT token to blacklist
-   * @returns {Boolean} Success indicator
-   */
-  async blacklistToken(token) {
-    try {
-      // Decode token to get expiration and ID
-      const decoded = this.decodeToken(token);
-      if (!decoded || !decoded.exp) {
-        logger.warn('Cannot blacklist invalid token', { component: COMPONENT });
-        return false;
-      }
-
-      // Calculate TTL (time to live) for the blacklist entry
-      const now = Math.floor(Date.now() / 1000);
-      const ttl = Math.max(0, decoded.exp - now);
-
-      // Create blacklist entry
-      await BlacklistedTokenModel.create({
-        token: this.hashToken(token),
-        jti: decoded.jti || 'unknown',
-        type: decoded.type || 'unknown',
-        userId: decoded.sub || 'unknown',
-        expiresAt: new Date(decoded.exp * 1000)
-      });
-
-      logger.info('Token blacklisted', { 
-        component: COMPONENT, 
-        tokenId: decoded.jti,
-        userId: decoded.sub,
-        type: decoded.type
-      });
-
-      return true;
-    } catch (error) {
-      logger.error('Failed to blacklist token', { 
-        component: COMPONENT, 
-        error: error.message 
-      });
-      return false;
-    }
-  }
-
-  /**
-   * Rotate a refresh token (invalidate old, generate new)
-   * @param {String} refreshToken - Current refresh token
-   * @param {Object} options - Additional options
-   * @returns {Object} New token pair
-   */
-  async rotateRefreshToken(refreshToken, options = {}) {
-    try {
-      // Verify the refresh token
+      // Verify refresh token
       const decoded = await this.verifyToken(refreshToken, 'refresh');
-      const userId = decoded.sub;
-
-      // Blacklist the old refresh token
-      await this.blacklistToken(refreshToken);
-
-      // Get the user object from database
-      const UserModel = mongoose.model('User');
-      const user = await UserModel.findById(userId);
       
+      // Get user
+      const user = await require('../models/user.model').findById(decoded.userId);
       if (!user) {
-        throw new AuthError('USER_NOT_FOUND');
+        throw new AuthError('User not found', 'USER_NOT_FOUND');
       }
-
-      // Preserve session ID if it exists
-      const sessionId = decoded.sessionId;
       
-      // Generate new token pair
-      return this.generateTokenPair(user, {
-        ...options,
-        sessionId,
-        deviceFingerprint: decoded.deviceFingerprint
-      });
+      // Check token version
+      if (decoded.version !== user.security.tokenVersion) {
+        throw new AuthError('Token version mismatch', 'TOKEN_VERSION_MISMATCH');
+      }
+      
+      // Generate new access token
+      const accessToken = jwt.sign(
+        {
+          sub: user._id.toString(),
+          userId: user._id.toString(),
+          email: user.email,
+          role: user.role || 'user',
+          version: user.security.tokenVersion,
+          type: 'access',
+          deviceFingerprint: decoded.deviceFingerprint,
+          sessionId: decoded.sessionId
+        },
+        this.accessTokenSecret,
+        { expiresIn: this.accessTokenExpiry }
+      );
+      
+      return { accessToken };
     } catch (error) {
-      logger.error('Token rotation failed', { 
+      logger.error('Token refresh error', { 
         component: COMPONENT, 
         error: error.message 
       });
@@ -281,71 +231,59 @@ class TokenService {
   }
 
   /**
-   * Store token in database for tracking
-   * @param {String} token - JWT token
-   * @param {String} userId - User ID
-   * @param {String} type - Token type
-   * @param {Object} metadata - Additional metadata
-   * @returns {Object} Stored token record
+   * Revoke a refresh token
+   * @param {String} token - Refresh token
+   * @returns {Promise<void>}
    */
-  async storeToken(token, userId, type, metadata = {}) {
+  async revokeToken(token) {
     try {
-      const decoded = this.decodeToken(token);
-      if (!decoded) {
-        throw new Error('Invalid token format');
+      const decoded = jwt.decode(token);
+      if (!decoded || !decoded.jti) {
+        throw new AuthError('Invalid token', 'INVALID_TOKEN');
       }
-
-      const { deviceFingerprint, sessionId } = metadata;
       
-      // Create token record
-      const tokenRecord = await TokenModel.create({
-        token: this.hashToken(token),
-        user: userId,
-        type,
-        expiresAt: new Date(decoded.exp * 1000),
-        deviceFingerprint,
-        metadata: {
-          jti: decoded.jti,
-          sessionId,
-          ...metadata
-        }
-      });
-
-      return tokenRecord;
+      await Token.findOneAndUpdate(
+        { token: decoded.jti },
+        { isRevoked: true, revokedAt: new Date() }
+      );
+      
+      // Also add to Redis blacklist for faster lookups
+      await redisClient.set(
+        `token:blacklist:${decoded.jti}`,
+        '1',
+        'EX',
+        this._getExpirySeconds(decoded.exp)
+      );
     } catch (error) {
-      logger.error('Failed to store token', { 
+      logger.error('Token revocation error', { 
         component: COMPONENT, 
-        userId,
-        type,
         error: error.message 
       });
-      // Don't throw - this is a non-critical operation
-      return null;
+      throw error;
     }
   }
 
   /**
    * Revoke all tokens for a user
    * @param {String} userId - User ID
-   * @returns {Number} Number of tokens revoked
+   * @returns {Promise<void>}
    */
   async revokeAllUserTokens(userId) {
     try {
-      // Mark all tokens as revoked
-      const result = await TokenModel.updateMany(
+      // Update all tokens in database
+      await Token.updateMany(
         { user: userId, isRevoked: false },
         { isRevoked: true, revokedAt: new Date() }
       );
-
-      logger.info('Revoked all user tokens', { 
-        component: COMPONENT, 
-        userId,
-        count: result.modifiedCount
-      });
-
-      return result.modifiedCount;
+      
+      // Increment user's token version to invalidate all tokens
+      const User = require('../models/user.model');
+      const user = await User.findById(userId);
+      if (user) {
+        await user.incrementTokenVersion();
+      }
     } catch (error) {
-      logger.error('Failed to revoke user tokens', { 
+      logger.error('User token revocation error', { 
         component: COMPONENT, 
         userId,
         error: error.message 
@@ -355,199 +293,149 @@ class TokenService {
   }
 
   /**
-   * Validate a token with additional security checks
-   * @param {String} token - JWT token
-   * @param {Object} options - Validation options
-   * @returns {Object} Validation result
-   */
-  async validateToken(token, options = {}) {
-    try {
-      const { expectedType, requireFingerprint, fingerprint } = options;
-      
-      // Decode token without verification first
-      const decoded = this.decodeToken(token);
-      if (!decoded) {
-        return { valid: false, reason: 'MALFORMED_TOKEN' };
-      }
-
-      // Log decoded token for debugging
-      console.log('Decoded token:', JSON.stringify(decoded, null, 2));
-      
-      // Determine token type
-      const type = decoded.type || 'access';
-      
-      // If specific type is expected, check it
-      if (expectedType && type !== expectedType) {
-        return { valid: false, reason: 'WRONG_TOKEN_TYPE' };
-      }
-
-      // Verify token (this checks signature, expiration, and blacklist)
-      try {
-        await this.verifyToken(token, type);
-      } catch (error) {
-        return { 
-          valid: false, 
-          reason: error.code || 'INVALID_TOKEN',
-          message: error.message
-        };
-      }
-
-      // Check device fingerprint if required
-      if (requireFingerprint && 
-          decoded.deviceFingerprint && 
-          decoded.deviceFingerprint !== fingerprint) {
-        return { valid: false, reason: 'DEVICE_MISMATCH' };
-      }
-
-      return { 
-        valid: true, 
-        payload: decoded,
-        expiresAt: new Date(decoded.exp * 1000)
-      };
-    } catch (error) {
-      logger.error('Token validation error', { 
-        component: COMPONENT, 
-        error: error.message 
-      });
-      return { valid: false, reason: 'VALIDATION_ERROR' };
-    }
-  }
-
-  /**
-   * Hash a token for storage
-   * @param {String} token - JWT token
-   * @returns {String} Hashed token
-   */
-  hashToken(token) {
-    return crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
-  }
-
-  /**
-   * Clean up expired blacklisted tokens
-   * @returns {Number} Number of tokens removed
-   */
-  async cleanupBlacklistedTokens() {
-    try {
-      const result = await BlacklistedTokenModel.deleteMany({
-        expiresAt: { $lt: new Date() }
-      });
-
-      logger.info('Cleaned up expired blacklisted tokens', { 
-        component: COMPONENT, 
-        count: result.deletedCount
-      });
-
-      return result.deletedCount;
-    } catch (error) {
-      logger.error('Failed to clean up blacklisted tokens', { 
-        component: COMPONENT, 
-        error: error.message 
-      });
-      return 0;
-    }
-  }
-
-  /**
-   * Set refresh token in HTTP-only cookie
+   * Clear token cookies
    * @param {Object} res - Express response object
+   */
+  clearTokenCookies(res) {
+    res.clearCookie('access_token', {
+      ...this.cookieOptions,
+      maxAge: 0
+    });
+    
+    res.clearCookie('refresh_token', {
+      ...this.cookieOptions,
+      path: '/api/auth/refresh',
+      maxAge: 0
+    });
+  }
+
+  /**
+   * Store refresh token in database
+   * @private
    * @param {String} token - Refresh token
-   * @param {Object} options - Cookie options
+   * @param {String} userId - User ID
+   * @param {Object} options - Additional options
+   * @returns {Promise<Object>} Stored token
    */
-  setRefreshTokenCookie(res, token, options = {}) {
-    try {
-      const cookieOptions = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Use lax in development
-        maxAge: options.rememberMe 
-          ? ms(this.extendedRefreshTokenExpiry) 
-          : ms(this.refreshTokenExpiry),
-        path: '/', // Set path to root to make cookie available across all routes
-        ...options
-      };
-      
-      res.cookie('refreshToken', token, cookieOptions);
-      
-      logger.debug('Set refresh token cookie', { 
-        component: COMPONENT,
-        secure: cookieOptions.secure,
-        sameSite: cookieOptions.sameSite,
-        maxAge: cookieOptions.maxAge
-      });
-    } catch (error) {
-      logger.error('Failed to set refresh token cookie', {
-        component: COMPONENT,
-        error: error.message
-      });
+  async _storeRefreshToken(token, userId, options = {}) {
+    const { deviceFingerprint, expiresAt, sessionId } = options;
+    
+    // Decode token to get jti
+    const decoded = jwt.decode(token);
+    if (!decoded || !decoded.jti) {
+      throw new AuthError('Invalid token format', 'INVALID_TOKEN_FORMAT');
+    }
+    
+    // Store token in database
+    return Token.create({
+      token: decoded.jti,
+      user: userId,
+      type: 'refresh',
+      expiresAt: expiresAt || new Date(decoded.exp * 1000),
+      deviceFingerprint,
+      metadata: {
+        sessionId: sessionId?.toString()
+      }
+    });
+  }
+
+  /**
+   * Check if a token has been revoked
+   * @private
+   * @param {String} jti - Token ID
+   * @returns {Promise<boolean>} Whether token is revoked
+   */
+  async _isTokenRevoked(jti) {
+    // Check Redis blacklist first for performance
+    const blacklisted = await redisClient.get(`token:blacklist:${jti}`);
+    if (blacklisted) {
+      return true;
+    }
+    
+    // Fall back to database check
+    const token = await Token.findOne({ token: jti });
+    return token ? token.isRevoked : false;
+  }
+
+  /**
+   * Convert JWT expiry string to milliseconds
+   * @private
+   * @param {String} expiry - JWT expiry string
+   * @returns {Number} Milliseconds
+   */
+  _getExpiryMilliseconds(expiry) {
+    const match = expiry.match(/^(\d+)([smhd])$/);
+    if (!match) {
+      return 3600 * 1000; // Default 1 hour
+    }
+    
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      case 'd': return value * 24 * 60 * 60 * 1000;
+      default: return 3600 * 1000;
     }
   }
 
   /**
-   * Generate token pair and set refresh token cookie
-   * @param {Object} user - User object
-   * @param {Object} res - Express response object
-   * @param {Object} options - Token options
-   * @returns {Object} Token pair with access token and expiry
+   * Get seconds remaining until token expiry
+   * @private
+   * @param {Number} exp - Token expiry timestamp
+   * @returns {Number} Seconds
    */
-  async generateTokenPairWithCookie(user, res, options = {}) {
+  _getExpirySeconds(exp) {
+    const now = Math.floor(Date.now() / 1000);
+    return Math.max(0, exp - now);
+  }
+
+  /**
+   * Verify token from cookies
+   * @param {Object} req - Express request object
+   * @returns {Object} Decoded token
+   */
+  async verifyTokenFromCookies(req) {
+    const accessToken = req.cookies?.access_token;
+    
+    if (!accessToken) {
+      throw new AuthError('No access token provided', 'TOKEN_MISSING');
+    }
+    
     try {
-      // Generate token pair
-      const tokenPair = await this.generateTokenPair(user, options);
-      
-      // Set refresh token in cookie
-      this.setRefreshTokenCookie(res, tokenPair.refreshToken, {
-        rememberMe: options.rememberMe
-      });
-      
-      // Return only access token (refresh token is in cookie)
-      return {
-        accessToken: tokenPair.accessToken,
-        expiresIn: tokenPair.expiresIn
-      };
+      return await this.verifyToken(accessToken, 'access');
     } catch (error) {
-      logger.error('Failed to generate token pair with cookie', {
-        component: COMPONENT,
-        error: error.message
-      });
+      // If access token is expired, try to refresh using refresh token
+      if (error.code === 'TOKEN_EXPIRED' && req.cookies?.refresh_token) {
+        return await this.refreshAccessTokenFromCookie(req.cookies.refresh_token);
+      }
       throw error;
     }
   }
 
   /**
-   * Verify access token
-   * @param {String} token - JWT access token to verify
-   * @returns {Object|null} Decoded token payload or null if invalid
+   * Refresh access token from cookie and set new cookie
+   * @param {String} refreshToken - Refresh token
+   * @param {Object} res - Express response object
+   * @returns {Object} New access token
    */
-  async verifyAccessToken(token) {
-    try {
-      // Decode token to get payload
-      const decoded = jwt.verify(token, this.accessTokenSecret);
-      
-      // Check if token is blacklisted
-      const isBlacklisted = await this.isTokenBlacklisted(token);
-      if (isBlacklisted) {
-        logger.warn('Attempt to use blacklisted token', { component: COMPONENT });
-        return null;
-      }
-      
-      // Check token type
-      if (decoded.type !== 'access') {
-        logger.warn('Invalid token type', { component: COMPONENT, type: decoded.type });
-        return null;
-      }
-      
-      return decoded;
-    } catch (error) {
-      logger.error('Token verification failed', { 
-        component: COMPONENT, 
-        error: error.message 
+  async refreshAccessTokenFromCookie(refreshToken, res) {
+    const { accessToken } = await this.refreshAccessToken(refreshToken);
+    
+    // Set new access token cookie
+    if (res) {
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'strict',
+        maxAge: this._getExpiryMilliseconds(this.accessTokenExpiry)
       });
-      return null;
     }
+    
+    return { accessToken };
   }
 }
 
-module.exports = TokenService;
+module.exports = new TokenService();

@@ -4,17 +4,50 @@
 class AuthError extends Error {
   /**
    * Create a new AuthError
-   * @param {string} message - Error message
    * @param {string} code - Error code
-   * @param {Object} details - Additional error details
+   * @param {Object|string} messageOrOptions - Error message or options object
+   * @param {Object} [details] - Additional error details (if first param is string)
    */
-  constructor(message, code = 'UNKNOWN_ERROR', details = {}) {
+  constructor(code, messageOrOptions = {}, details = {}) {
+    // Standard error messages to prevent information leakage
+    const errorMessages = {
+      'INVALID_CREDENTIALS': 'Invalid email or password',
+      'ACCOUNT_INACTIVE': 'Account is inactive',
+      'ACCOUNT_LOCKED': 'Account is locked due to too many failed attempts',
+      'INVALID_TOKEN': 'Invalid or expired token',
+      'TOKEN_REVOKED': 'Token has been revoked',
+      'SESSION_EXPIRED': 'Session has expired',
+      'DEVICE_NOT_TRUSTED': 'Device verification required',
+      'RATE_LIMITED': 'Too many requests, please try again later',
+      'LOCATION_CHANGED': 'Suspicious login location detected',
+      'IP_BLOCKED': 'Your IP address has been temporarily blocked',
+      'MFA_REQUIRED': 'Multi-factor authentication required',
+      'PERMISSION_DENIED': 'Permission denied',
+      'SERVER_ERROR': 'Internal server error'
+    };
+    
+    let message;
+    let optionsObj = {};
+    
+    // Handle different parameter patterns
+    if (typeof messageOrOptions === 'string') {
+      message = messageOrOptions;
+      optionsObj = { details };
+    } else {
+      optionsObj = messageOrOptions || {};
+      message = optionsObj.message || errorMessages[code] || 'Authentication error';
+    }
+    
     super(message);
     this.name = 'AuthError';
     this.code = code;
-    this.details = details;
+    this.details = optionsObj.details || {};
     this.timestamp = new Date();
-    this.status = AuthError.getStatusCode(code);
+    this.status = optionsObj.statusCode || AuthError.getStatusCode(code);
+    
+    // Remove sensitive information from details
+    if (this.details.password) delete this.details.password;
+    if (this.details.token) delete this.details.token;
     
     Error.captureStackTrace(this, this.constructor);
   }
@@ -32,33 +65,6 @@ class AuthError extends Error {
         timestamp: this.timestamp
       }
     };
-  }
-
-  /**
-   * Get default message for error code
-   * @param {string} code - Error code
-   * @returns {string} Default error message
-   */
-  static getDefaultMessage(code) {
-    const messages = {
-      'INVALID_CREDENTIALS': 'Invalid email or password',
-      'ACCOUNT_INACTIVE': 'Account is inactive',
-      'ACCOUNT_LOCKED': 'Account is locked due to too many failed attempts',
-      'INVALID_TOKEN': 'Invalid or expired token',
-      'TOKEN_REVOKED': 'Token has been revoked',
-      'SESSION_EXPIRED': 'Session has expired',
-      'DEVICE_NOT_TRUSTED': 'Device verification required',
-      'RATE_LIMITED': 'Too many requests, please try again later',
-      'LOCATION_CHANGED': 'Suspicious login location detected',
-      'IP_BLOCKED': 'Your IP address has been temporarily blocked',
-      'MFA_REQUIRED': 'Multi-factor authentication required',
-      'PERMISSION_DENIED': 'You do not have permission to perform this action',
-      'NETWORK_ERROR': 'Network connection error',
-      'SERVER_ERROR': 'Server error occurred',
-      'UNKNOWN_ERROR': 'An unknown error occurred'
-    };
-    
-    return messages[code] || 'Authentication error';
   }
 
   /**

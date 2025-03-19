@@ -1,175 +1,108 @@
-const Tokens = require('csrf');
-const crypto = require('crypto');
-const { AuthError } = require('../../../utils/errors');
+const { AuthError } = require('../errors');
+const csrfUtils = require('../utils/csrf.utils');
 const logger = require('../../../utils/logger');
-const config = require('../config');
 
 const COMPONENT = 'CSRFMiddleware';
-const tokens = new Tokens();
 
 /**
- * Generate CSRF token and set it in the response
+ * Generate CSRF token and set as cookie
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
  */
-exports.generateToken = async (req, res, next) => {
+exports.generateToken = (req, res, next) => {
   try {
-    // Generate a new token
-    const secret = tokens.secretSync();
-    const token = tokens.create(secret);
+    const csrfToken = csrfUtils.generateToken();
     
-    // Store the secret in the session
-    req.session.csrfSecret = secret;
-    
-    // Set cookie with the token
-    res.cookie('XSRF-TOKEN', token, {
-      httpOnly: false, // Must be accessible from JavaScript
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    // Set CSRF token cookie (not HTTP-only so JS can access it)
+    res.cookie('csrf_token', csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
     
-    // Store token in res.locals for other middleware to access
-    res.locals.csrfToken = token;
+    // Also attach to response for initial page load
+    res.locals.csrfToken = csrfToken;
     
-    // Log token generation for debugging
-    logger.debug('Generated CSRF token', {
-      component: COMPONENT,
-      sessionId: req.session.id,
-      hasToken: !!token,
-      hasSecret: !!req.session.csrfSecret
-    });
-    
-    // If this is a dedicated CSRF token endpoint, send response
-    if (req.path === '/csrf-token' || req.path === '/csrf') {
-      return res.status(200).json({
-        success: true,
-        csrfToken: token
-      });
-    }
-    
-    // Otherwise continue to next middleware
     next();
   } catch (error) {
-    logger.error('Failed to generate CSRF token', {
-      component: COMPONENT,
-      error: error.message
+    logger.error('CSRF token generation error', { 
+      component: COMPONENT, 
+      error: error.message 
     });
-    
-    // For CSRF token endpoints, return error response
-    if (req.path === '/csrf-token' || req.path === '/csrf') {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to generate CSRF token'
-      });
-    }
-    
-    next(new AuthError('CSRF_ERROR', 'Failed to generate CSRF token'));
+    next(error);
   }
 };
 
 /**
- * Get CSRF token from cookie
- */
-exports.getCsrfTokenFromCookie = (req) => {
-  try {
-    return req.cookies['XSRF-TOKEN'];
-  } catch (error) {
-    logger.error('Failed to get CSRF token from cookie', {
-      component: COMPONENT,
-      error: error.message
-    });
-    return null;
-  }
-};
-
-/**
- * Validate CSRF token from request
+ * Validate CSRF token
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next function
  */
 exports.validateToken = (req, res, next) => {
   try {
-    // Skip validation for development if configured
-    if (process.env.NODE_ENV === 'development' && process.env.SKIP_CSRF_VALIDATION === 'true') {
-      logger.warn('CSRF validation skipped in development', {
-        component: COMPONENT,
-        path: req.path
+    // Skip for non-mutating methods
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      return next();
+    }
+    
+    // Skip for login route - initial login won't have CSRF token
+    if (req.path === '/api/auth/login' || req.path === '/login') {
+      logger.info('Skipping CSRF validation for login route', {
+        component: COMPONENT
       });
       return next();
     }
     
-    // Get the token from headers or request body
-    const token = req.headers['x-csrf-token'] || 
-                  req.headers['x-xsrf-token'] || 
-                  req.body._csrf;
+    const tokenFromHeader = req.headers['x-csrf-token'];
+    const tokenFromBody = req.body?.csrf_token;
+    const tokenFromCookie = req.cookies?.csrf_token;
     
-    // Get the secret from the session
-    const secret = req.session.csrfSecret;
+    // Use token from header or body
+    const token = tokenFromHeader || tokenFromBody;
     
-    // Log validation attempt for debugging
-    logger.debug('Validating CSRF token', {
-      component: COMPONENT,
-      hasToken: !!token,
-      hasSecret: !!secret,
-      sessionId: req.session.id,
-      headers: Object.keys(req.headers)
-    });
-    
-    if (!token || !secret) {
-      logger.warn('Missing CSRF token or secret', {
-        component: COMPONENT,
-        ip: req.ip,
-        method: req.method,
-        path: req.path,
-        hasToken: !!token,
-        hasSecret: !!secret
-      });
-      
-      // If we're in development or testing, generate a new token and continue
-      if (process.env.NODE_ENV !== 'production') {
-        logger.warn('Generating new CSRF token in non-production environment', {
-          component: COMPONENT,
-          path: req.path
+    // If no CSRF token in cookie, generate a new one
+    if (!tokenFromCookie) {
+      if (process.env.NODE_ENV === 'development') {
+        // In development, allow requests without CSRF
+        logger.warn('No CSRF token in cookie, but allowing in development', {
+          component: COMPONENT
         });
-        return exports.generateToken(req, res, next);
+        return next();
       }
       
-      return next(new AuthError('CSRF_INVALID', 'Invalid CSRF token'));
-    }
-    
-    // Validate the token
-    if (!tokens.verify(secret, token)) {
-      logger.warn('Invalid CSRF token', {
-        component: COMPONENT,
-        ip: req.ip,
-        method: req.method,
-        path: req.path
+      logger.warn('CSRF validation failed: No token in cookie', {
+        component: COMPONENT
       });
-      return next(new AuthError('CSRF_INVALID', 'Invalid CSRF token'));
+      return next(new AuthError('CSRF token missing', 'CSRF_MISSING'));
     }
     
-    logger.debug('CSRF token validated successfully', {
-      component: COMPONENT,
-      path: req.path
-    });
+    // If no token in request, reject
+    if (!token) {
+      logger.warn('CSRF validation failed: No token in request', {
+        component: COMPONENT
+      });
+      return next(new AuthError('CSRF token required', 'CSRF_REQUIRED'));
+    }
+    
+    // Validate token
+    if (!csrfUtils.validateToken(token, tokenFromCookie)) {
+      logger.warn('CSRF validation failed: Invalid token', {
+        component: COMPONENT
+      });
+      return next(new AuthError('Invalid CSRF token', 'CSRF_INVALID'));
+    }
     
     next();
   } catch (error) {
-    logger.error('CSRF validation error', {
-      component: COMPONENT,
-      error: error.message
+    logger.error('CSRF validation error', { 
+      component: COMPONENT, 
+      error: error.message 
     });
-    next(new AuthError('CSRF_ERROR', 'CSRF validation failed'));
+    next(error);
   }
-};
-
-/**
- * Extract CSRF token from cookies
- * @param {Object} req - Express request object
- * @returns {String|null} CSRF token or null
- */
-const extractTokenFromCookie = (req) => {
-  if (req.cookies && req.cookies['XSRF-TOKEN']) {
-    return req.cookies['XSRF-TOKEN'];
-  }
-  return null;
 };
 
 /**
