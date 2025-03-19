@@ -63,14 +63,14 @@ export const useAuth = () => {
   /**
    * Login with email and password
    */
-  const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
-    logger.info('Login attempt', { component: 'useAuth' });
+  const login = async (credentials: LoginCredentials): Promise<boolean> => {
+    dispatch(setLoading(true));
     
     try {
       // Get the auth service instance
       const authServiceInstance = authService || getAuthService();
       
-      // Attempt login through auth service
+      // Make login request through auth service
       const userData = await authServiceInstance.login(credentials);
       
       if (userData) {
@@ -79,11 +79,11 @@ export const useAuth = () => {
         // Calculate session expiry time (30 minutes from now)
         const expiryTime = Date.now() + 30 * 60 * 1000;
         
-        // Update Redux state with user info - use timestamp instead of Date object
+        // Update Redux state with user info
         dispatch(setAuthState({
           user: userData,
           isAuthenticated: true,
-          sessionExpiry: expiryTime // Store as timestamp (number) instead of Date object
+          sessionExpiry: expiryTime
         }));
         
         return true;
@@ -91,17 +91,21 @@ export const useAuth = () => {
       
       return false;
     } catch (error) {
+      // Handle login error
       logger.error('Login failed', { 
-        component: 'useAuth', 
-        error: error instanceof Error ? { message: error.message } : error 
+        component: 'useAuth',
+        error: error instanceof Error ? {
+          code: 'LOGIN_FAILED',
+          message: error.message
+        } : error
       });
       
-      // Handle auth error
       handleAuthError(error);
-      
       return false;
+    } finally {
+      dispatch(setLoading(false));
     }
-  }, [authService, dispatch]);
+  };
 
   // Logout
   const logout = useCallback(async () => {

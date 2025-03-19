@@ -273,7 +273,7 @@ export const LoginPage = () => {
                   transition={{ delay: 0.2 }}
                   className="bg-gray-800/50 p-6 rounded-xl border border-gray-700"
                 >
-                  <LoginForm onSubmit={handleSubmit} isLoading={isLoading} />
+                  <LoginForm onSubmit={handleSubmit} isLoading={isSubmitting} />
                   <div className="mt-6">
                     <SocialLogin onSocialLogin={handleSocialLogin} />
                   </div>

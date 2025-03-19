@@ -23,35 +23,32 @@ export const authApi = {
   // Session-related API calls
   validateSession: async () => {
     try {
-      console.log('Calling validate-session API endpoint');
-      const response = await apiClient.get('/api/auth/validate-session', {
-        withCredentials: true
+      // Check if cookies exist
+      const cookies = document.cookie;
+      console.log('🔍 [DEBUG] Cookies present:', cookies ? 'Yes' : 'No', 
+        cookies ? `(length: ${cookies.length})` : '');
+      
+      // Use apiInstance instead of api
+      const response = await apiInstance.get<SessionValidationResponse>('/api/auth/validate-session', {
+        withCredentials: true, // Important for cookies
       });
       
-      console.log('validate-session API response:', response.status, response.data);
+      console.log('🔍 [DEBUG] validate-session API response:', response.status, response.data);
       
-      // Return the data regardless of success/failure
-      // The caller will handle the valid/invalid state
-      return response.data;
+      // Check response headers for Set-Cookie
+      const setCookieHeader = response.headers['set-cookie'];
+      console.log('🔍 [DEBUG] Set-Cookie header present:', setCookieHeader ? 'Yes' : 'No');
+      
+      return {
+        success: true,
+        data: response.data
+      };
     } catch (error) {
-      console.error('Session validation API error:', error);
-      
-      // Format error response
-      if (error.response && error.response.data) {
-        console.error('Error response data:', error.response.data);
-        // Return the error data for handling
-        return {
-          success: false,
-          valid: false,
-          message: error.response.data.message || 'Session validation failed'
-        };
-      }
-      
-      // Return a generic error response
+      console.log('🔍 [DEBUG] validate-session API error:', error);
+      // Define a simple error handler if handleApiError is not defined
       return {
         success: false,
-        valid: false,
-        message: 'Session validation failed'
+        error: error instanceof Error ? error.message : 'Session validation failed'
       };
     }
   },

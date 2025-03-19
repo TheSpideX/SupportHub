@@ -104,12 +104,27 @@ export class AuthService {
     config: Partial<AuthServiceConfig> = {},
     tokenService: TokenService,
     sessionService: SessionService,
-    securityService: SecurityService
+    securityService: SecurityService,
+    private store?: any // Redux store
   ) {
     this.config = { ...defaultConfig, ...config };
     this.tokenService = tokenService;
     this.sessionService = sessionService;
     this.securityService = securityService;
+    
+    // If store is not provided, try to get it from the global context
+    if (!this.store) {
+      try {
+        // Import the store dynamically to avoid circular dependencies
+        import('@/store').then(module => {
+          this.store = module.store; // Use store instead of default
+        }).catch(err => {
+          logger.error('Failed to import store:', err);
+        });
+      } catch (error) {
+        logger.error('Error initializing store in AuthService:', error);
+      }
+    }
     
     // Initialize authApi
     this.authApi = authApi;
@@ -993,35 +1008,37 @@ export class AuthService {
   }
 
   /**
-   * Validate the current session with the backend
+   * Validate the current session
    */
   public async validateSession(): Promise<boolean> {
     try {
-      logger.info('Validating session with backend');
+      logger.debug('Validating session');
       
       const response = await this.authApi.validateSession();
       
-      // Check if the session is valid
-      if (response && response.success && response.valid) {
-        logger.info('Session validated successfully');
-        return true;
+      if (response.success && response.data) {
+        // If we have a valid session, update the auth state
+        // Make sure we have access to the Redux store
+        if (this.store && this.store.dispatch) {
+          // Import the action creator to avoid reference error
+          const { setAuthState } = await import('../store/authSlice');
+          
+          this.store.dispatch(setAuthState({
+            isAuthenticated: true,
+            user: response.data.user,
+            sessionExpiry: response.data.expiresAt || this.calculateDefaultExpiry(false)
+          }));
+          return true;
+        } else {
+          logger.warn('Redux store not available for dispatch');
+          return false;
+        }
       } else {
-        // Session is invalid but API call succeeded
-        logger.warn('Session is invalid', { 
-          reason: response?.message || 'Unknown reason'
-        });
+        logger.debug('Session validation failed', { error: response.error });
         return false;
       }
     } catch (error) {
-      logger.error('Session validation error', { 
-        error: { 
-          error: error.message || 'Unknown error',
-          stack: error.stack || 'No stack trace'
-        },
-        code: error.code
-      });
-      
-      // Consider any error as invalid session
+      logger.debug('Session validation error:', { error });
       return false;
     }
   }
