@@ -39,9 +39,12 @@ export interface AuthServiceConfig {
   loginEndpoint: string;
   logoutEndpoint: string;
   registerEndpoint: string;
+  refreshTokenEndpoint: string;
   passwordResetEndpoint: string;
   passwordResetConfirmEndpoint: string;
   userEndpoint: string;
+  sessionValidateEndpoint: string;
+  sessionsEndpoint: string;
   enableOptimisticUpdates: boolean;
   enableOfflineSupport: boolean;
 }
@@ -51,9 +54,12 @@ const defaultConfig: AuthServiceConfig = {
   loginEndpoint: '/auth/login',
   logoutEndpoint: '/auth/logout',
   registerEndpoint: '/auth/register',
-  passwordResetEndpoint: '/auth/password-reset',
-  passwordResetConfirmEndpoint: '/auth/password-reset-confirm',
-  userEndpoint: '/auth/user',
+  refreshTokenEndpoint: '/auth/refresh-token',
+  passwordResetEndpoint: '/auth/forgot-password',
+  passwordResetConfirmEndpoint: '/auth/reset-password',
+  userEndpoint: '/auth/me',
+  sessionValidateEndpoint: '/auth/validate-session',
+  sessionsEndpoint: '/auth/sessions',
   enableOptimisticUpdates: true,
   enableOfflineSupport: true
 };

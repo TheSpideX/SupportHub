@@ -1,6 +1,16 @@
 import axios from 'axios';
 import { API_CONFIG } from '@/config/api';
 import { logger } from '@/utils/logger';
+import { getTokenService } from '@/features/auth/services';
+
+// Define window interface extension for TypeScript
+declare global {
+  interface Window {
+    tokenService?: {
+      setCsrfToken: (token: string) => void;
+    };
+  }
+}
 
 // Update API client configuration to include credentials
 const apiClient = axios.create({
@@ -19,7 +29,7 @@ apiClient.interceptors.request.use(
     // Get CSRF token from cookie
     const csrfToken = document.cookie
       .split('; ')
-      .find(row => row.startsWith('XSRF-TOKEN='))
+      .find(row => row.startsWith('csrf_token='))
       ?.split('=')[1];
     
     if (csrfToken) {
@@ -47,21 +57,20 @@ apiClient.interceptors.response.use(
         // Attempt to refresh the token
         const refreshResponse = await apiClient.post('/api/auth/refresh-token', {}, { 
           withCredentials: true,
-          // Add headers to help with CSRF protection
           headers: {
             'X-Requested-With': 'XMLHttpRequest'
           }
         });
         
         // Check if refresh was successful
-        if (refreshResponse.status === 200) {
-          logger.debug('Token refresh successful');
+        if (refreshResponse.status === 200 && refreshResponse.data.success) {
+          console.log('Token refresh successful');
           
           // If CSRF token is in the response, update it
           if (refreshResponse.data?.csrfToken) {
-            // Update CSRF token in storage or state
-            if (window.tokenService && typeof window.tokenService.setCsrfToken === 'function') {
-              window.tokenService.setCsrfToken(refreshResponse.data.csrfToken);
+            const tokenService = getTokenService();
+            if (tokenService) {
+              tokenService.setCsrfToken(refreshResponse.data.csrfToken);
             }
           }
           

@@ -4,6 +4,8 @@ const Session = require('../models/session.model');
 const User = require('../models/user.model');
 const logger = require('../../../utils/logger');
 const sessionConfig = require('../config/session.config');
+const TokenBlacklist = require('../models/token-blacklist.model');
+const Token = require('../models/token.model');
 
 /**
  * Get all active sessions for the current user
@@ -66,13 +68,22 @@ exports.terminateAllSessions = asyncHandler(async (req, res) => {
       isActive: true,
       _id: { $ne: req.session._id }
     },
-    { isActive: false }
+    { isActive: false, endedAt: new Date(), endReason: 'user_terminated_all' }
   );
   
   // Increment token version to invalidate all refresh tokens
   await User.findByIdAndUpdate(
     req.user._id,
     { $inc: { 'security.tokenVersion': 1 } }
+  );
+  
+  // Blacklist all refresh tokens except current
+  await TokenBlacklist.insertMany(
+    await Token.find({
+      user: req.user._id,
+      type: 'refresh',
+      sessionId: { $ne: req.session._id }
+    }).select('jti expiresAt').lean()
   );
   
   res.status(200).json({
@@ -94,97 +105,87 @@ exports.syncSession = asyncHandler(async (req, res) => {
   }
   
   // Find the session
-  let session = null;
+  let session;
   
   if (sessionId) {
-    // Try to find by sessionId if it's a valid ObjectId
-    if (sessionId.match(/^[0-9a-fA-F]{24}$/)) {
-      session = await Session.findOne({ 
-        _id: sessionId,
-        userId: req.user._id,
-        isActive: true 
-      });
-    } else {
-      // If sessionId is not a valid ObjectId (like "session-timestamp"),
-      // we need to find by other means or create a new session
-      session = await Session.findOne({ 
-        userId: req.user._id,
-        isActive: true 
-      }).sort({ createdAt: -1 });
-    }
+    // If sessionId provided, find that specific session
+    session = await Session.findOne({
+      _id: sessionId,
+      userId: req.user._id,
+      isActive: true
+    });
+  } else if (req.session) {
+    // Use the current session from request
+    session = req.session;
   } else {
-    // If no sessionId provided, find the most recent active session
-    session = await Session.findOne({ 
-      userId: req.user._id,
-      isActive: true 
-    }).sort({ createdAt: -1 });
-  }
-  
-  // If no session found, create a new one
-  if (!session) {
-    session = await Session.create({
-      userId: req.user._id,
-      userAgent: req.headers['user-agent'],
+    // Create a new session if none exists
+    session = await sessionService.createSession(req.user._id, {
       ipAddress: req.ip,
-      deviceInfo: deviceInfo || {},
-      isActive: true,
-      lastActivity: new Date(),
-      expiresAt: new Date(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours
+      deviceInfo: deviceInfo || req.deviceInfo
     });
   }
   
-  // Update session with latest activity data
-  session.lastActivity = new Date();
-  
-  // Update device info if provided and different
-  if (deviceInfo && JSON.stringify(session.deviceInfo || {}) !== JSON.stringify(deviceInfo)) {
-    session.deviceInfo = {
-      ...session.deviceInfo || {},
-      ...deviceInfo
-    };
-    
-    // Log device change for security monitoring
-    logger.info('Device info updated during session', {
-      userId: req.user._id,
-      deviceChange: {
-        previous: session.deviceInfo || {},
-        current: deviceInfo
-      }
-    });
+  if (!session) {
+    throw new AppError('Session not found', 404, 'SESSION_NOT_FOUND');
   }
   
-  // Store metrics if provided
-  if (metrics) {
-    session.metrics = {
-      ...session.metrics || {},
-      ...metrics
-    };
-  }
-  
-  await session.save();
-  
-  // Calculate remaining time for session
-  const sessionConfig = require('../config/session.config');
-  const idleTimeout = sessionConfig.idleTimeout;
-  const absoluteTimeout = sessionConfig.absoluteTimeout;
-  
+  // Check if session has expired
   const now = new Date();
-  const idleExpiresAt = new Date(now.getTime() + idleTimeout * 1000);
-  const absoluteExpiresAt = session.createdAt 
-    ? new Date(session.createdAt.getTime() + absoluteTimeout * 1000)
-    : new Date(now.getTime() + absoluteTimeout * 1000);
+  const idleTimeoutMs = sessionConfig.idleTimeout * 1000;
+  const lastActiveTime = lastActivity ? new Date(lastActivity) : session.lastActivity;
   
-  // Return the MongoDB _id as sessionId to maintain consistency
-  res.status(200).json({
-    status: 'success',
-    data: {
-      session: {
-        sessionId: session._id.toString(),
-        lastActivity: session.lastActivity,
-        idleExpiresAt,
-        absoluteExpiresAt,
-        expiresAt: new Date(Math.min(idleExpiresAt.getTime(), absoluteExpiresAt.getTime()))
+  if (lastActiveTime && (now - lastActiveTime) > idleTimeoutMs) {
+    // Session has expired due to inactivity
+    await Session.findByIdAndUpdate(session._id, {
+      isActive: false,
+      endedAt: now,
+      endReason: 'idle_timeout'
+    });
+    
+    throw new AppError('Session expired', 401, 'SESSION_EXPIRED');
+  }
+  
+  // Update session with latest activity
+  session = await Session.findByIdAndUpdate(
+    session._id,
+    {
+      lastActivity: now,
+      deviceInfo: deviceInfo || session.deviceInfo,
+      $set: {
+        'metrics': { ...session.metrics, ...metrics }
       }
+    },
+    { new: true }
+  );
+  
+  // Generate new CSRF token if needed
+  let csrfToken = null;
+  if (req.cookies && !req.cookies[CSRF_COOKIE_NAME]) {
+    csrfToken = crypto.randomBytes(32).toString('hex');
+    // Set CSRF cookie in response
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: sessionConfig.idleTimeout * 1000
+    });
+  }
+  
+  // Return updated session data
+  res.status(200).json({
+    success: true,
+    session: {
+      id: session._id,
+      lastActivity: session.lastActivity,
+      expiresAt: session.expiresAt,
+      createdAt: session.createdAt,
+      deviceInfo: session.deviceInfo
+    },
+    tokens: csrfToken ? { csrfToken } : undefined,
+    timeouts: {
+      idle: sessionConfig.idleTimeout,
+      absolute: sessionConfig.absoluteTimeout,
+      sync: sessionConfig.syncInterval
     }
   });
 });

@@ -42,7 +42,7 @@ export const API_CONFIG = {
   // CSRF Protection
   CSRF: {
     HEADER_NAME: 'X-CSRF-Token',
-    COOKIE_NAME: 'XSRF-TOKEN',
+    COOKIE_NAME: 'csrf_token', // Changed from 'XSRF-TOKEN' to match backend
     TOKEN_TTL: 30 * 60 * 1000 // 30 minutes
   },
 

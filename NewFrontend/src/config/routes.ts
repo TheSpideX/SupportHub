@@ -71,9 +71,9 @@ export const EXTENDED_API_ROUTES = {
   ...API_ROUTES,
   AUTH: {
     ...API_ROUTES.AUTH,
-    LOGOUT_EVERYWHERE: `${API_ROUTES.AUTH.LOGOUT}/all`,
-    TERMINATE_SESSION: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate`,
-    TERMINATE_ALL_OTHER_SESSIONS: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate-others`,
+    LOGOUT_EVERYWHERE: API_ROUTES.AUTH.TERMINATE_ALL_SESSIONS, // Use existing endpoint
+    TERMINATE_SESSION: API_ROUTES.AUTH.TERMINATE_SESSION, // Use consistent naming
+    TERMINATE_ALL_OTHER_SESSIONS: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate-others`, // Keep this unique endpoint
     GET_USER: API_ROUTES.AUTH.USER_INFO
   }
 };

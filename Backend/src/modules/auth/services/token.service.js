@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const TokenModel = require('../models/token.model');
 const tokenConfig = require('../config/token.config');
+const cookieConfig = require('../config/cookie.config');
 const logger = require('../../../utils/logger');
 const { v4: uuidv4 } = require('uuid');
 
@@ -79,17 +80,23 @@ class TokenService {
   /**
    * Generate refresh token
    * @param {Object} user - User object
+   * @param {String} sessionId - Session ID
+   * @param {Boolean} rememberMe - Whether to extend token lifetime
    * @returns {String} JWT refresh token
    */
-  generateRefreshToken(user) {
+  generateRefreshToken(user, sessionId, rememberMe = false) {
     const payload = {
       sub: user.id || user._id,
-      type: 'refresh',
-      tokenVersion: user.tokenVersion || 0
+      type: 'refresh', // Explicitly set token type
+      tokenVersion: user.security?.tokenVersion || 0,
+      sessionId
     };
 
     return jwt.sign(payload, tokenConfig.REFRESH_TOKEN_SECRET, {
-      expiresIn: tokenConfig.REFRESH_TOKEN_EXPIRY
+      expiresIn: rememberMe 
+        ? tokenConfig.REFRESH_TOKEN_EXPIRY * 7 // 7x longer for remember me
+        : tokenConfig.REFRESH_TOKEN_EXPIRY,
+      jwtid: uuidv4()
     });
   }
 
@@ -229,8 +236,10 @@ class TokenService {
     try {
       const decoded = jwt.verify(token, tokenConfig.REFRESH_TOKEN_SECRET);
       
-      // Verify it's a refresh token
-      if (decoded.type !== 'refresh') {
+      // Check if token has a type field and it's a refresh token
+      // For backward compatibility, if type is missing, we'll assume it's a refresh token
+      if (decoded.type && decoded.type !== 'refresh') {
+        logger.warn('Token has incorrect type:', decoded.type);
         throw new Error('Invalid token type');
       }
       
@@ -299,28 +308,84 @@ class TokenService {
 
   /**
    * Rotate refresh token
-   * @param {String} oldToken - Old refresh token
+   * @param {String} oldRefreshToken - Current refresh token
    * @param {Object} user - User object
-   * @returns {Promise<Object>} New tokens
+   * @returns {Promise<Object>} New tokens and updated session
    */
-  async rotateRefreshToken(oldToken, user) {
+  async rotateRefreshToken(oldRefreshToken, user) {
     try {
-      // Verify old token exists in database
-      const isValid = await this.verifyTokenInDatabase(oldToken);
+      // Verify and decode old token
+      const decoded = jwt.verify(oldRefreshToken, tokenConfig.REFRESH_TOKEN_SECRET);
       
-      if (!isValid) {
-        throw new Error('Invalid refresh token');
+      // Get session and update last activity
+      const session = await SessionModel.findOne({ 
+        _id: decoded.sessionId,
+        isActive: true 
+      });
+      
+      if (!session) {
+        throw new Error('Session not found or inactive');
       }
       
-      // Delete old token
-      await this.deleteRefreshToken(oldToken);
+      // Update session last activity
+      session.lastActive = new Date();
+      await session.save();
       
-      // Generate new tokens
-      return await this.generateAuthTokens(user);
+      // Generate new tokens with same session
+      const tokens = this.generateTokens(user, session._id, session.rememberMe);
+      
+      // Store refresh token reference
+      await this.storeRefreshToken(tokens.refreshToken, user._id, session._id);
+      
+      return { tokens, session };
     } catch (error) {
       logger.error('Error rotating refresh token:', error);
       throw error;
     }
+  }
+
+  /**
+   * Refresh token
+   * @param {String} refreshToken - Refresh token
+   * @returns {Promise<Object>} New tokens and session data
+   */
+  async refreshToken(refreshToken) {
+    // Verify the refresh token
+    const decoded = await this.verifyToken(refreshToken, 'refresh');
+    
+    // Get user and check if token version matches
+    const user = await User.findById(decoded.sub);
+    
+    if (!user || user.security.tokenVersion !== decoded.version) {
+      throw new AppError('Invalid refresh token', 401, 'INVALID_TOKEN');
+    }
+    
+    // Find and update the session
+    const session = await Session.findOneAndUpdate(
+      { _id: decoded.sessionId, isActive: true },
+      { 
+        lastActivity: new Date(),
+        $set: { 'syncData.lastTokenRefresh': new Date() }
+      },
+      { new: true }
+    );
+    
+    if (!session) {
+      throw new AppError('Session not found or inactive', 401, 'SESSION_NOT_FOUND');
+    }
+    
+    // Generate new tokens
+    const tokens = await this.generateTokenPair(user, session._id);
+    
+    // Return tokens and session data
+    return {
+      tokens,
+      session: {
+        id: session._id,
+        lastActivity: session.lastActivity,
+        expiresAt: session.expiresAt
+      }
+    };
   }
 }
 

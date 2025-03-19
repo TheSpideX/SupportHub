@@ -128,7 +128,6 @@ class SessionService {
           $inc: { activityCount: 1 }
         }
       );
-      
       return result.modifiedCount > 0;
     } catch (error) {
       logger.error('Error updating session activity:', error);

@@ -136,6 +136,31 @@ export const authApi = {
       lastActivity: sessionData.lastActivity,
       metrics: sessionData.metrics || {},
       deviceInfo: sessionData.deviceInfo
+    }).then(response => {
+      // Update local session data with server response
+      if (response.data.success) {
+        // Update CSRF token if provided
+        if (response.data.tokens?.csrfToken) {
+          const tokenService = getTokenService();
+          if (tokenService) {
+            tokenService.setCsrfToken(response.data.tokens.csrfToken);
+          }
+        }
+        
+        // Return the updated session data
+        return {
+          ...sessionData,
+          metadata: {
+            ...sessionData.metadata,
+            sessionId: response.data.session.id,
+            expiresAt: response.data.session.expiresAt,
+            lastServerSync: new Date().toISOString()
+          },
+          lastActivity: response.data.session.lastActivity,
+          timeouts: response.data.timeouts
+        };
+      }
+      return sessionData;
     });
   },
   
@@ -197,8 +222,12 @@ export const authApi = {
     return apiInstance.post('/api/auth/logout');
   },
   
-  refreshToken: async (refreshToken) => {
-    return apiInstance.post('/api/auth/refresh-token', { refreshToken });
+  refreshToken: async () => {
+    // Use the full URL with the correct port
+    return apiInstance.post(`${API_CONFIG.BASE_URL}/api/auth/refresh-token`, {
+      // We can send device fingerprint or other metadata if needed
+      deviceFingerprint: window.deviceFingerprint || null
+    });
   },
   
   /**

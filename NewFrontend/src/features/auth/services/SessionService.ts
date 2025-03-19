@@ -1,15 +1,3 @@
-// Extend Window interface to include session state
-declare global {
-  interface Window {
-    __sessionServiceState?: {
-      lastSyncTime?: number;
-      sessionExpiry?: number;
-      isActive?: boolean;
-      [key: string]: any;
-    };
-  }
-}
-
 /**
  * SessionService
  * 
@@ -548,9 +536,9 @@ export class SessionService {
   /**
    * Get current session data
    */
-  // public getSessionData(): SessionData | null {
-  //   return this.sessionData;
-  // }
+  public getSessionData(): SessionData | null {
+    return this.sessionData;
+  }
 
   /**
    * Subscribe to session status changes
@@ -794,19 +782,19 @@ export class SessionService {
   }
 
   // Add retry logic for session sync
-  // async syncSessionWithRetry(retries = 3) {
-  //   for (let i = 0; i < retries; i++) {
-  //     try {
-  //       await this.syncWithServer();
-  //       return true;
-  //     } catch (error) {
-  //       logger.warn(`Session sync failed (attempt ${i+1}/${retries})`, error);
-  //       await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-  //     }
-  //   }
-  //   logger.error(`Session sync failed after ${retries} attempts`);
-  //   return false;
-  // }
+  async syncSessionWithRetry(retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await this.syncWithServer();
+        return true;
+      } catch (error) {
+        logger.warn(`Session sync failed (attempt ${i+1}/${retries})`, error);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+    logger.error(`Session sync failed after ${retries} attempts`);
+    return false;
+  }
 
   // Add the missing saveSessionToStorage method
   private saveSessionToStorage(sessionData: SessionData): void {
@@ -856,79 +844,31 @@ export class SessionService {
   }
 
   /**
-   * Get the last sync time
+   * Sync session with server and update token if needed
    */
-  public getLastSyncTime(): number {
-    // Initialize the state object if it doesn't exist
-    if (typeof window !== 'undefined' && !window.__sessionServiceState) {
-      window.__sessionServiceState = {
-        lastSyncTime: 0
-      };
-    }
-    
-    return typeof window !== 'undefined' && window.__sessionServiceState 
-      ? window.__sessionServiceState.lastSyncTime || 0 
-      : 0;
-  }
-
-  /**
-   * Check if session is active
-   */
-  public hasActiveSession(): boolean {
-    return !!this.sessionData && this.isAuthenticated;
-  }
-
-  /**
-   * Emit session synced event
-   */
-  private emitSessionSyncedEvent(): void {
-    // Dispatch event for monitoring
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('session-synced'));
-    }
-  }
-
-  /**
-   * Get session data
-   * @returns Session data object or null if not available
-   */
-  public getSessionData(): any {
+  public async syncSession(): Promise<boolean> {
     try {
-      const sessionData = localStorage.getItem('auth_session_data');
-      return sessionData ? JSON.parse(sessionData) : null;
-    } catch (error) {
-      logger.error('Error getting session data', error);
-      return null;
-    }
-  }
-
-  /**
-   * Sync session with server with retry mechanism
-   * @param maxRetries Maximum number of retry attempts
-   * @returns Promise resolving to success status
-   */
-  public async syncSessionWithRetry(maxRetries = 3): Promise<boolean> {
-    let retries = 0;
-    let success = false;
-
-    while (retries < maxRetries && !success) {
-      try {
-        await this.syncWithServer();
-        success = true;
-      } catch (error) {
-        retries++;
-        logger.warn(`Session sync failed, attempt ${retries}/${maxRetries}`, error);
+      const response = await apiClient.post(
+        `${this.config.apiBaseUrl}${this.config.sessionEndpoint}/sync`
+      );
+      
+      if (response.data.success) {
+        // Update session data
+        this.sessionData = response.data.session;
+        setSessionMetadata(this.sessionData);
         
-        if (retries >= maxRetries) {
-          throw error;
+        // If new tokens were issued, update them
+        if (response.data.tokens?.csrfToken) {
+          this.tokenService.setCsrfToken(response.data.tokens.csrfToken);
         }
         
-        // Exponential backoff
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retries)));
+        return true;
       }
+      return false;
+    } catch (error) {
+      logger.error('Failed to sync session:', error);
+      return false;
     }
-
-    return success;
   }
 }
 

@@ -275,73 +275,57 @@ exports.verifyTwoFactor = asyncHandler(async (req, res) => {
  * Refresh access token
  */
 exports.refreshToken = asyncHandler(async (req, res) => {
-  // Get refresh token from cookie
-  const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
-  
-  if (!refreshToken) {
-    throw new AppError('Refresh token not found', 401, 'REFRESH_TOKEN_NOT_FOUND');
-  }
-  
-  // Verify refresh token
-  const decoded = await tokenService.verifyRefreshToken(refreshToken);
-  
-  // Check if token is blacklisted
-  const isBlacklisted = await TokenBlacklist.findOne({ tokenId: decoded.jti });
-  if (isBlacklisted) {
-    throw new AppError('Token has been revoked', 401, 'TOKEN_REVOKED');
-  }
-  
-  // Find user
-  const user = await User.findById(decoded.sub);
-  if (!user) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
-  }
-  
-  // Check token version
-  if (decoded.version !== user.security.tokenVersion) {
-    throw new AppError('Token is invalid', 401, 'TOKEN_INVALID');
-  }
-  
-  // Find session
-  const session = await Session.findById(decoded.sessionId);
-  if (!session || !session.isActive) {
-    throw new AppError('Session not found or inactive', 401, 'SESSION_INVALID');
-  }
-  
-  // Update session last activity
-  session.lastActivity = new Date();
-  await session.save();
-  
-  // Generate new access token
-  const newAccessToken = await tokenService.generateAccessToken(
-    user._id,
-    user.security.tokenVersion,
-    session._id
-  );
-  
-  // Set new access token cookie
-  res.cookie(
-    cookieConfig.names.ACCESS_TOKEN, 
-    newAccessToken, 
-    cookieConfig.accessTokenOptions
-  );
-  
-  // Generate new CSRF token
-  const csrfToken = securityService.generateCsrfToken(res);
-  res.cookie(
-    cookieConfig.names.CSRF_TOKEN, 
-    csrfToken, 
-    cookieConfig.csrfOptions
-  );
-  
-  // Return success
-  res.status(200).json({
-    status: 'success',
-    message: 'Token refreshed successfully',
-    data: {
-      csrfToken
+  try {
+    // Get refresh token from cookie
+    const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+    
+    if (!refreshToken) {
+      throw new AppError('Refresh token not found', 401, 'REFRESH_TOKEN_NOT_FOUND');
     }
-  });
+    
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = await tokenService.verifyRefreshToken(refreshToken);
+    } catch (error) {
+      // If token verification fails, clear cookies and return error
+      res.clearCookie(cookieConfig.names.ACCESS_TOKEN);
+      res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
+      res.clearCookie(cookieConfig.names.CSRF_TOKEN);
+      
+      throw new AppError(
+        error.message || 'Invalid refresh token', 
+        401, 
+        'INVALID_REFRESH_TOKEN'
+      );
+    }
+    
+    // Find user
+    const user = await User.findById(decoded.sub);
+    if (!user) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+    
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken, csrfToken } = 
+      await tokenService.generateTokens(user, decoded.sessionId || null);
+    
+    // Set cookies using the token service
+    tokenService.setTokenCookies(res, { 
+      accessToken, 
+      refreshToken: newRefreshToken, 
+      csrfToken 
+    });
+    
+    // Return success
+    return res.status(200).json({
+      success: true,
+      message: 'Token refreshed successfully',
+      csrfToken
+    });
+  } catch (error) {
+    throw error;
+  }
 });
 
 /**
@@ -761,3 +745,42 @@ exports.validateSession = async (req, res) => {
     });
   }
 };
+
+/**
+ * Logout user from all devices
+ */
+exports.logoutAll = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const currentSessionId = req.session?._id;
+  
+  // Increment token version to invalidate all refresh tokens
+  await User.findByIdAndUpdate(
+    userId,
+    { $inc: { 'security.tokenVersion': 1 } }
+  );
+  
+  // Deactivate all sessions
+  await Session.updateMany(
+    { 
+      userId: userId,
+      isActive: true,
+      _id: { $ne: currentSessionId } // Exclude current if needed
+    },
+    { 
+      isActive: false, 
+      endedAt: new Date(),
+      endReason: 'user_logout_all'
+    }
+  );
+  
+  // Clear cookies
+  res.clearCookie(cookieConfig.names.ACCESS_TOKEN);
+  res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
+  res.clearCookie(cookieConfig.names.CSRF_TOKEN);
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Logged out from all devices successfully'
+  });
+});

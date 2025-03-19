@@ -5,10 +5,10 @@
 export const AUTH_CONSTANTS = {
   // Cookie names (for HTTP-only cookies set by server)
   COOKIES: {
-    ACCESS_TOKEN: 'access_token', // Match backend naming
-    REFRESH_TOKEN: 'refresh_token', // Match backend naming
-    CSRF_TOKEN: 'csrf_token', // Match backend naming
-    SESSION_ID: 'session-id',
+    ACCESS_TOKEN: 'access_token', // Verify matches backend
+    REFRESH_TOKEN: 'refresh_token', // Verify matches backend
+    CSRF_TOKEN: 'csrf_token', // Verify matches backend
+    SESSION_ID: 'session_id',
   },
   
   // Token settings (for reference, actual tokens managed by server)
@@ -50,20 +50,28 @@ export const AUTH_CONSTANTS = {
     SERVER_ERROR: 'SERVER_ERROR',
   },
   
-  // API endpoints
+  // API endpoints - aligned with backend routes
   ENDPOINTS: {
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
     REGISTER: '/api/auth/register',
-    REFRESH: '/api/auth/refresh',
+    REFRESH_TOKEN: '/api/auth/refresh-token', // Changed from '/api/auth/refresh'
     VERIFY_EMAIL: '/api/auth/verify-email',
+    RESEND_VERIFICATION: '/api/auth/resend-verification', // Added
     FORGOT_PASSWORD: '/api/auth/forgot-password',
     RESET_PASSWORD: '/api/auth/reset-password',
     CHANGE_PASSWORD: '/api/auth/change-password',
-    TWO_FACTOR: '/api/auth/two-factor',
+    VERIFY_2FA: '/api/auth/verify-2fa', // Changed from '/api/auth/two-factor'
+    SETUP_2FA: '/api/auth/setup-2fa', // Added
+    DISABLE_2FA: '/api/auth/disable-2fa', // Added
     VERIFY_DEVICE: '/api/auth/verify-device',
     CSRF_TOKEN: '/api/auth/csrf-token',
     USER_INFO: '/api/auth/me',
+    VALIDATE_SESSION: '/api/auth/validate-session', // Added
+    SESSIONS: '/api/auth/sessions', // Added
+    TERMINATE_SESSION: '/api/auth/sessions/terminate', // Added
+    TERMINATE_ALL_SESSIONS: '/api/auth/sessions/terminate-all', // Added
+    UPDATE_PROFILE: '/api/auth/update-profile', // Added
   },
   
   // Events for cross-component and cross-tab communication

@@ -149,12 +149,23 @@ router.get(
 router.post(
   "/session/sync",
   authMiddleware.optionalAuth,
+  csrfMiddleware.validateToken,  // Add CSRF validation
   asyncHandler(sessionController.syncSession)
 );
 
 router.head(
   "/session/sync",
-  (req, res) => res.status(200).end()
+  authMiddleware.optionalAuth,
+  (req, res) => {
+    // Return session status in headers
+    if (req.user && req.session) {
+      res.setHeader('X-Session-Active', 'true');
+      res.setHeader('X-Session-Expires', req.session.expiresAt.toISOString());
+    } else {
+      res.setHeader('X-Session-Active', 'false');
+    }
+    res.status(200).end();
+  }
 );
 
 router.get(
