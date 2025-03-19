@@ -1,7 +1,58 @@
 import axios, { AxiosResponse } from 'axios';
 import { API_CONFIG } from '@/config/api';
-import { SecurityContext, SessionData } from '../types/auth.types';
+import { SecurityContext, SessionData, UserRole } from '../types/auth.types';
 import { apiClient } from '@/api/apiClient';
+
+// Helper function to convert string role to UserRole enum
+const mapStringToUserRole = (role: string): UserRole => {
+  switch (role.toUpperCase()) {
+    case 'ADMIN':
+      return UserRole.ADMIN;
+    case 'MANAGER':
+      return UserRole.MANAGER;
+    case 'USER':
+      return UserRole.USER;
+    // Map backend roles to frontend roles
+    case 'CUSTOMER':
+      return UserRole.USER;
+    case 'SUPPORT':
+      return UserRole.USER;
+    case 'TECHNICAL':
+      return UserRole.USER;
+    case 'TEAM_LEAD':
+      return UserRole.MANAGER;
+    default:
+      return UserRole.GUEST;
+  }
+};
+
+// Define the SessionValidationResponse interface
+interface SessionValidationResponse {
+  success?: boolean;
+  isValid?: boolean;
+  valid?: boolean;
+  user?: {
+    id: string;
+    email: string;
+    name: string; // Add required name property
+    role: string;
+    permissions?: string[];
+    twoFactorEnabled: boolean; // Add required property
+    emailVerified: boolean; // Add required property
+    createdAt?: string;
+    updatedAt?: string;
+    preferences?: Record<string, any>;
+    [key: string]: any;
+  };
+  session?: {
+    id?: string;
+    expiresAt?: string; // Make optional to avoid TypeScript errors
+    createdAt?: string;
+    [key: string]: any;
+  };
+  message?: string;
+  [key: string]: any;
+}
 
 // Create auth-specific API client
 const apiInstance = axios.create({
@@ -39,9 +90,19 @@ export const authApi = {
       const setCookieHeader = response.headers['set-cookie'];
       console.log('🔍 [DEBUG] Set-Cookie header present:', setCookieHeader ? 'Yes' : 'No');
       
+      // Ensure session data is properly structured
+      const responseData: SessionValidationResponse = response.data;
+      
+      // Add default values for required fields if they're missing
+      if (responseData.user) {
+        responseData.user.name = responseData.user.name || responseData.user.email?.split('@')[0] || '';
+        responseData.user.twoFactorEnabled = responseData.user.twoFactorEnabled || false;
+        responseData.user.emailVerified = responseData.user.emailVerified || false;
+      }
+      
       return {
         success: true,
-        data: response.data
+        data: responseData
       };
     } catch (error) {
       console.log('🔍 [DEBUG] validate-session API error:', error);

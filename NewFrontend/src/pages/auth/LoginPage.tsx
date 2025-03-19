@@ -12,7 +12,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { RootState } from '@/store'; // Changed from '@/store/store' to '@/store'
 // Import the services from our centralized auth system
-import { getSecurityService, getTokenService } from '@/features/auth/services';
+import { getSecurityService, getTokenService, getAuthService } from '@/features/auth/services';
 
 const COMPONENT = 'LoginPage';
 const logger = new Logger(COMPONENT);
@@ -71,6 +71,49 @@ export const LoginPage = () => {
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, authState.isAuthenticated, navigate, from]);
+  
+  // Add this effect to debug authentication state changes
+  useEffect(() => {
+    // Add detailed logging for auth state changes
+    logger.debug('Auth state changed in LoginPage', {
+      component: COMPONENT,
+      hookIsAuthenticated: isAuthenticated,
+      reduxIsAuthenticated: authState.isAuthenticated,
+      reduxIsInitialized: authState.isInitialized,
+      reduxUser: authState.user ? `${authState.user.id} (${authState.user.role})` : 'null',
+      from
+    });
+    
+    // Force check auth state from service directly
+    const checkAuthServiceState = async () => {
+      try {
+        const authService = getAuthService();
+        const currentState = authService.getAuthState();
+        
+        logger.debug('Direct auth service state check', {
+          component: COMPONENT,
+          serviceIsAuthenticated: currentState.isAuthenticated,
+          serviceHasUser: !!currentState.user,
+          serviceUserRole: currentState.user?.role
+        });
+        
+        // If service shows authenticated but hook doesn't, force redirect
+        if (currentState.isAuthenticated && currentState.user && !isAuthenticated) {
+          logger.warn('Auth state mismatch detected - Service shows authenticated but hook does not', {
+            component: COMPONENT
+          });
+          navigate(from, { replace: true });
+        }
+      } catch (error) {
+        logger.error('Error checking auth service state', {
+          component: COMPONENT,
+          error
+        });
+      }
+    };
+    
+    checkAuthServiceState();
+  }, [authState, isAuthenticated, navigate, from]);
   
   // Get services from our centralized auth system instead of creating new instances
   const tokenService = getTokenService();

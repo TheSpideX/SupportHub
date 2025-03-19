@@ -196,30 +196,17 @@ export class AuthService {
   public initializeAuthState(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       try {
-        // Check if we have tokens
+        // Check if we have tokens or HTTP-only cookies
         const hasTokens = this.tokenService.hasTokens();
         
-        if (hasTokens) {
-          // Validate tokens and get user data
-          this.tokenService.validateTokens()
-            .then(() => this.fetchUserData())
-            .then(userData => {
-              this.updateAuthState({
-                isAuthenticated: true,
-                isLoading: false,
-                isInitialized: true,
-                user: userData,
-                error: null,
-                sessionExpiry: this.sessionService.getSessionExpiry(),
-                twoFactorRequired: false,
-                emailVerificationRequired: false,
-                lastVerified: Date.now() // Changed from Date object to timestamp
-              });
+        // Always validate session with backend when using HTTP-only cookies
+        this.validateSession()
+          .then(isValid => {
+            if (isValid) {
+              // Session is valid, keep user authenticated
               resolve();
-            })
-            .catch(error => {
-              // Handle invalid tokens
-              logger.warn('Failed to initialize auth state', error);
+            } else {
+              // Handle invalid session
               this.tokenService.clearTokens();
               this.updateAuthState({
                 isAuthenticated: false,
@@ -229,19 +216,23 @@ export class AuthService {
                 error: null
               });
               resolve();
+            }
+          })
+          .catch(error => {
+            // Handle invalid tokens
+            logger.warn('Failed to initialize auth state', error);
+            this.tokenService.clearTokens();
+            this.updateAuthState({
+              isAuthenticated: false,
+              isLoading: false,
+              isInitialized: true,
+              user: null,
+              error: null
             });
-        } else {
-          // No tokens, set unauthenticated state
-          this.updateAuthState({
-            isAuthenticated: false,
-            isLoading: false,
-            isInitialized: true,
-            user: null,
-            error: null
+            resolve();
           });
-          resolve();
-        }
       } catch (error) {
+        // Error handling remains the same
         logger.error('Error initializing auth state', error);
         this.updateAuthState({
           isAuthenticated: false,
@@ -1008,38 +999,126 @@ export class AuthService {
   }
 
   /**
-   * Validate the current session
+   * Validate current session with backend
    */
   public async validateSession(): Promise<boolean> {
     try {
-      logger.debug('Validating session');
+      logger.info('Validating session');
       
-      const response = await this.authApi.validateSession();
+      const response = await authApi.validateSession();
+      logger.info('Session validation response:', response);
       
-      if (response.success && response.data) {
-        // If we have a valid session, update the auth state
-        // Make sure we have access to the Redux store
-        if (this.store && this.store.dispatch) {
-          // Import the action creator to avoid reference error
-          const { setAuthState } = await import('../store/authSlice');
+      // Extract data from response based on the actual structure
+      const responseData = response?.data?.data || {};
+      
+      // Check for valid session based on the actual response structure
+      const isValid = responseData?.isValid === true;
+      
+      // Log detailed validation info for debugging
+      logger.info('Session validation details:', {
+        isValid,
+        hasSessionData: !!responseData?.session,
+        hasUserData: !!responseData?.user,
+        responseFormat: JSON.stringify(response).substring(0, 100) + '...'
+      });
+      
+      if (isValid && responseData.user) {
+        const userData = responseData.user;
+        const sessionData = responseData.session || {};
+        
+        logger.info('Valid session found, updating auth state with user data', { 
+          userId: userData.id,
+          role: userData.role,
+          sessionExpiry: sessionData.expiresAt
+        });
+        
+        // Convert string role to UserRole enum
+        const userWithCorrectRole = {
+          ...userData,
+          role: this.mapStringToUserRole(userData.role),
+          // Ensure other required properties exist
+          name: userData.name || userData.email?.split('@')[0] || '',
+          twoFactorEnabled: userData.twoFactorEnabled || false,
+          emailVerified: userData.emailVerified || false,
+          permissions: userData.permissions || [],
+          createdAt: userData.createdAt || new Date().toISOString(),
+          updatedAt: userData.updatedAt || new Date().toISOString()
+        };
+        
+        // Session is valid - update auth state with user data
+        this.updateAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          isInitialized: true,
+          user: userWithCorrectRole,
+          sessionExpiry: sessionData.expiresAt ? new Date(sessionData.expiresAt).getTime() : this.calculateDefaultExpiry(false),
+          error: null,
+          lastVerified: Date.now()
+        });
+        
+        // Start session tracking if not already started
+        this.sessionService.startSessionTracking();
+        
+        // Update Redux store if available
+        this.updateReduxStore(userWithCorrectRole);
+        
+        return true;
+      }
+      
+      // Session is invalid or response format is unexpected
+      logger.info('No valid session found or unexpected response format');
+      this.updateAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+        user: null,
+        error: null
+      });
+      
+      return false;
+    } catch (error) {
+      logger.error('Session validation failed:', error);
+      
+      // Update auth state
+      this.updateAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+        user: null,
+        error: createAuthError('SESSION_VALIDATION_FAILED', 'Failed to validate session')
+      });
+      
+      return false;
+    }
+  }
+
+  /**
+   * Update Redux store with authentication data
+   */
+  private updateReduxStore(userData: any): void {
+    try {
+      if (this.store && this.store.dispatch) {
+        // Import actions dynamically to avoid circular dependencies
+        import('../store/authSlice').then(module => {
+          const { setAuthState } = module;
           
+          // Calculate session expiry time
+          const expiryTime = this.authState.sessionExpiry || this.calculateDefaultExpiry(false);
+          
+          // Dispatch action to update Redux state
           this.store.dispatch(setAuthState({
+            user: userData,
             isAuthenticated: true,
-            user: response.data.user,
-            sessionExpiry: response.data.expiresAt || this.calculateDefaultExpiry(false)
+            sessionExpiry: expiryTime
           }));
-          return true;
-        } else {
-          logger.warn('Redux store not available for dispatch');
-          return false;
-        }
-      } else {
-        logger.debug('Session validation failed', { error: response.error });
-        return false;
+          
+          logger.debug('Redux store updated with auth state');
+        }).catch(err => {
+          logger.error('Failed to update Redux store:', err);
+        });
       }
     } catch (error) {
-      logger.debug('Session validation error:', { error });
-      return false;
+      logger.error('Error updating Redux store:', error);
     }
   }
 
@@ -1181,6 +1260,29 @@ export class AuthService {
       });
       
       return false;
+    }
+  }
+
+  // Add this helper function to the AuthService class
+  private mapStringToUserRole(role: string): UserRole {
+    switch (role.toUpperCase()) {
+      case 'ADMIN':
+        return UserRole.ADMIN;
+      case 'MANAGER':
+        return UserRole.MANAGER;
+      case 'USER':
+        return UserRole.USER;
+      // Map backend roles to frontend roles
+      case 'CUSTOMER':
+        return UserRole.USER;
+      case 'SUPPORT':
+        return UserRole.USER;
+      case 'TECHNICAL':
+        return UserRole.USER;
+      case 'TEAM_LEAD':
+        return UserRole.MANAGER;
+      default:
+        return UserRole.GUEST;
     }
   }
 }
