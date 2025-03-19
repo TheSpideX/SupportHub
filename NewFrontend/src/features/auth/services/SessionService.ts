@@ -33,6 +33,7 @@ import { apiClient } from '@/api/apiClient';
 export interface SessionServiceConfig {
   apiBaseUrl: string;
   sessionEndpoint: string;
+  sessionSyncEndpoint: string; // Add this property
   sessionTimeout: number; // in milliseconds
   sessionWarningThreshold: number; // in milliseconds
   activityEvents: string[];
@@ -44,6 +45,7 @@ export interface SessionServiceConfig {
 const defaultConfig: SessionServiceConfig = {
   apiBaseUrl: '/api',
   sessionEndpoint: '/auth/session',
+  sessionSyncEndpoint: '/api/auth/session/sync', // Update with full path
   sessionTimeout: 30 * 60 * 1000, // 30 minutes
   sessionWarningThreshold: 5 * 60 * 1000, // 5 minutes before expiry
   activityEvents: ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'],
@@ -390,70 +392,86 @@ export class SessionService {
   /**
    * Sync session with server
    */
-  public async syncWithServer(): Promise<void> {
-    logger.debug('Syncing session with server');
-    
-    if (!this.sessionData) {
-      logger.warn('No session data available for sync');
-      return;
-    }
-    
-    const accessToken = this.getAccessToken();
-    if (!accessToken) {
-      logger.warn('No access token available for session sync');
-      return;
-    }
-    
+  private async syncWithServer(): Promise<boolean> {
     try {
-      logger.debug('Preparing session sync data', { 
-        sessionId: this.sessionData.id,
-        hasLastActivity: !!this.lastActivity
-      });
+      logger.debug('Syncing session with server');
       
-      // Check if the endpoint exists before making the full request
-      logger.debug('Checking if session sync endpoint exists');
-      const endpointExists = await this.checkEndpointExists('/api/auth/session/sync');
-      
-      if (!endpointExists) {
-        logger.info('Session sync endpoint not available, using local session management');
-        this.updateSessionLocally();
-        return;
+      if (!this.sessionData) {
+        logger.warn('No session data to sync');
+        return false;
       }
       
-      logger.debug('Sending session sync request');
-      const response = await this.api.post('/api/auth/session/sync', {
-        sessionId: this.sessionData.id,
-        lastActivity: this.lastActivity,
-        metrics: this.getSessionMetrics(),
-        deviceInfo: await this.securityService.getDeviceInfo()
+      // Prepare session data for sync
+      const syncData = {
+        sessionId: this.sessionData.id && this.sessionData.id.match(/^[0-9a-fA-F]{24}$/) 
+          ? this.sessionData.id  // Use existing ID if it's a valid MongoDB ObjectId
+          : null,                // Otherwise let the server find or create a session
+        lastActivity: this.sessionData.lastActivity,
+        deviceInfo: this.securityService.getDeviceInfo()
+      };
+      
+      logger.debug('Preparing session sync data', { 
+        sessionId: syncData.sessionId, 
+        hasLastActivity: !!syncData.lastActivity 
       });
       
-      logger.debug('Session sync response received', { 
+      // Use the full path for the endpoint
+      const endpoint = this.config.sessionSyncEndpoint;
+      
+      // Make the request with proper authentication
+      const response = await apiClient.post(
+        endpoint,
+        syncData,
+        {
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': this.tokenService.getCsrfToken() || ''
+          }
+        }
+      );
+      
+      logger.debug('Session sync response', { 
         status: response.status,
-        responseStatus: response.data?.status
+        hasData: !!response.data
       });
       
-      if (response.data && response.data.status === 'valid') {
-        // Update session expiry time if provided
-        if (response.data.expiresAt) {
-          logger.debug('Updating session expiry time', { 
-            expiresAt: response.data.expiresAt
+      // Update session data with response from server
+      if (response.data?.data?.session) {
+        const serverSession = response.data.data.session;
+        
+        // Update the session data with server values
+        this.sessionData = {
+          ...this.sessionData,
+          id: serverSession.sessionId,
+          lastActivity: new Date(serverSession.lastActivity).getTime(),
+          expiresAt: new Date(serverSession.expiresAt).getTime()
+        };
+        
+        // Save updated session data
+        this.saveSessionToStorage(this.sessionData);
+        
+        // Restart timers
+        this.startInactivityTimer();
+        this.startWarningTimer();
+        
+        // Broadcast to other tabs if needed
+        if (this.broadcastChannel) {
+          this.broadcastChannel.postMessage({
+            type: 'SESSION_UPDATED',
+            payload: {
+              sessionData: this.sessionData
+            }
           });
-          this.sessionData.expiresAt = response.data.expiresAt;
-          setSessionMetadata(this.sessionData);
         }
         
-        logger.info('Session successfully synced with server');
-      } else if (response.data && response.data.status === 'terminated') {
-        logger.warn(`Session terminated by server: ${response.data.reason}`);
-        this.handleSessionExpired();
-      } else {
-        logger.warn('Unexpected session sync response', { response: response.data });
+        return true;
       }
+      
+      return false;
     } catch (error) {
-      // Handle errors gracefully
-      logger.warn('Session sync failed, continuing with local session management', { error });
-      this.updateSessionLocally();
+      logger.error('Error syncing session with server:', error);
+      return false;
     }
   }
 
@@ -461,41 +479,38 @@ export class SessionService {
    * Check if an endpoint exists
    */
   private async checkEndpointExists(endpoint: string): Promise<boolean> {
-    logger.debug(`Checking if endpoint exists: ${endpoint}`);
     try {
-      const response = await this.api.options(endpoint);
-      logger.debug(`Endpoint check result: ${response.status}`, { exists: response.status < 400 });
+      logger.debug('Checking if endpoint exists:', { endpoint });
+      
+      const response = await apiClient.options(endpoint, {
+        withCredentials: true
+      });
+      
+      logger.debug('Endpoint check result:', { 
+        status: response.status, 
+        exists: response.status < 400 
+      });
+      
       return response.status < 400;
     } catch (error) {
-      logger.debug(`Endpoint ${endpoint} does not exist or is not accessible`, { error });
+      logger.warn('Endpoint check failed:', error);
       return false;
     }
   }
 
   /**
-   * Update session locally when server sync is not available
+   * Update session data
    */
-  private updateSessionLocally(): void {
+  private updateSessionData(newData: Partial<SessionData>): void {
     if (!this.sessionData) return;
     
-    // Update last activity
-    this.sessionData.lastActivity = Date.now();
+    this.sessionData = {
+      ...this.sessionData,
+      ...newData,
+      lastActivity: Date.now() // Always update last activity
+    };
     
-    // Calculate new expiry time based on config
-    const newExpiryTime = Date.now() + this.config.sessionTimeout;
-    
-    // Only extend expiry if it would expire sooner than the new time
-    if (!this.sessionData.expiresAt || this.sessionData.expiresAt < newExpiryTime) {
-      this.sessionData.expiresAt = newExpiryTime;
-    }
-    
-    // Save updated session data
-    setSessionMetadata(this.sessionData);
-    
-    // Restart timers
-    this.startInactivityTimer();
-    this.startWarningTimer();
-    
+    this.saveSessionToStorage(this.sessionData);
     logger.debug('Session updated locally');
   }
 

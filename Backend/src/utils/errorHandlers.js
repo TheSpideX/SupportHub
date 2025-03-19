@@ -19,8 +19,10 @@ class ApiError extends Error {
  * @param {Function} fn - Async function to wrap
  * @returns {Function} Express middleware function
  */
-const asyncHandler = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch((err) => next(err));
+const asyncHandler = (fn) => {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
 };
 
 /**
@@ -35,41 +37,36 @@ const notFound = (req, res, next) => {
 };
 
 /**
- * Error handler middleware
- * @param {Error} err - Error object
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
+ * Global error handler middleware
  */
-const errorHandler = (err, req, res, next) => {
-  let error = { ...err };
-  error.message = err.message;
-
-  // Log error
-  console.error(err);
-
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = `Resource not found`;
-    error = new ApiError(404, message);
-  }
-
-  // Mongoose duplicate key
-  if (err.code === 11000) {
-    const message = 'Duplicate field value entered';
-    error = new ApiError(400, message);
-  }
-
-  // Mongoose validation error
-  if (err.name === 'ValidationError') {
-    const message = Object.values(err.errors).map(val => val.message);
-    error = new ApiError(400, message);
-  }
-
-  res.status(error.statusCode || 500).json({
+const globalErrorHandler = (err, req, res, next) => {
+  // Default error status and message
+  const statusCode = err.statusCode || 500;
+  const errorCode = err.code || 'INTERNAL_SERVER_ERROR';
+  const message = err.message || 'Something went wrong';
+  
+  // Log the error
+  logger.error(message, {
+    errorCode: err.statusCode || 500,
+    errorName: err.name,
+    stack: err.stack,
+    method: req.method,
+    path: req.path,
+    query: req.query,
+    body: req.body,
+    requestId: req.id || 'unknown',
+    service: config.serviceName,
+    timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19)
+  });
+  
+  // Send response
+  res.status(statusCode).json({
     success: false,
-    error: error.message || 'Server Error',
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    error: {
+      code: errorCode,
+      message: message,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    }
   });
 };
 
@@ -77,5 +74,5 @@ module.exports = {
   ApiError,
   asyncHandler,
   notFound,
-  errorHandler
+  globalErrorHandler
 };

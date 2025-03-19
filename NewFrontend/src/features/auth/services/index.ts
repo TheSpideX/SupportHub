@@ -22,8 +22,12 @@ export function getAuthServices() {
 }
 
 // Convenience method to get auth service
-export function getAuthService() {
-  return getAuthServices().authService;
+export function getAuthService(): AuthService {
+  const services = getAuthServices();
+  if (!services.authService) {
+    throw new Error('Auth service not initialized');
+  }
+  return services.authService;
 }
 
 // Convenience method to get token service

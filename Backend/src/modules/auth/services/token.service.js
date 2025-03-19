@@ -1,295 +1,181 @@
+const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { promisify } = require('util');
-const config = require('../config');
+const TokenModel = require('../models/token.model');
+const tokenConfig = require('../config/token.config');
 const logger = require('../../../utils/logger');
-const { AuthError } = require('../errors');
-const Token = require('../models/token.model');
-const redisClient = require('../../../config/redis');
-
-const COMPONENT = 'TokenService';
+const { v4: uuidv4 } = require('uuid');
 
 class TokenService {
-  constructor() {
-    this.accessTokenSecret = config.jwt.accessSecret;
-    this.refreshTokenSecret = config.jwt.refreshSecret;
-    this.accessTokenExpiry = config.jwt.accessExpiry;
-    this.refreshTokenExpiry = config.jwt.refreshExpiry;
-    this.extendedRefreshTokenExpiry = config.jwt.extendedRefreshExpiry;
-    this.cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict'
+  /**
+   * Generate authentication tokens
+   * @param {Object} user - User object
+   * @param {String} sessionId - Session ID
+   * @param {Boolean} rememberMe - Whether to extend token lifetime
+   * @returns {Object} Object containing tokens
+   */
+  async generateTokens(user, sessionId, rememberMe = false) {
+    // Generate access token with short expiry
+    const accessToken = jwt.sign(
+      {
+        sub: user._id,
+        email: user.email,
+        role: user.role,
+        tokenVersion: user.security.tokenVersion,
+        sessionId
+      },
+      tokenConfig.ACCESS_TOKEN_SECRET,
+      {
+        expiresIn: tokenConfig.ACCESS_TOKEN_EXPIRY,
+        jwtid: uuidv4()
+      }
+    );
+    
+    // Generate refresh token with longer expiry if rememberMe
+    const refreshToken = jwt.sign(
+      {
+        sub: user._id,
+        tokenVersion: user.security.tokenVersion,
+        sessionId
+      },
+      tokenConfig.REFRESH_TOKEN_SECRET,
+      {
+        expiresIn: rememberMe 
+          ? tokenConfig.REFRESH_TOKEN_EXPIRY * 7 // 7x longer for remember me
+          : tokenConfig.REFRESH_TOKEN_EXPIRY,
+        jwtid: uuidv4()
+      }
+    );
+    
+    // Generate CSRF token
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    
+    return {
+      accessToken,
+      refreshToken,
+      csrfToken
     };
   }
 
   /**
-   * Generate a pair of tokens (access and refresh) for a user
+   * Generate access token
    * @param {Object} user - User object
-   * @param {Object} options - Additional options
-   * @returns {Object} Token pair
+   * @returns {String} JWT access token
    */
-  async generateTokenPair(user, options = {}) {
-    try {
-      const { deviceFingerprint, rememberMe = false, sessionId } = options;
-      
-      // Common payload for both tokens
-      const basePayload = {
-        sub: user._id.toString(),
-        userId: user._id.toString(),
-        email: user.email,
-        role: user.role || 'user',
-        version: user.security?.tokenVersion || 0,
-      };
+  generateAccessToken(user) {
+    const payload = {
+      sub: user.id || user._id,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions || [],
+      type: 'access'
+    };
 
-      // Add device fingerprint if available
-      if (deviceFingerprint) {
-        basePayload.deviceFingerprint = deviceFingerprint;
-      }
-
-      // Add session ID if available
-      if (sessionId) {
-        basePayload.sessionId = sessionId.toString();
-      }
-
-      // Generate access token
-      const accessToken = jwt.sign(
-        { ...basePayload, type: 'access' },
-        this.accessTokenSecret,
-        { expiresIn: this.accessTokenExpiry }
-      );
-
-      // Calculate expiry time for refresh token
-      const refreshExpiry = rememberMe ? 
-        this.extendedRefreshTokenExpiry : 
-        this.refreshTokenExpiry;
-
-      // Generate refresh token with unique ID (jti)
-      const refreshToken = jwt.sign(
-        { 
-          ...basePayload, 
-          type: 'refresh',
-          jti: crypto.randomBytes(16).toString('hex')
-        },
-        this.refreshTokenSecret,
-        { expiresIn: refreshExpiry }
-      );
-
-      // Store refresh token in database for revocation capability
-      await this._storeRefreshToken(refreshToken, user._id, {
-        deviceFingerprint,
-        expiresAt: new Date(Date.now() + this._getExpiryMilliseconds(refreshExpiry)),
-        sessionId
-      });
-
-      return { accessToken, refreshToken };
-    } catch (error) {
-      logger.error('Token generation error', { 
-        component: COMPONENT, 
-        userId: user._id,
-        error: error.message 
-      });
-      throw new AuthError('Failed to generate tokens', 'TOKEN_GENERATION_ERROR');
-    }
+    return jwt.sign(payload, tokenConfig.ACCESS_TOKEN_SECRET, {
+      expiresIn: tokenConfig.ACCESS_TOKEN_EXPIRY
+    });
   }
 
   /**
-   * Set tokens in cookies
-   * @param {Object} res - Express response object
+   * Generate refresh token
    * @param {Object} user - User object
-   * @param {Object} options - Token options
-   * @returns {Object} Token pair
+   * @returns {String} JWT refresh token
    */
-  async setTokenCookies(res, user, options = {}) {
-    try {
-      logger.debug('Setting token cookies', { 
-        component: COMPONENT, 
-        userId: user._id,
-        rememberMe: !!options.rememberMe
-      });
-      
-      // Generate token pair
-      const { accessToken, refreshToken } = await this.generateTokenPair(user, options);
-      
-      // Set access token cookie
-      const accessExpiry = this._getExpiryMilliseconds(this.accessTokenExpiry);
-      
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV !== 'development',
-        sameSite: 'strict',
-        maxAge: accessExpiry
-      });
-      
-      // Set refresh token cookie with longer expiry if rememberMe is true
-      const refreshExpiry = options.rememberMe ? 
-        this._getExpiryMilliseconds(this.extendedRefreshTokenExpiry) : 
-        this._getExpiryMilliseconds(this.refreshTokenExpiry);
-      
-      res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV !== 'development',
-        sameSite: 'strict',
-        maxAge: refreshExpiry
-      });
-      
-      // Return tokens for debugging purposes
-      return { accessToken, refreshToken };
-    } catch (error) {
-      logger.error('Error setting token cookies', { 
-        component: COMPONENT, 
-        userId: user._id,
-        error: error.message 
-      });
-      throw error;
-    }
+  generateRefreshToken(user) {
+    const payload = {
+      sub: user.id || user._id,
+      type: 'refresh',
+      tokenVersion: user.tokenVersion || 0
+    };
+
+    return jwt.sign(payload, tokenConfig.REFRESH_TOKEN_SECRET, {
+      expiresIn: tokenConfig.REFRESH_TOKEN_EXPIRY
+    });
   }
 
   /**
-   * Verify a token
-   * @param {String} token - JWT token
-   * @param {String} type - Token type (access or refresh)
-   * @returns {Object} Decoded token
+   * Generate CSRF token
+   * @returns {String} CSRF token
    */
-  async verifyToken(token, type = 'access') {
-    try {
-      const secret = type === 'access' ? this.accessTokenSecret : this.refreshTokenSecret;
-      
-      // Verify token signature and expiration
-      const decoded = jwt.verify(token, secret);
-      
-      // Ensure token type matches
-      if (decoded.type !== type) {
-        throw new AuthError('Invalid token type', 'INVALID_TOKEN_TYPE');
-      }
-      
-      // Check if refresh token has been revoked
-      if (type === 'refresh' && decoded.jti) {
-        const isRevoked = await this._isTokenRevoked(decoded.jti);
-        if (isRevoked) {
-          throw new AuthError('Token has been revoked', 'TOKEN_REVOKED');
-        }
-      }
-      
-      return decoded;
-    } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        throw new AuthError('Token has expired', 'TOKEN_EXPIRED');
-      }
-      if (error.name === 'JsonWebTokenError') {
-        throw new AuthError('Invalid token', 'INVALID_TOKEN');
-      }
-      throw error;
-    }
+  generateCsrfToken() {
+    return crypto.randomBytes(32).toString('hex');
   }
 
   /**
-   * Refresh access token using refresh token
+   * Save refresh token to database
+   * @param {String|ObjectId} userId - User ID
    * @param {String} refreshToken - Refresh token
-   * @returns {Object} New access token
+   * @returns {Promise} Promise resolving to saved token
    */
-  async refreshAccessToken(refreshToken) {
+  async saveRefreshToken(userId, refreshToken) {
     try {
-      // Verify refresh token
-      const decoded = await this.verifyToken(refreshToken, 'refresh');
+      // Convert userId to a valid ObjectId
+      let userObjectId;
       
-      // Get user
-      const user = await require('../models/user.model').findById(decoded.userId);
-      if (!user) {
-        throw new AuthError('User not found', 'USER_NOT_FOUND');
+      try {
+        // If it's already an ObjectId, use it directly
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+          userObjectId = new mongoose.Types.ObjectId(userId);
+        } else if (typeof userId === 'string') {
+          // If it's a string that can be converted to ObjectId
+          if (mongoose.Types.ObjectId.isValid(userId)) {
+            userObjectId = new mongoose.Types.ObjectId(userId);
+          } else {
+            throw new Error(`Invalid user ID format: ${userId}`);
+          }
+        } else {
+          // For other cases, try to get string representation
+          const userIdStr = userId.toString();
+          if (mongoose.Types.ObjectId.isValid(userIdStr)) {
+            userObjectId = new mongoose.Types.ObjectId(userIdStr);
+          } else {
+            throw new Error(`Cannot convert user ID to ObjectId: ${userIdStr}`);
+          }
+        }
+      } catch (err) {
+        logger.error('Error converting user ID to ObjectId:', err);
+        throw new Error(`Invalid user ID: ${userId}`);
       }
       
-      // Check token version
-      if (decoded.version !== user.security.tokenVersion) {
-        throw new AuthError('Token version mismatch', 'TOKEN_VERSION_MISMATCH');
-      }
-      
-      // Generate new access token
-      const accessToken = jwt.sign(
-        {
-          sub: user._id.toString(),
-          userId: user._id.toString(),
-          email: user.email,
-          role: user.role || 'user',
-          version: user.security.tokenVersion,
-          type: 'access',
-          deviceFingerprint: decoded.deviceFingerprint,
-          sessionId: decoded.sessionId
-        },
-        this.accessTokenSecret,
-        { expiresIn: this.accessTokenExpiry }
-      );
-      
-      return { accessToken };
-    } catch (error) {
-      logger.error('Token refresh error', { 
-        component: COMPONENT, 
-        error: error.message 
+      // Create token document
+      const tokenDoc = new TokenModel({
+        user: userObjectId,
+        token: refreshToken,
+        type: 'refresh',
+        expiresAt: new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000)
       });
+
+      // Save to database
+      return await tokenDoc.save();
+    } catch (error) {
+      logger.error('Error saving refresh token:', error);
       throw error;
     }
   }
 
   /**
-   * Revoke a refresh token
-   * @param {String} token - Refresh token
-   * @returns {Promise<void>}
+   * Set token cookies on response object
+   * @param {Object} res - Express response object
+   * @param {Object} tokens - Object containing tokens
    */
-  async revokeToken(token) {
-    try {
-      const decoded = jwt.decode(token);
-      if (!decoded || !decoded.jti) {
-        throw new AuthError('Invalid token', 'INVALID_TOKEN');
-      }
-      
-      await Token.findOneAndUpdate(
-        { token: decoded.jti },
-        { isRevoked: true, revokedAt: new Date() }
-      );
-      
-      // Also add to Redis blacklist for faster lookups
-      await redisClient.set(
-        `token:blacklist:${decoded.jti}`,
-        '1',
-        'EX',
-        this._getExpirySeconds(decoded.exp)
-      );
-    } catch (error) {
-      logger.error('Token revocation error', { 
-        component: COMPONENT, 
-        error: error.message 
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Revoke all tokens for a user
-   * @param {String} userId - User ID
-   * @returns {Promise<void>}
-   */
-  async revokeAllUserTokens(userId) {
-    try {
-      // Update all tokens in database
-      await Token.updateMany(
-        { user: userId, isRevoked: false },
-        { isRevoked: true, revokedAt: new Date() }
-      );
-      
-      // Increment user's token version to invalidate all tokens
-      const User = require('../models/user.model');
-      const user = await User.findById(userId);
-      if (user) {
-        await user.incrementTokenVersion();
-      }
-    } catch (error) {
-      logger.error('User token revocation error', { 
-        component: COMPONENT, 
-        userId,
-        error: error.message 
-      });
-      throw error;
-    }
+  setTokenCookies(res, tokens) {
+    // Access token cookie (short-lived)
+    res.cookie(cookieConfig.names.ACCESS_TOKEN, tokens.accessToken, {
+      ...cookieConfig.baseOptions,
+      maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
+    });
+    
+    // Refresh token cookie (longer-lived)
+    res.cookie(cookieConfig.names.REFRESH_TOKEN, tokens.refreshToken, {
+      ...cookieConfig.baseOptions,
+      maxAge: tokenConfig.REFRESH_TOKEN_EXPIRY * 1000
+    });
+    
+    // CSRF token (JavaScript accessible)
+    res.cookie(cookieConfig.names.CSRF_TOKEN, tokens.csrfToken, {
+      ...cookieConfig.csrfOptions,
+      maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
+    });
   }
 
   /**
@@ -297,144 +183,144 @@ class TokenService {
    * @param {Object} res - Express response object
    */
   clearTokenCookies(res) {
-    res.clearCookie('access_token', {
-      ...this.cookieOptions,
-      maxAge: 0
+    res.cookie(cookieConfig.names.ACCESS_TOKEN, '', { 
+      ...cookieConfig.baseOptions, 
+      maxAge: 0 
     });
     
-    res.clearCookie('refresh_token', {
-      ...this.cookieOptions,
-      path: '/api/auth/refresh',
-      maxAge: 0
+    res.cookie(cookieConfig.names.REFRESH_TOKEN, '', { 
+      ...cookieConfig.baseOptions, 
+      maxAge: 0 
     });
-  }
-
-  /**
-   * Store refresh token in database
-   * @private
-   * @param {String} token - Refresh token
-   * @param {String} userId - User ID
-   * @param {Object} options - Additional options
-   * @returns {Promise<Object>} Stored token
-   */
-  async _storeRefreshToken(token, userId, options = {}) {
-    const { deviceFingerprint, expiresAt, sessionId } = options;
     
-    // Decode token to get jti
-    const decoded = jwt.decode(token);
-    if (!decoded || !decoded.jti) {
-      throw new AuthError('Invalid token format', 'INVALID_TOKEN_FORMAT');
-    }
-    
-    // Store token in database
-    return Token.create({
-      token: decoded.jti,
-      user: userId,
-      type: 'refresh',
-      expiresAt: expiresAt || new Date(decoded.exp * 1000),
-      deviceFingerprint,
-      metadata: {
-        sessionId: sessionId?.toString()
-      }
+    res.cookie(cookieConfig.names.CSRF_TOKEN, '', { 
+      ...cookieConfig.csrfOptions, 
+      maxAge: 0 
     });
   }
 
   /**
-   * Check if a token has been revoked
-   * @private
-   * @param {String} jti - Token ID
-   * @returns {Promise<boolean>} Whether token is revoked
+   * Verify access token
+   * @param {String} token - JWT access token
+   * @returns {Object} Decoded token payload
    */
-  async _isTokenRevoked(jti) {
-    // Check Redis blacklist first for performance
-    const blacklisted = await redisClient.get(`token:blacklist:${jti}`);
-    if (blacklisted) {
-      return true;
-    }
-    
-    // Fall back to database check
-    const token = await Token.findOne({ token: jti });
-    return token ? token.isRevoked : false;
-  }
-
-  /**
-   * Convert JWT expiry string to milliseconds
-   * @private
-   * @param {String} expiry - JWT expiry string
-   * @returns {Number} Milliseconds
-   */
-  _getExpiryMilliseconds(expiry) {
-    const match = expiry.match(/^(\d+)([smhd])$/);
-    if (!match) {
-      return 3600 * 1000; // Default 1 hour
-    }
-    
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    
-    switch (unit) {
-      case 's': return value * 1000;
-      case 'm': return value * 60 * 1000;
-      case 'h': return value * 60 * 60 * 1000;
-      case 'd': return value * 24 * 60 * 60 * 1000;
-      default: return 3600 * 1000;
-    }
-  }
-
-  /**
-   * Get seconds remaining until token expiry
-   * @private
-   * @param {Number} exp - Token expiry timestamp
-   * @returns {Number} Seconds
-   */
-  _getExpirySeconds(exp) {
-    const now = Math.floor(Date.now() / 1000);
-    return Math.max(0, exp - now);
-  }
-
-  /**
-   * Verify token from cookies
-   * @param {Object} req - Express request object
-   * @returns {Object} Decoded token
-   */
-  async verifyTokenFromCookies(req) {
-    const accessToken = req.cookies?.access_token;
-    
-    if (!accessToken) {
-      throw new AuthError('No access token provided', 'TOKEN_MISSING');
-    }
-    
+  verifyAccessToken(token) {
     try {
-      return await this.verifyToken(accessToken, 'access');
-    } catch (error) {
-      // If access token is expired, try to refresh using refresh token
-      if (error.code === 'TOKEN_EXPIRED' && req.cookies?.refresh_token) {
-        return await this.refreshAccessTokenFromCookie(req.cookies.refresh_token);
+      const decoded = jwt.verify(token, tokenConfig.ACCESS_TOKEN_SECRET);
+      
+      // Verify it's an access token
+      if (decoded.type !== 'access') {
+        throw new Error('Invalid token type');
       }
+      
+      return decoded;
+    } catch (error) {
+      logger.error('Access token verification failed:', error.message);
       throw error;
     }
   }
 
   /**
-   * Refresh access token from cookie and set new cookie
-   * @param {String} refreshToken - Refresh token
-   * @param {Object} res - Express response object
-   * @returns {Object} New access token
+   * Verify refresh token
+   * @param {String} token - JWT refresh token
+   * @returns {Object} Decoded token payload
    */
-  async refreshAccessTokenFromCookie(refreshToken, res) {
-    const { accessToken } = await this.refreshAccessToken(refreshToken);
-    
-    // Set new access token cookie
-    if (res) {
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV !== 'development',
-        sameSite: 'strict',
-        maxAge: this._getExpiryMilliseconds(this.accessTokenExpiry)
-      });
+  verifyRefreshToken(token) {
+    try {
+      const decoded = jwt.verify(token, tokenConfig.REFRESH_TOKEN_SECRET);
+      
+      // Verify it's a refresh token
+      if (decoded.type !== 'refresh') {
+        throw new Error('Invalid token type');
+      }
+      
+      return decoded;
+    } catch (error) {
+      logger.error('Refresh token verification failed:', error.message);
+      throw error;
     }
-    
-    return { accessToken };
+  }
+
+  /**
+   * Verify token exists in database
+   * @param {String} token - Refresh token
+   * @returns {Promise<Boolean>} Whether token exists and is valid
+   */
+  async verifyTokenInDatabase(token) {
+    try {
+      const tokenDoc = await TokenModel.findOne({ token, type: 'refresh' });
+      
+      if (!tokenDoc) {
+        return false;
+      }
+      
+      // Check if token is expired
+      if (tokenDoc.expiresAt < new Date()) {
+        await TokenModel.deleteOne({ _id: tokenDoc._id });
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      logger.error('Error verifying token in database:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete refresh token from database
+   * @param {String} token - Refresh token
+   * @returns {Promise<Boolean>} Whether deletion was successful
+   */
+  async deleteRefreshToken(token) {
+    try {
+      const result = await TokenModel.deleteOne({ token, type: 'refresh' });
+      return result.deletedCount > 0;
+    } catch (error) {
+      logger.error('Error deleting refresh token:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Delete all refresh tokens for a user
+   * @param {String} userId - User ID
+   * @returns {Promise<Number>} Number of tokens deleted
+   */
+  async deleteAllUserTokens(userId) {
+    try {
+      const result = await TokenModel.deleteMany({ user: userId, type: 'refresh' });
+      return result.deletedCount;
+    } catch (error) {
+      logger.error('Error deleting all user tokens:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Rotate refresh token
+   * @param {String} oldToken - Old refresh token
+   * @param {Object} user - User object
+   * @returns {Promise<Object>} New tokens
+   */
+  async rotateRefreshToken(oldToken, user) {
+    try {
+      // Verify old token exists in database
+      const isValid = await this.verifyTokenInDatabase(oldToken);
+      
+      if (!isValid) {
+        throw new Error('Invalid refresh token');
+      }
+      
+      // Delete old token
+      await this.deleteRefreshToken(oldToken);
+      
+      // Generate new tokens
+      return await this.generateAuthTokens(user);
+    } catch (error) {
+      logger.error('Error rotating refresh token:', error);
+      throw error;
+    }
   }
 }
 

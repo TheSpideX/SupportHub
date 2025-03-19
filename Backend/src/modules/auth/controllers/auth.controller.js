@@ -1,355 +1,763 @@
-const { AuthError } = require('../errors');
-const authService = require('../services/auth.service');
+const { asyncHandler } = require('../../../utils/errorHandlers');
+const { AppError } = require('../../../utils/errors');
+const User = require('../models/user.model');
+const Session = require('../models/session.model');
+const TokenBlacklist = require('../models/token-blacklist.model');
 const tokenService = require('../services/token.service');
+const emailService = require('../services/email.service');
 const securityService = require('../services/security.service');
-const logger = require('../../../utils/logger');
-const csrfUtils = require('../utils/csrf.utils');
-const securityUtils = require('../utils/security.utils');
+const authService = require('../services/auth.service');
+const authConfig = require('../config');
+const { token: tokenConfig, cookie: cookieConfig } = authConfig;
+const authUtils = require('../utils/auth.utils');
+const { passwordPolicy, requireEmailVerification } = require('../config');
 
-const COMPONENT = 'AuthController';
+/**
+ * Register a new user
+ */
+exports.register = asyncHandler(async (req, res) => {
+  const { email, password, firstName, lastName } = req.body;
+  
+  // Check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    throw new AppError('Email already in use', 409, 'EMAIL_IN_USE');
+  }
+  
+  // Create new user
+  const user = await User.create({
+    email,
+    password, // Will be hashed in the model's pre-save hook
+    firstName,
+    lastName,
+    role: 'user',
+    security: {
+      emailVerified: false,
+      twoFactorEnabled: false,
+      tokenVersion: 0
+    }
+  });
+  
+  // Generate verification token
+  const verificationToken = await tokenService.generateEmailVerificationToken(user._id);
+  
+  // Send verification email
+  await emailService.sendVerificationEmail(user.email, {
+    name: user.firstName,
+    verificationUrl: `${authConfig.clientUrl}/auth/verify-email?token=${verificationToken}`
+  });
+  
+  // Return success without logging in the user
+  res.status(201).json({
+    status: 'success',
+    message: 'User registered successfully. Please verify your email.',
+    data: {
+      userId: user._id,
+      email: user.email,
+      emailVerified: false
+    }
+  });
+});
 
 /**
  * Login user
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next function
  */
-exports.login = async (req, res, next) => {
-  const requestStartTime = Date.now();
-  const { email, password, rememberMe = false, deviceInfo = {} } = req.body;
+exports.login = asyncHandler(async (req, res) => {
+  const { email, password, rememberMe = false } = req.body;
   
-  try {
-    logger.info("Login attempt", {
-      component: COMPONENT,
-      email: email.substring(0, 3) + '***', // Log only part of the email for privacy
-      hasDeviceInfo: !!deviceInfo
-    });
-    
-    // Get client IP
-    const clientIp = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    
-    // Merge device info with request data
-    const enhancedDeviceInfo = {
-      ...deviceInfo,
-      ip: clientIp,
-      userAgent: req.headers['user-agent'] || deviceInfo.userAgent
-    };
-    
-    // Authenticate user
-    const authResult = await authService.authenticateUser({
-      email,
-      password,
-      rememberMe,
-      deviceInfo: enhancedDeviceInfo
-    });
-    
-    // Set tokens in cookies
-    await tokenService.setTokenCookies(res, authResult.user, {
-      rememberMe,
-      deviceFingerprint: enhancedDeviceInfo.fingerprint,
-      sessionId: authResult.session._id
-    });
-    
-    // Generate CSRF token
-    const csrfToken = csrfUtils.generateToken();
-    res.cookie('csrf_token', csrfToken, {
-      httpOnly: false, // Must be accessible to JavaScript
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'strict',
-      maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000 // 30 days or 1 day
-    });
-    
-    // Log successful login
-    logger.info("Login successful", {
-      component: COMPONENT,
-      userId: authResult.user._id,
-      responseTime: Date.now() - requestStartTime,
-    });
-    
-    // Return user data without sensitive information
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: authService.sanitizeUser(authResult.user),
-        csrfToken,
-        // Include session info for frontend
-        session: {
-          id: authResult.session._id,
-          expiresAt: authResult.session.expiresAt
-        }
-      }
-    });
-  } catch (error) {
-    logger.error("Login failed", {
-      component: COMPONENT,
-      email: email.substring(0, 3) + '***',
-      error: error.message,
-      stack: error.stack,
-      responseTime: Date.now() - requestStartTime
-    });
-    
-    next(error);
+  // Find user by email with password field included
+  const user = await User.findOne({ email }).select('+security.password');
+  
+  if (!user) {
+    throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
   }
-}
+  
+  // Verify password
+  const isPasswordValid = await user.comparePassword(password);
+  
+  if (!isPasswordValid) {
+    // Increment login attempts
+    if (user.security) {
+      user.security.loginAttempts = (user.security.loginAttempts || 0) + 1;
+      
+      // Lock account if max attempts reached
+      if (user.security.loginAttempts >= authConfig.maxLoginAttempts) {
+        user.security.lockUntil = new Date(Date.now() + authConfig.lockoutDuration * 1000);
+      }
+      
+      await user.save();
+    }
+    
+    throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+  }
+  
+  // Check if account is locked
+  const accountIsLocked = user.isLocked();
+  if (accountIsLocked && !await user.checkAndUnlockAccount()) {
+    throw new AppError('Account is locked', 401, 'ACCOUNT_LOCKED');
+  }
+  
+  // Reset login attempts on successful login
+  if (user.security && user.security.loginAttempts > 0) {
+    user.security.loginAttempts = 0;
+    await user.save();
+  }
+  
+  // Get client info
+  const clientInfo = {
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip,
+    ...req.body.deviceInfo
+  };
+  
+  // Create session
+  const session = await Session.create({
+    userId: user._id,
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip,
+    deviceInfo: clientInfo,
+    isActive: true,
+    expiresAt: rememberMe 
+      ? new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000 * 7) // 7x longer for remember me
+      : new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000)
+  });
+  
+  // Generate tokens
+  const { accessToken, refreshToken, csrfToken } = await tokenService.generateTokens(
+    user,
+    session._id,
+    rememberMe
+  );
+
+  // Set cookies
+  // Access token cookie (short-lived)
+  res.cookie(cookieConfig.names.ACCESS_TOKEN, accessToken, {
+    ...cookieConfig.baseOptions,
+    maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
+  });
+  
+  // Refresh token cookie (longer-lived)
+  res.cookie(cookieConfig.names.REFRESH_TOKEN, refreshToken, {
+    ...cookieConfig.baseOptions,
+    maxAge: rememberMe 
+      ? tokenConfig.REFRESH_TOKEN_EXPIRY * 1000 * 7 // 7x longer for remember me
+      : tokenConfig.REFRESH_TOKEN_EXPIRY * 1000
+  });
+  
+  // CSRF token (JavaScript accessible)
+  res.cookie(cookieConfig.names.CSRF_TOKEN, csrfToken, {
+    ...cookieConfig.csrfOptions,
+    maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
+  });
+  
+  // Return user data
+  res.status(200).json({
+    status: 'success',
+    message: 'Login successful',
+    data: {
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        emailVerified: user.security.emailVerified
+      },
+      session: {
+        id: session._id,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt
+      },
+      csrfToken // Include in response body for immediate use
+    }
+  });
+});
 
 /**
- * Logout user
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Verify two-factor authentication
  */
-exports.logout = async (req, res) => {
-    const requestStartTime = Date.now();
-    const COMPONENT = 'AuthController.logout';
-    
-    try {
-        const { allDevices } = req.body;
-        const userId = req.user._id;
-        const sessionId = req.decodedToken?.sessionId;
-        
-        // Log logout attempt
-        logger.info("Logout attempt", {
-            component: COMPONENT,
-            userId,
-            sessionId,
-            allDevices
-        });
-        
-        // Perform logout
-        await authService.logoutUser({
-            userId,
-            sessionId,
-            allDevices
-        });
-        
-        // Clear auth cookies
-        res.clearCookie('access_token');
-        res.clearCookie('refresh_token');
-        res.clearCookie('csrf_token');
-        
-        // Log successful logout
-        logger.info("Logout successful", {
-            component: COMPONENT,
-            userId,
-            responseTime: Date.now() - requestStartTime,
-        });
-        
-        res.json({
-            success: true,
-            message: 'Logout successful'
-        });
-    } catch (error) {
-        // Log error
-        logger.error("Logout error", {
-            component: COMPONENT,
-            error: error.message,
-            stack: error.stack,
-            responseTime: Date.now() - requestStartTime,
-        });
-        
-        // Return error response
-        res.status(500).json({
-            success: false,
-            message: 'Logout failed',
-            error: error.message
-        });
+exports.verifyTwoFactor = asyncHandler(async (req, res) => {
+  const { tempToken, twoFactorCode, rememberMe = false } = req.body;
+  
+  // Verify temp token
+  const decoded = await tokenService.verifyTwoFactorToken(tempToken);
+  if (!decoded) {
+    throw new AppError('Invalid or expired token', 401, 'INVALID_TOKEN');
+  }
+  
+  // Find user
+  const user = await User.findById(decoded.sub);
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  
+  // Verify 2FA code
+  const isCodeValid = await securityService.verifyTwoFactorCode(
+    user.security.twoFactorSecret,
+    twoFactorCode
+  );
+  
+  if (!isCodeValid) {
+    throw new AppError('Invalid two-factor code', 401, 'INVALID_2FA_CODE');
+  }
+  
+  // Get client info
+  const clientInfo = getClientInfo(req);
+  
+  // Create session
+  const session = await Session.create({
+    userId: user._id,
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip,
+    deviceInfo: clientInfo,
+    isActive: true,
+    expiresAt: rememberMe 
+      ? new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000) 
+      : new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000)
+  });
+  
+  // Generate tokens
+  const { accessToken, refreshToken } = await tokenService.generateAuthTokens(
+    user._id,
+    user.security.tokenVersion,
+    session._id,
+    rememberMe
+  );
+  
+  // Set cookies
+  res.cookie(
+    cookieConfig.names.ACCESS_TOKEN, 
+    accessToken, 
+    cookieConfig.accessTokenOptions
+  );
+  
+  res.cookie(
+    cookieConfig.names.REFRESH_TOKEN, 
+    refreshToken, 
+    rememberMe 
+      ? { ...cookieConfig.refreshTokenOptions, maxAge: tokenConfig.REFRESH_TOKEN_EXPIRY * 1000 } 
+      : cookieConfig.refreshTokenOptions
+  );
+  
+  // Generate CSRF token
+  const csrfToken = securityService.generateCsrfToken(res);
+  res.cookie(
+    cookieConfig.names.CSRF_TOKEN, 
+    csrfToken, 
+    cookieConfig.csrfOptions
+  );
+  
+  // Return user data
+  res.status(200).json({
+    status: 'success',
+    message: 'Two-factor authentication successful',
+    data: {
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        emailVerified: user.security.emailVerified,
+        twoFactorEnabled: user.security.twoFactorEnabled
+      },
+      session: {
+        id: session._id,
+        createdAt: session.createdAt,
+        deviceInfo: clientInfo
+      },
+      csrfToken
     }
-};
+  });
+});
 
 /**
  * Refresh access token
- * @param {Object} req - Express request
- * @param {Object} res - Express response
- * @param {Function} next - Express next
  */
-exports.refreshToken = async (req, res, next) => {
-    try {
-        const refreshToken = req.cookies?.refresh_token;
-        
-        if (!refreshToken) {
-            throw new AuthError('Refresh token required', 'REFRESH_TOKEN_REQUIRED');
-        }
-        
-        const { accessToken } = await tokenService.refreshAccessToken(refreshToken);
-        
-        // Set new access token in cookie
-        tokenService.setTokenCookies({ accessToken, refreshToken }, res);
-        
-        // Generate new CSRF token
-        const csrfToken = csrfUtils.generateToken();
-        res.cookie('csrf_token', csrfToken, {
-            httpOnly: false,
-            secure: process.env.NODE_ENV !== 'development',
-            sameSite: 'strict',
-            maxAge: 24 * 60 * 60 * 1000 // 1 day
-        });
-        
-        res.json({
-            success: true,
-            message: 'Token refreshed successfully',
-            data: {
-                csrfToken
-            }
-        });
-    } catch (error) {
-        // Clear cookies on refresh error
-        tokenService.clearTokenCookies(res);
-        res.clearCookie('csrf_token');
-        
-        next(error);
+exports.refreshToken = asyncHandler(async (req, res) => {
+  // Get refresh token from cookie
+  const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+  
+  if (!refreshToken) {
+    throw new AppError('Refresh token not found', 401, 'REFRESH_TOKEN_NOT_FOUND');
+  }
+  
+  // Verify refresh token
+  const decoded = await tokenService.verifyRefreshToken(refreshToken);
+  
+  // Check if token is blacklisted
+  const isBlacklisted = await TokenBlacklist.findOne({ tokenId: decoded.jti });
+  if (isBlacklisted) {
+    throw new AppError('Token has been revoked', 401, 'TOKEN_REVOKED');
+  }
+  
+  // Find user
+  const user = await User.findById(decoded.sub);
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  
+  // Check token version
+  if (decoded.version !== user.security.tokenVersion) {
+    throw new AppError('Token is invalid', 401, 'TOKEN_INVALID');
+  }
+  
+  // Find session
+  const session = await Session.findById(decoded.sessionId);
+  if (!session || !session.isActive) {
+    throw new AppError('Session not found or inactive', 401, 'SESSION_INVALID');
+  }
+  
+  // Update session last activity
+  session.lastActivity = new Date();
+  await session.save();
+  
+  // Generate new access token
+  const newAccessToken = await tokenService.generateAccessToken(
+    user._id,
+    user.security.tokenVersion,
+    session._id
+  );
+  
+  // Set new access token cookie
+  res.cookie(
+    cookieConfig.names.ACCESS_TOKEN, 
+    newAccessToken, 
+    cookieConfig.accessTokenOptions
+  );
+  
+  // Generate new CSRF token
+  const csrfToken = securityService.generateCsrfToken(res);
+  res.cookie(
+    cookieConfig.names.CSRF_TOKEN, 
+    csrfToken, 
+    cookieConfig.csrfOptions
+  );
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Token refreshed successfully',
+    data: {
+      csrfToken
     }
+  });
+});
+
+/**
+ * Logout user
+ */
+exports.logout = asyncHandler(async (req, res) => {
+  // Get tokens from cookies
+  const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+  const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+  
+  // If tokens exist, blacklist them
+  if (accessToken) {
+    try {
+      const decoded = await tokenService.verifyAccessToken(accessToken);
+      
+      // Blacklist the token
+      await TokenBlacklist.create({
+        tokenId: decoded.jti,
+        expiresAt: new Date(decoded.exp * 1000)
+      });
+      
+      // Deactivate session
+      if (decoded.sessionId) {
+        await Session.findByIdAndUpdate(decoded.sessionId, {
+          isActive: false,
+          endedAt: new Date()
+        });
+      }
+    } catch (error) {
+      // Ignore token verification errors during logout
+    }
+  }
+  
+  if (refreshToken) {
+    try {
+      const decoded = await tokenService.verifyRefreshToken(refreshToken);
+      
+      // Blacklist the token
+      await TokenBlacklist.create({
+        tokenId: decoded.jti,
+        expiresAt: new Date(decoded.exp * 1000)
+      });
+      
+      // Deactivate session
+      if (decoded.sessionId) {
+        await Session.findByIdAndUpdate(decoded.sessionId, {
+          isActive: false,
+          endedAt: new Date()
+        });
+      }
+    } catch (error) {
+      // Ignore token verification errors during logout
+    }
+  }
+  
+  // Clear cookies
+  res.clearCookie(cookieConfig.names.ACCESS_TOKEN);
+  res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
+  res.clearCookie(cookieConfig.names.CSRF_TOKEN);
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Logged out successfully'
+  });
+});
+
+/**
+ * Validate user authentication
+ */
+exports.validateUser = (req, res) => {
+  try {
+    // If middleware passed, user is authenticated
+    res.status(200).json({
+      success: true,
+      data: {
+        isValid: true,
+        user: authService.sanitizeUser(req.user)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
  * Get current user
- * @param {Object} req - Express request
- * @param {Object} res - Express response
  */
-exports.getCurrentUser = async (req, res) => {
+exports.getCurrentUser = (req, res) => {
   try {
-    // The user should be attached to req by the auth middleware
-    if (!req.user) {
+    // Return user data
+    res.status(200).json({
+      success: true,
+      data: authService.sanitizeUser(req.user)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Verify email
+ */
+exports.verifyEmail = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  
+  // Verify token
+  const decoded = await tokenService.verifyEmailVerificationToken(token);
+  if (!decoded) {
+    throw new AppError('Invalid or expired token', 401, 'INVALID_TOKEN');
+  }
+  
+  // Find and update user
+  const user = await User.findByIdAndUpdate(
+    decoded.sub,
+    { 'security.emailVerified': true },
+    { new: true }
+  );
+  
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Email verified successfully',
+    data: {
+      emailVerified: true
+    }
+  });
+});
+
+/**
+ * Request password reset
+ */
+exports.forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  
+  // Find user
+  const user = await User.findOne({ email });
+  
+  // Don't reveal if user exists or not
+  if (!user) {
+    return res.status(200).json({
+      status: 'success',
+      message: 'If your email is registered, you will receive a password reset link'
+    });
+  }
+  
+  // Generate reset token
+  const resetToken = await tokenService.generatePasswordResetToken(user._id);
+  
+  // Send reset email
+  await emailService.sendPasswordResetEmail(user.email, {
+    name: user.firstName,
+    resetUrl: `${authConfig.clientUrl}/auth/reset-password?token=${resetToken}`
+  });
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'If your email is registered, you will receive a password reset link'
+  });
+});
+
+/**
+ * Reset password
+ */
+exports.resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+  
+  // Verify token
+  const decoded = await tokenService.verifyPasswordResetToken(token);
+  if (!decoded) {
+    throw new AppError('Invalid or expired token', 401, 'INVALID_TOKEN');
+  }
+  
+  // Find user
+  const user = await User.findById(decoded.sub);
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  
+  // Update password and increment token version
+  user.password = password;
+  user.security.tokenVersion += 1;
+  await user.save();
+  
+  // Invalidate all sessions
+  await Session.updateMany(
+    { userId: user._id, isActive: true },
+    { isActive: false, endedAt: new Date() }
+  );
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Password reset successfully'
+  });
+});
+
+/**
+ * Change password
+ */
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  
+  // This middleware should be used after authenticate middleware
+  const user = await User.findById(req.user._id).select('+password');
+  
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+  
+  // Verify current password
+  const isPasswordValid = await user.comparePassword(currentPassword);
+  if (!isPasswordValid) {
+    throw new AppError('Current password is incorrect', 401, 'INVALID_PASSWORD');
+  }
+  
+  // Update password and increment token version
+  user.password = newPassword;
+  user.security.tokenVersion += 1;
+  await user.save();
+  
+  // Keep current session active, invalidate others
+  await Session.updateMany(
+    { userId: user._id, isActive: true, _id: { $ne: req.session._id } },
+    { isActive: false, endedAt: new Date() }
+  );
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Password changed successfully'
+  });
+});
+
+/**
+ * Setup two-factor authentication
+ */
+exports.setupTwoFactor = asyncHandler(async (req, res) => {
+  // This middleware should be used after authenticate middleware
+  const user = req.user;
+  
+  // Generate 2FA secret
+  const { secret, qrCodeUrl } = await securityService.generateTwoFactorSecret(user.email);
+  
+  // Store secret temporarily (not activated yet)
+  user.security.tempTwoFactorSecret = secret;
+  await user.save();
+  
+  // Return setup data
+  res.status(200).json({
+    status: 'success',
+    data: {
+      qrCodeUrl,
+      secret
+    }
+  });
+});
+
+/**
+ * Verify and activate two-factor authentication
+ */
+exports.verifyAndActivateTwoFactor = asyncHandler(async (req, res) => {
+  const { twoFactorCode } = req.body;
+  
+  // This middleware should be used after authenticate middleware
+  const user = req.user;
+  
+  // Check if temp secret exists
+  if (!user.security.tempTwoFactorSecret) {
+    throw new AppError('Two-factor setup not initiated', 400, 'SETUP_NOT_INITIATED');
+  }
+  
+  // Verify code
+  const isCodeValid = await securityService.verifyTwoFactorCode(
+    user.security.tempTwoFactorSecret,
+    twoFactorCode
+  );
+  
+  if (!isCodeValid) {
+    throw new AppError('Invalid verification code', 401, 'INVALID_CODE');
+  }
+  
+  // Activate 2FA
+  user.security.twoFactorEnabled = true;
+  user.security.twoFactorSecret = user.security.tempTwoFactorSecret;
+  user.security.tempTwoFactorSecret = undefined;
+  await user.save();
+  
+  // Generate backup codes
+  const backupCodes = await securityService.generateBackupCodes(user._id);
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Two-factor authentication enabled successfully',
+    data: {
+      twoFactorEnabled: true,
+      backupCodes
+    }
+  });
+});
+
+/**
+ * Disable two-factor authentication
+ */
+exports.disableTwoFactor = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  
+  // This middleware should be used after authenticate middleware
+  const user = await User.findById(req.user._id).select('+password');
+  
+  // Verify password
+  const isPasswordValid = await user.comparePassword(password);
+  if (!isPasswordValid) {
+    throw new AppError('Password is incorrect', 401, 'INVALID_PASSWORD');
+  }
+  
+  // Disable 2FA
+  user.security.twoFactorEnabled = false;
+  user.security.twoFactorSecret = undefined;
+  user.security.backupCodes = [];
+  await user.save();
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Two-factor authentication disabled successfully',
+    data: {
+      twoFactorEnabled: false
+    }
+  });
+});
+
+/**
+ * Get CSRF token
+ */
+exports.getCsrfToken = asyncHandler(async (req, res) => {
+  // Generate CSRF token
+  const csrfToken = securityService.generateCsrfToken();
+  
+  // Set cookie
+  res.cookie(
+    cookieConfig.names.CSRF_TOKEN, 
+    csrfToken, 
+    cookieConfig.csrfOptions
+  );
+  
+  // Return token
+  res.status(200).json({
+    status: 'success',
+    data: {
+      csrfToken
+    }
+  });
+});
+
+/**
+ * Validate user session
+ * @route GET /api/auth/validate-session
+ */
+exports.validateSession = async (req, res) => {
+  try {
+    // Get user and session from request (added by authenticateToken middleware)
+    const { user } = req;
+    
+    if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Not authenticated',
-        error: 'AUTHENTICATION_REQUIRED'
+        error: {
+          code: 'SESSION_INVALID',
+          message: 'Session is invalid or expired'
+        }
       });
     }
     
-    // Return user data (excluding sensitive information)
+    // Find active session for this user
+    const session = await Session.findOne({ 
+      userId: user._id,
+      isActive: true
+    });
+    
+    if (!session) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'SESSION_NOT_FOUND',
+          message: 'No active session found'
+        }
+      });
+    }
+    
+    // Return session validation result
     return res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: req.user._id,
-          email: req.user.email,
-          name: req.user.name,
-          role: req.user.role,
-          // Add other non-sensitive user fields
+        isValid: true,
+        user: authService.sanitizeUser(user),
+        session: {
+          id: session._id,
+          expiresAt: session.expiresAt,
+          createdAt: session.createdAt
         }
       }
     });
   } catch (error) {
-    console.error('Error in getCurrentUser:', error);
     return res.status(500).json({
       success: false,
-      message: 'Failed to retrieve user data',
-      error: 'INTERNAL_SERVER_ERROR'
-    });
-  }
-};
-
-/**
- * Register new user
- * @param {Object} req - Express request
- * @param {Object} res - Express response
- * @param {Function} next - Express next
- */
-exports.register = async (req, res, next) => {
-    try {
-        const { email, password, firstName, lastName } = req.body;
-        
-        // Get device info from request
-        const deviceInfo = req.body.deviceInfo || {};
-        const safeDeviceInfo = sanitizeDeviceInfo(deviceInfo);
-        
-        // Register user
-        const user = await authService.registerUser({
-            email,
-            password,
-            firstName,
-            lastName,
-            deviceInfo: safeDeviceInfo
-        });
-        
-        res.status(201).json({
-            success: true,
-            message: 'Registration successful',
-            data: {
-                user: authService.sanitizeUser(user)
-            }
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-/**
- * Get authentication status
- * @param {Object} req - Express request
- * @param {Object} res - Express response
- */
-exports.getAuthStatus = async (req, res) => {
-  try {
-    // If the request has a user property, they're authenticated
-    const isAuthenticated = !!req.user;
-    
-    return res.status(200).json({
-      success: true,
-      isAuthenticated,
-      // Only include user data if authenticated
-      user: isAuthenticated ? {
-        id: req.user._id,
-        email: req.user.email,
-        name: req.user.name,
-        roles: req.user.roles,
-        permissions: req.user.permissions
-      } : null
-    });
-  } catch (error) {
-    logger.error('Error checking auth status', {
-      component: COMPONENT,
-      error: error.message
-    });
-    
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to check authentication status',
       error: {
-        code: 'AUTH_STATUS_ERROR',
-        message: error.message
+        code: 'SERVER_ERROR',
+        message: 'An error occurred while validating session'
       }
     });
-  }
-};
-
-/**
- * Sync session with server
- */
-exports.syncSession = async (req, res, next) => {
-  const requestStartTime = Date.now();
-  const COMPONENT = 'auth.controller.syncSession';
-  
-  try {
-    const { sessionId, lastActivity, metrics, deviceInfo } = req.body;
-    
-    // If user is authenticated, use their session
-    if (req.user) {
-      const result = await authService.syncSession({
-        sessionId: sessionId || req.decodedToken?.sessionId,
-        lastActivity,
-        metrics,
-        deviceInfo
-      });
-      
-      return res.json({
-        status: result.status,
-        expiresAt: result.expiresAt
-      });
-    }
-    
-    // For unauthenticated requests, return a generic response
-    return res.json({
-      status: 'valid',
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutes from now
-    });
-  } catch (error) {
-    logger.error("Session sync failed", {
-      component: COMPONENT,
-      error: error.message,
-      responseTime: Date.now() - requestStartTime
-    });
-    
-    next(error);
   }
 };

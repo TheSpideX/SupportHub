@@ -1,4 +1,4 @@
-
+\
 #!/bin/bash
 
 # Script to clean Git-related files and prepare for a new repository

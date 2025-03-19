@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import { API_CONFIG } from '@/config/api';
 import { SecurityContext, SessionData } from '../types/auth.types';
+import { apiClient } from '@/api/apiClient';
 
 // Create auth-specific API client
 const apiInstance = axios.create({
@@ -20,8 +21,23 @@ export const authApi = {
   },
   
   // Session-related API calls
-  validateSession: async (sessionId: string) => {
-    return apiInstance.post('/api/auth/session/validate', { sessionId });
+  validateSession: async () => {
+    try {
+      const response = await apiClient.get('/api/auth/validate-session', {
+        withCredentials: true
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Session validation API error:', error);
+      
+      // Format error response
+      if (error.response && error.response.data) {
+        throw error.response.data;
+      }
+      
+      throw error;
+    }
   },
   
   refreshSession: async (sessionId: string) => {
@@ -38,8 +54,11 @@ export const authApi = {
    * @returns Promise with sync response
    */
   syncSession: (sessionData: SessionData) => {
-    return apiInstance.post('/api/auth/session/sync', {
-      sessionId: sessionData.metadata?.sessionId || null,
+    return apiInstance.post('/auth/session/sync', {
+      // Only send sessionId if it's a valid MongoDB ObjectId
+      sessionId: sessionData.metadata?.sessionId && 
+                 sessionData.metadata.sessionId.match(/^[0-9a-fA-F]{24}$/) ? 
+                 sessionData.metadata.sessionId : null,
       lastActivity: sessionData.lastActivity,
       metrics: sessionData.metrics || {},
       deviceInfo: sessionData.deviceInfo
@@ -62,32 +81,40 @@ export const authApi = {
           localStorage.setItem('device_fingerprint', fingerprint);
         }
       } catch (error) {
-        // If any error occurs, use a fallback fingerprint
-        fingerprint = `${navigator.userAgent}|${navigator.language}|${new Date().getTimezoneOffset()}|${window.screen.width}x${window.screen.height}`;
-        localStorage.setItem('device_fingerprint', fingerprint);
+        console.error('Error getting device fingerprint:', error);
+        fingerprint = 'fingerprint-error';
       }
       
-      // Create a new request object with only the fields expected by the backend
-      const backendRequest = {
-        email: credentials.email,
-        password: credentials.password,
-        rememberMe: credentials.rememberMe || false,
+      // Add device info to credentials
+      const requestData = {
+        ...credentials,
         deviceInfo: {
-          fingerprint: fingerprint,
+          fingerprint,
           userAgent: navigator.userAgent,
           screenResolution: `${window.screen.width}x${window.screen.height}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          location: {}
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
         }
       };
       
-      const response = await apiInstance.post('/api/auth/login', backendRequest);
+      // Make login request
+      const response = await apiClient.post('/api/auth/login', requestData, {
+        withCredentials: true
+      });
       
+      // Return response data
       return response.data;
     } catch (error) {
-      if (error.code === 'ERR_NETWORK') {
-        throw new Error('Cannot connect to server. Please check your internet connection.');
+      console.error('Login API error:', error);
+      
+      // Format error response
+      if (error.response && error.response.data) {
+        // Make sure we're not throwing a success message as an error
+        if (error.response.data.status === 'success') {
+          return error.response.data;
+        }
+        throw error.response.data;
       }
+      
       throw error;
     }
   },

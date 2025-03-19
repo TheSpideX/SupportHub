@@ -9,6 +9,7 @@ export {
   setLoading, 
   setError, 
   setInitialized,
+  setInitialized as setAuthInitialized,
   updateUserData,
   clearAuthState,
   setLastVerified,

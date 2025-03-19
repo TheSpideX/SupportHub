@@ -3,12 +3,28 @@ const Joi = require('joi');
 const deviceInfoSchema = Joi.object({
     userAgent: Joi.string().required(),
     fingerprint: Joi.string().required(),
+    screenResolution: Joi.string().optional(),
+    timezone: Joi.string().optional(),
     location: Joi.object({
         country: Joi.string().optional(),
         city: Joi.string().optional(),
         ip: Joi.string().optional()
     }).optional().default({})
 }).required();
+
+// Updated to match frontend schema structure
+const securityContextSchema = Joi.object({
+    deviceInfo: Joi.object({
+        userAgent: Joi.string().optional(),
+        fingerprint: Joi.string().optional(),
+        location: Joi.object({
+            country: Joi.string().optional(),
+            city: Joi.string().optional(),
+            ip: Joi.string().optional()
+        }).optional().default({})
+    }).optional().default({}),
+    captchaToken: Joi.string().optional()
+}).optional().default({});
 
 const loginSchema = Joi.object({
     email: Joi.string()
@@ -25,8 +41,8 @@ const loginSchema = Joi.object({
         .messages({
             'any.required': 'Password is required'
         }),
-    deviceInfo: deviceInfoSchema,
-    rememberMe: Joi.boolean().default(false)
+    rememberMe: Joi.boolean().default(false),
+    securityContext: securityContextSchema
 }).required();
 
 const twoFactorVerifySchema = Joi.object({

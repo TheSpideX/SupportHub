@@ -1,95 +1,68 @@
-require("dotenv").config();
+// Load environment variables at the very beginning
+require('dotenv').config();
+
 const express = require("express");
 const helmet = require("helmet");
 const compression = require("compression");
-const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { createServer } = require("http");
 const morgan = require("morgan");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const EventEmitter = require('events');
-EventEmitter.defaultMaxListeners = 15; // Increase from default 10
+const session = require('express-session');
+EventEmitter.defaultMaxListeners = 15;
 
 // Import custom modules
 const { connectDB } = require("./src/config/db");
 const logger = require("./src/utils/logger");
 const { auth } = require("./src/modules");
 const setupSocketIO = require("./src/config/socket");
+const corsConfig = require("./src/config/cors.config");
+const cors = require("cors");
 const {
   errorHandler,
   notFoundHandler,
 } = require("./src/middleware/errorMiddleware");
-
-// Fix the import path for the rate limiter
-const { apiRateLimit } = require("./src/modules/auth/middleware/rateLimit.middleware");
+const { apiRateLimit } = require("./src/modules/auth/middleware/rate-limit");
+const csrfMiddleware = require('./src/modules/auth/middleware/csrf');
 
 // Initialize express app
 const app = express();
 const httpServer = createServer(app);
 
-// Add or update session middleware configuration
-const session = require('express-session');
-const csrfMiddleware = require('./src/modules/auth/middleware/csrf.middleware');
-
-// Make sure these are added before routes
-app.use(cookieParser(process.env.COOKIE_SECRET || 'your-fallback-secret-key')); // Required for parsing cookies
+// Essential middleware
+app.use(helmet());
+app.use(compression());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(cookieParser(process.env.COOKIE_SECRET || 'your-fallback-secret-key'));
 
 // Configure session middleware
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-fallback-secret-key',
-  name: 'app_session', // Custom name for the session cookie
+  name: 'app_session',
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'lax', // Changed from strict to lax for better UX
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    path: '/' // Ensure cookie is sent with all requests
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: '/'
   }
 }));
 
-// Make sure CSRF middleware is applied after session middleware
-app.use('/api/auth/csrf-token', csrfMiddleware.generateToken);
-app.use('/api/auth/csrf', csrfMiddleware.generateToken);
+// Configure CORS using the centralized config
+app.use(cors(corsConfig));
 
-// Configure CORS properly for cookies
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL 
-    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://localhost:4290'],
-  credentials: true, // Critical for cookies
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-CSRF-Token', 
-    'X-XSRF-Token',
-    'X-Requested-With',
-    'Accept',
-    'Cache-Control'
-  ],
-  exposedHeaders: ['X-CSRF-Token']
-}));
-
-// Add a specific route for CSRF token that doesn't require authentication
-app.get('/api/auth/csrf-token', csrfMiddleware.generateToken);
-app.get('/api/auth/csrf', csrfMiddleware.generateToken);
-
-// Remove duplicate routes
-// app.use('/api/auth/csrf-token', csrfMiddleware.generateToken);
-// app.use('/api/auth/csrf', csrfMiddleware.generateToken);
-
-// Add security headers
+// Security headers
 app.use((req, res, next) => {
-  // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // Only set CSP in production to avoid development issues
   if (process.env.NODE_ENV === 'production') {
     res.setHeader(
       'Content-Security-Policy',
@@ -100,10 +73,36 @@ app.use((req, res, next) => {
   next();
 });
 
-// Add a health check endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// CSRF routes - defined before other routes
+app.get('/api/auth/csrf-token', csrfMiddleware.generateToken);
+app.get('/api/auth/csrf', csrfMiddleware.generateToken);
+
+// Logging
+if (process.env.NODE_ENV === "development") {
+  app.use(morgan("dev"));
+  
+  // Debug middleware for development only
+  app.use((req, res, next) => {
+    if (req.path.includes('/auth/')) {
+      logger.debug(`${req.method} ${req.url} - Cookies: ${JSON.stringify(req.cookies)}`);
+    }
+    next();
+  });
+  
+  app.use((req, res, next) => {
+    const start = Date.now();
+    logger.debug(`${req.method} ${req.url} - Request received`);
+    
+    const originalEnd = res.end;
+    res.end = function(...args) {
+      const duration = Date.now() - start;
+      logger.debug(`${req.method} ${req.url} - Response: ${res.statusCode} (${duration}ms)`);
+      return originalEnd.apply(this, args);
+    };
+    
+    next();
+  });
+}
 
 // Swagger configuration
 const swaggerOptions = {
@@ -134,89 +133,24 @@ const swaggerOptions = {
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
-
-// Middleware
-app.use(helmet());
-app.use(compression());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(cookieParser());
-
-// Remove duplicate CORS configuration
-// app.use(cors({
-//   origin: process.env.NODE_ENV === 'production' 
-//     ? process.env.FRONTEND_URL 
-//     : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://localhost:4290'],
-//   credentials: true, // Allow credentials (cookies)
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//   allowedHeaders: [
-//     'Content-Type', 
-//     'Authorization', 
-//     'X-CSRF-Token', 
-//     'X-Requested-With',
-//     'Accept',
-//     'Cache-Control'
-//   ],
-//   exposedHeaders: ['X-CSRF-Token']
-// }));
-
-// Add a debug middleware to log cookies
-app.use((req, res, next) => {
-  if (req.path.includes('/auth/')) {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Cookies:`, req.cookies);
-  }
-  next();
-});
-
-// Add a debug middleware to log all requests and responses
-app.use((req, res, next) => {
-  const start = Date.now();
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Request received`);
-  
-  // Capture the original end method
-  const originalEnd = res.end;
-  
-  // Override the end method
-  res.end = function(...args) {
-    const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Response sent: ${res.statusCode} (${duration}ms)`);
-    return originalEnd.apply(this, args);
-  };
-  
-  next();
-});
-
-// Logging
-if (process.env.NODE_ENV === "development") {
-  app.use(morgan("dev"));
-}
-
-// API Documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Initialize modules
-auth.initialize(app);
-
-// Health endpoints with correct rate limiter
-app.get('/health', apiRateLimit(), (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Simple in-memory cache for health endpoint
-let healthCache = {
+// Health endpoints
+const healthCache = {
   data: { status: 'ok', timestamp: new Date().toISOString() },
   lastUpdated: Date.now()
 };
 
-// Health endpoint with caching
 app.get('/api/health', apiRateLimit(), (req, res) => {
-  // Update cache every 5 seconds
   if (Date.now() - healthCache.lastUpdated > 5000) {
     healthCache.data.timestamp = new Date().toISOString();
     healthCache.lastUpdated = Date.now();
   }
   res.json(healthCache.data);
 });
+
+// Initialize modules
+auth.initializeAuthModule(app);
 
 // Error handling middleware should be last
 app.use(notFoundHandler);
@@ -238,12 +172,7 @@ const startServer = async () => {
       redisSubscriber,
     } = require("./src/config/redis");
 
-    // Check if Redis clients are properly initialized
-    if (!redisClient || !redisPublisher || !redisSubscriber) {
-      throw new Error("Failed to initialize Redis clients");
-    }
-
-    // Wait for Redis connections to be ready
+    // Check Redis connections
     try {
       await Promise.all([
         redisClient.ping(),
@@ -255,10 +184,8 @@ const startServer = async () => {
       throw new Error(`Redis connection failed: ${error.message}`);
     }
 
-    // Setup Socket.IO using the dedicated configuration
+    // Setup Socket.IO
     const io = await setupSocketIO(httpServer);
-    
-    // Make io available globally for other modules
     app.set('io', io);
 
     // Start HTTP server
@@ -276,19 +203,18 @@ const startServer = async () => {
   }
 };
 
-// Handle uncaught exceptions
+// Error handling
 process.on("uncaughtException", (error) => {
   logger.error("Uncaught Exception:", error);
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
 process.on("unhandledRejection", (error) => {
   logger.error("Unhandled Rejection:", error);
   process.exit(1);
 });
 
-// Handle graceful shutdown
+// Graceful shutdown
 const gracefulShutdown = async () => {
   try {
     logger.info("Initiating graceful shutdown...");

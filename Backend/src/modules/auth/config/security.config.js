@@ -1,58 +1,63 @@
 /**
  * Centralized security configuration
  */
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 module.exports = {
     // Rate limiting settings
     rateLimiting: {
         login: {
             windowMs: 15 * 60 * 1000, // 15 minutes
-            max: 5, // 5 attempts per window
+            max: isDevelopment ? 20 : 5, // 5 attempts per window in production
             message: 'Too many login attempts, please try again later'
         },
         passwordReset: {
             windowMs: 60 * 60 * 1000, // 1 hour
-            max: 3
+            max: isDevelopment ? 10 : 3
         },
         emailVerification: {
             windowMs: 24 * 60 * 60 * 1000, // 24 hours
-            max: 5
+            max: isDevelopment ? 20 : 5
         },
         api: {
             windowMs: 60 * 1000, // 1 minute
-            max: 100
+            max: isDevelopment ? 500 : 100
         }
     },
     
     // Account lockout settings
     lockout: {
-        maxAttempts: 5,
+        maxAttempts: isDevelopment ? 10 : 5,
         durationMinutes: 30,
         progressiveDelay: true,
-        maxAttemptsPerIP: 10
+        maxAttemptsPerIP: isDevelopment ? 30 : 10
     },
     
     // CSRF protection
     csrf: {
         enabled: true,
-        cookieName: 'csrf_token',       // Match the cookie name used in the controller
+        cookieName: 'csrf_token',       // Match the cookie name in cookie.config.js
         headerName: 'X-CSRF-Token'      // Match the header name expected by frontend
     },
     
-    // Session settings
-    session: {
-        accessTokenExpiry: 15 * 60, // 15 minutes in seconds
-        refreshTokenExpiry: 7 * 24 * 60 * 60, // 7 days in seconds
-        cookieSecure: process.env.NODE_ENV !== 'development',
-        cookieHttpOnly: true,
-        cookieSameSite: 'lax'
-    },
+    // Password requirements (moved to main index.js)
     
-    // Password requirements
-    password: {
-        minLength: 8,
-        requireUppercase: true,
-        requireLowercase: true,
-        requireNumbers: true,
-        requireSpecialChars: true
+    // Security levels
+    levels: {
+        low: {
+            requireMFA: false,
+            sessionTimeout: 24 * 60 * 60, // 24 hours
+            passwordExpiryDays: 180       // 6 months
+        },
+        medium: {
+            requireMFA: false,
+            sessionTimeout: 8 * 60 * 60,  // 8 hours
+            passwordExpiryDays: 90        // 3 months
+        },
+        high: {
+            requireMFA: true,
+            sessionTimeout: 1 * 60 * 60,  // 1 hour
+            passwordExpiryDays: 30        // 1 month
+        }
     }
 };

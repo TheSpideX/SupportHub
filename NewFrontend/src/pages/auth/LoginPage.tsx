@@ -8,8 +8,9 @@ import { FaShieldAlt, FaUsersCog, FaChartLine, FaRocket } from 'react-icons/fa';
 import type { LoginFormData } from '@/features/auth/components/LoginForm/LoginForm.types';
 import { Logger } from '@/utils/logger';
 import toast from "react-hot-toast";
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { RootState } from '@/store/store';
 // Import the services from our centralized auth system
 import { getSecurityService, getTokenService } from '@/features/auth/services';
 
@@ -25,15 +26,56 @@ export const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
-  const { login } = useAuth();
+  
+  // Get auth state directly from Redux store for comparison
+  const authState = useSelector((state: RootState) => state.auth);
+  
+  // Define 'from' properly - get the redirect path or default to dashboard
+  const from = location.state?.from?.pathname || '/dashboard';
+  
+  const { login, isAuthenticated } = useAuth();
+  
+  // Log initial state with actual values
+  logger.info('LoginPage rendered with detailed auth state', {
+    component: COMPONENT,
+    hookIsAuthenticated: isAuthenticated, // from useAuth hook
+    reduxIsAuthenticated: authState.isAuthenticated, // directly from Redux
+    reduxIsInitialized: authState.isInitialized,
+    reduxUser: authState.user ? 'exists' : 'null',
+    from,
+    locationState: JSON.stringify(location.state)
+  });
+  
+  // Add effect to redirect if already authenticated
+  useEffect(() => {
+    logger.info('LoginPage authentication check effect with detailed state', {
+      component: COMPONENT,
+      hookIsAuthenticated: isAuthenticated, // from useAuth hook
+      reduxIsAuthenticated: authState.isAuthenticated, // directly from Redux
+      reduxIsInitialized: authState.isInitialized,
+      from
+    });
+    
+    if (isAuthenticated) {
+      logger.info('User authenticated, redirecting from login page', {
+        component: COMPONENT,
+        redirectTo: from
+      });
+      navigate(from, { replace: true });
+    } else if (authState.isAuthenticated) {
+      // Check if there's a mismatch between hook and Redux state
+      logger.warn('Auth state mismatch detected - Redux shows authenticated but hook does not', {
+        component: COMPONENT
+      });
+      // Try forcing navigation based on Redux state
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, authState.isAuthenticated, navigate, from]);
   
   // Get services from our centralized auth system instead of creating new instances
   const tokenService = getTokenService();
   const securityService = getSecurityService();
   
-  // Get redirect path from location state or default to dashboard
-  const from = location.state?.from?.pathname || "/dashboard";
-
   // Get security info on component mount
   useEffect(() => {
     const getSecurityInfo = async () => {

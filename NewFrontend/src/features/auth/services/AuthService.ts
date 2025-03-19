@@ -303,8 +303,15 @@ export class AuthService {
   /**
    * Get current auth state
    */
-  public getState(): AuthState {
-    return { ...this.authState };
+  public getAuthState(): AuthState {
+    return {
+      isAuthenticated: this.authState.isAuthenticated,
+      isLoading: this.authState.isLoading,
+      isInitialized: this.authState.isInitialized,
+      user: this.authState.user,
+      error: this.authState.error,
+      sessionExpiry: this.authState.sessionExpiry
+    };
   }
 
   /**
@@ -337,63 +344,75 @@ export class AuthService {
         deviceInfo
       });
       
+      // Log response details (sanitized)
       logger.debug('Login response received', {
         success: response.success,
-        hasUser: !!response.data?.user,
-        hasSession: !!response.data?.session
+        hasUser: !!response.user,
+        hasSession: !!response.securityContext
       });
       
-      if (response.success && response.data) {
-        // Set CSRF token if provided
-        if (response.data.csrfToken) {
-          this.tokenService.setCsrfToken(response.data.csrfToken);
-        }
-        
-        // Update auth state with user data
+      // Check if login was successful
+      if (response && response.status === 'success' && response.data && response.data.user) {
+        // Update auth state with user info
         this.updateAuthState({
           isAuthenticated: true,
-          user: response.data.user,
           isLoading: false,
-          error: null
+          isInitialized: true,
+          user: response.data.user,
+          error: null,
+          sessionExpiry: this.calculateDefaultExpiry(credentials.rememberMe)
         });
         
-        // Start session tracking with robust error handling
-        try {
-          logger.info('Starting session tracking');
-          await this.sessionService.startSessionTracking();
-        } catch (sessionError) {
-          logger.error('Error starting session tracking, but continuing login process', sessionError);
-          // Continue with login even if session tracking fails
-        }
+        // Validate session immediately after login
+        await this.validateSession();
         
         logger.info('Login successful');
         return true;
       } else {
         // Handle unsuccessful login
+        const errorMessage = response?.message || 'Invalid email or password';
+        const error = createAuthError(
+          AUTH_ERROR_CODES.INVALID_CREDENTIALS,
+          errorMessage
+        );
+        
         this.updateAuthState({
           isAuthenticated: false,
           user: null,
           isLoading: false,
-          error: response.message || 'Login failed'
+          error
         });
         
-        return false;
+        throw error; // Throw error to be caught by useAuth
       }
     } catch (error) {
       // Handle login error
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error during login';
+      let errorMessage = 'Unknown error during login';
+      let errorCode = AUTH_ERROR_CODES.AUTHENTICATION_FAILED;
+      
+      // Extract error details if available
+      if (error) {
+        if (error.message) {
+          errorMessage = error.message;
+        }
+        if (error.code) {
+          errorCode = error.code;
+        }
+      }
       
       logger.error('Login failed', error);
+      
+      const authError = createAuthError(errorCode, errorMessage);
       
       this.updateAuthState({
         isAuthenticated: false,
         isLoading: false,
         isInitialized: true,
         user: null,
-        error: createAuthError(AUTH_ERROR_CODES.INITIALIZATION_FAILED, 'Error initializing auth state')
+        error: authError
       });
       
-      throw error;
+      throw authError; // Rethrow with proper formatting
     }
   }
 
@@ -965,48 +984,54 @@ export class AuthService {
     }
   }
 
-  // Add method to validate session with backend
-  private async validateSession(): Promise<{
-    isValid: boolean;
-    userData?: any;
-    sessionExpiry?: Date;
-  }> {
+  /**
+   * Validate current session
+   */
+  public async validateSession(): Promise<boolean> {
     try {
-      logger.info('Validating session with backend');
+      logger.debug('Validating session');
       
-      const response = await fetch(`${this.config.apiBaseUrl}/auth/validate-session`, {
-        method: 'GET',
-        credentials: 'include', // Important for cookies
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+      // Call session validation endpoint
+      const response = await authApi.validateSession();
+      
+      if (response && response.valid && response.user) {
+        // Update auth state with validated user
+        this.updateAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          isInitialized: true,
+          user: response.user,
+          error: null
+        });
+        
+        logger.debug('Session validated successfully');
+        return true;
+      } else {
+        // Session is invalid
+        this.updateAuthState({
+          isAuthenticated: false,
+          user: null,
+          isLoading: false,
+          isInitialized: true,
+          error: null
+        });
+        
+        logger.debug('Session validation failed');
+        return false;
+      }
+    } catch (error) {
+      logger.error('Session validation error', error);
+      
+      // Clear auth state on validation error
+      this.updateAuthState({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+        isInitialized: true,
+        error: createAuthError(AUTH_ERROR_CODES.SESSION_VALIDATION_FAILED, 'Failed to validate session')
       });
       
-      logger.info(`Session validation response status: ${response.status}`);
-      
-      if (!response.ok) {
-        logger.warn(`Session validation failed with status: ${response.status}`);
-        return { isValid: false };
-      }
-      
-      const data = await response.json();
-      logger.info('Session validation response received', { success: data.success });
-      
-      if (data.success) {
-        logger.info('Valid session confirmed by backend');
-        return {
-          isValid: true,
-          userData: data.data.user,
-          sessionExpiry: new Date(data.data.sessionExpiry)
-        };
-      }
-      
-      logger.warn('Backend reported invalid session');
-      return { isValid: false };
-    } catch (error) {
-      logger.error('Session validation failed with error:', error);
-      return { isValid: false };
+      return false;
     }
   }
 

@@ -286,6 +286,15 @@ export function createAuthError(
     ? AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES]
     : code;
   
+  // Don't create errors for success messages
+  if (message.toLowerCase().includes('successful')) {
+    logger.warn('Attempted to create error with success message', { 
+      message, 
+      code: errorCode 
+    });
+    message = 'An unexpected error occurred';
+  }
+  
   const error: AuthError = {
     code: errorCode as string,
     message

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   selectAuthState, 
@@ -9,15 +9,20 @@ import {
   setUser,
   setLoading,
   setError,
-  clearAuthState
+  clearAuthState,
+  setAuthState
 } from '../store';
 // Fix the import to use the getter function instead of direct import
 import { getAuthService } from '../services';
 import { LoginCredentials, RegistrationData, PasswordResetData, User } from '../types/auth.types';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { logger } from '@/utils/logger';
 import { RootState } from '@/store';
+// If your store is in a different location, adjust the path
+import { setAuthState, clearAuthState } from '@/features/auth/store';
+// or
+import { setAuthState, clearAuthState } from '../store/authSlice';
 
 /**
  * Custom hook for authentication state and operations
@@ -25,10 +30,17 @@ import { RootState } from '@/store';
 export const useAuth = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  // Get the auth service instance
-  const authService = getAuthService();
+  const location = useLocation();
+  const [authService] = useState(getAuthService());
   // Fix 1: Properly type the state selector
-  const { user, isAuthenticated, isLoading, error } = useSelector((state: RootState) => state.auth);
+  const authState = useSelector((state: RootState) => state.auth);
+
+  logger.debug('useAuth hook called', { 
+    component: 'useAuth', 
+    isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
+    path: location.pathname
+  });
 
   /**
    * Improved error handling for auth operations
@@ -53,47 +65,44 @@ export const useAuth = () => {
   };
 
   /**
-   * Login with credentials
+   * Login with email and password
    */
-  const login = async (credentials: LoginCredentials): Promise<boolean> => {
-    dispatch(setLoading(true));
-    dispatch(setError(null));
+  const login = useCallback(async (credentials: LoginCredentials): Promise<boolean> => {
+    logger.info('Login attempt', { component: 'useAuth' });
     
     try {
-      const result = await authService.login(credentials);
+      // Get the auth service instance
+      const authServiceInstance = authService || getAuthService();
       
-      if (!result) {
-        // If login failed, the error should be in the auth state already
-        // set by the AuthService
-        const currentError = error; // Using the error from the hook's state
+      // Attempt login through auth service
+      const success = await authServiceInstance.login(credentials);
+      
+      if (success) {
+        logger.info('Login successful', { component: 'useAuth' });
         
-        logger.error('Authentication error', { 
-          component: 'useAuth',
-          error: currentError || {}
-        });
+        // Update Redux state with user info
+        dispatch(setAuthState({
+          user: authServiceInstance.user,
+          isAuthenticated: true,
+          sessionExpiry: new Date(Date.now() + 30 * 60 * 1000)
+        }));
         
-        // Throw the error to be caught by the UI
-        throw currentError || new Error('Login failed');
+        return true;
       }
       
-      return result;
+      return false;
     } catch (error) {
-      logger.error('Authentication error', { 
-        component: 'useAuth',
-        error: error || {}
+      logger.error('Login failed', { 
+        component: 'useAuth', 
+        error: error instanceof Error ? { message: error.message } : error 
       });
       
-      // Dispatch the error to the store
-      dispatch(setError({
-        code: error.code || 'LOGIN_FAILED',
-        message: error.message || 'Login failed. Please try again.'
-      }));
+      // Handle auth error
+      handleAuthError(error);
       
-      throw error;
-    } finally {
-      dispatch(setLoading(false));
+      return false;
     }
-  }
+  }, [authService, dispatch]);
 
   // Logout
   const logout = useCallback(async () => {
@@ -176,10 +185,10 @@ export const useAuth = () => {
   
   return {
     // Auth state
-    user,
-    isAuthenticated,
-    isLoading,
-    error,
+    user: authState.user,
+    isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
+    error: authState.error,
     
     // Auth methods
     login,

@@ -81,81 +81,18 @@ const UserSchema = new mongoose.Schema(
           message: "Password must contain uppercase, lowercase, number, and special character"
         }],
       },
-      passwordHistory: [
-        {
-          hash: String,
-          changedAt: Date,
-          _id: false, // Disable _id for subdocuments
-        },
-      ],
-      loginAttempts: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 1000,
-      },
-      lockUntil: {
-        type: Date,
-      },
       passwordChangedAt: Date,
-      passwordResetToken: String,
-      passwordResetExpires: Date,
-      twoFactorSecret: String,
-      twoFactorEnabled: {
-        type: Boolean,
-        default: false,
-      },
-      loginHistory: [
-        {
-          timestamp: Date,
-          ipAddress: String,
-          userAgent: String,
-          location: String,
-          status: {
-            type: String,
-            enum: ["success", "failed"],
-          },
-        },
-      ],
-      // Add token version for refresh token management
       tokenVersion: {
         type: Number,
         default: 0
       },
-      // Add backup codes for 2FA recovery
-      backupCodes: [{
-        code: String,
-        used: {
-          type: Boolean,
-          default: false
-        },
-        _id: false
-      }],
-      // Add trusted devices
-      trustedDevices: [{
-        fingerprint: String,
-        name: String,
-        userAgent: String,
-        lastUsed: Date,
-        ipAddress: String,
-        trusted: {
-          type: Boolean,
-          default: true
-        },
-        _id: false
-      }],
-      // Add IP restrictions
-      ipRestrictions: {
-        enabled: {
-          type: Boolean,
-          default: false
-        },
-        allowedIps: [String],
-        blockedIps: [String],
-        allowUnknown: {
-          type: Boolean,
-          default: true
-        }
+      loginAttempts: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      lockUntil: {
+        type: Date,
       }
     },
     role: {
@@ -283,18 +220,31 @@ UserSchema.pre("save", async function (next) {
 // Method to compare passwords
 UserSchema.methods.comparePassword = async function(candidatePassword) {
   try {
-    console.log('Password comparison debug:', {
-      hasPassword: !!this.security?.password,
-      passwordLength: this.security?.password?.length || 0,
-      candidateLength: candidatePassword?.length || 0
+    // Debug log
+    console.log('comparePassword called with:', {
+      candidatePassword: !!candidatePassword,
+      hasSecurityPassword: !!this.security?.password,
+      passwordField: this.security?.password ? 'exists' : 'missing'
     });
     
-    if (!this.security?.password) {
-      console.log('User has no password hash stored');
+    // If security.password field is not selected, fetch it
+    let userPassword = this.security?.password;
+    if (!userPassword) {
+      const user = await mongoose.model('User').findById(this._id).select('+security.password');
+      if (!user) {
+        console.log('User not found when fetching password');
+        return false;
+      }
+      userPassword = user.security?.password;
+    }
+    
+    if (!userPassword) {
+      console.log('Password field is still missing after fetch');
       return false;
     }
     
-    const isMatch = await bcrypt.compare(candidatePassword, this.security.password);
+    // Compare passwords
+    const isMatch = await bcrypt.compare(candidatePassword, userPassword);
     console.log('Password comparison result:', isMatch);
     return isMatch;
   } catch (error) {
@@ -330,8 +280,31 @@ UserSchema.methods.createPasswordResetToken = function () {
 };
 
 // Method to check if user account is locked
-UserSchema.methods.isLocked = function () {
-  return !!(this.security.lockUntil && this.security.lockUntil > Date.now());
+UserSchema.methods.isLocked = function() {
+  console.log('Checking if account is locked:', {
+    hasSecurity: !!this.security,
+    hasLockUntil: !!this.security?.lockUntil,
+    lockUntil: this.security?.lockUntil,
+    currentTime: new Date()
+  });
+  
+  // If lockUntil exists and is greater than current time, account is locked
+  if (this.security && this.security.lockUntil && this.security.lockUntil > Date.now()) {
+    return true;
+  }
+  return false;
+};
+
+// Method to unlock account if lock period has expired
+UserSchema.methods.checkAndUnlockAccount = async function() {
+  // If account is locked but lock period has expired, unlock it
+  if (this.security && this.security.lockUntil && this.security.lockUntil <= Date.now()) {
+    this.security.lockUntil = undefined;
+    this.security.loginAttempts = 0;
+    await this.save();
+    return true;
+  }
+  return false;
 };
 
 // Method to increment login attempts

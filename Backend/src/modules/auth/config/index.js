@@ -1,73 +1,49 @@
-// Environment-aware configuration file
+/**
+ * Auth Module Configuration
+ * Single source of truth for all auth-related configuration
+ */
+const token = require('./token.config');
+const cookie = require('./cookie.config');
+const security = require('./security.config');
+const session = require('./session.config');
+
+// Environment-aware settings
 const isDevelopment = process.env.NODE_ENV === 'development';
 
+// Export consolidated auth configuration
 module.exports = {
-    jwt: {
-        accessSecret: process.env.JWT_ACCESS_SECRET,
-        refreshSecret: process.env.JWT_REFRESH_SECRET,
-        accessExpiry: '15m',
-        refreshExpiry: '7d',
-        issuer: 'SupportHub'
-    },
-    security: {
-        passwordPolicy: {
-            minLength: isDevelopment ? 8 : 12,
-            requireUppercase: !isDevelopment,
-            requireLowercase: !isDevelopment,
-            requireNumbers: !isDevelopment,
-            requireSpecialChars: !isDevelopment,
-            preventCommonPasswords: !isDevelopment,
-            passwordHistoryDays: isDevelopment ? 0 : 365,
-            passwordHistoryCount: isDevelopment ? 0 : 5
-        },
-        lockout: {
-            maxAttempts: isDevelopment ? 10000 : 5, // Increased for development
-            durationMinutes: isDevelopment ? 1 : 30, // Reduced for development
-            resetAfterHours: isDevelopment ? 1 : 24,
-            progressiveDelay: isDevelopment ? false : true // Disable in development
-        },
-        session: {
-            maxConcurrentSessions: isDevelopment ? 10000 : 10, // Increased for development
-            sessionTimeout: isDevelopment ? 7 * 24 * 60 * 60 : 24 * 60 * 60, // 7 days in dev
-            extendSessionBeforeExpiry: 15 * 60, // 15 minutes
-            enforceDeviceBinding: !isDevelopment,
-            requireMfaOnNewDevice: !isDevelopment
-        },
-        deviceVerification: {
-            requireVerification: false, // Disable device verification
-            verificationTimeout: 10 * 60, // 10 minutes
-            maxUnverifiedDevices: isDevelopment ? 10000 : 5, // Increased for development
-            deviceFingerprintTimeout: isDevelopment ? 365 * 24 * 60 * 60 : 30 * 24 * 60 * 60 // 1 year in dev
-        },
-        suspicious: {
-            blockImpossibleTravel: false // Disable impossible travel detection
-        }
-    },
-    rateLimiting: {
-        login: {
-            windowMs: 15 * 60 * 1000, // 15 minutes
-            max: isDevelopment ? 10000 : 5, // Greatly increased for development
-        },
-        register: {
-            windowMs: 60 * 60 * 1000, // 1 hour
-            max: isDevelopment ? 10000 : 3, // Greatly increased for development
-        },
-        forgotPassword: {
-            windowMs: 60 * 60 * 1000, // 1 hour
-            max: isDevelopment ? 10000 : 3, // Greatly increased for development
-        },
-        twoFactor: {
-            windowMs: 5 * 60 * 1000, // 5 minutes
-            max: isDevelopment ? 10000 : 3, // Greatly increased for development
-        },
-        refresh: {
-            windowMs: 60 * 60 * 1000, // 1 hour
-            max: isDevelopment ? 10000 : 100, // Greatly increased for development
-        }
-    },
-    redis: {
-        host: process.env.REDIS_HOST,
-        port: process.env.REDIS_PORT,
-        password: process.env.REDIS_PASSWORD
-    }
+  // Re-export specific configs
+  token,
+  cookie,
+  security,
+  session,
+  
+  // Common auth settings
+  passwordPolicy: {
+    minLength: 8,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true
+  },
+  
+  // Session limits
+  maxSessionsPerUser: isDevelopment ? 10 : 5,
+  
+  // Login attempts
+  maxLoginAttempts: isDevelopment ? 10 : 5,
+  lockoutDuration: 15 * 60, // 15 minutes
+  
+  // Registration
+  requireEmailVerification: false,
+  emailVerificationExpiry: 24 * 60 * 60, // 24 hours
+  
+  // Password reset
+  passwordResetExpiry: 60 * 60, // 1 hour
+  
+  // 2FA
+  enable2FA: false, // Disabled as requested
+  
+  // Security level
+  securityLevel: isDevelopment ? 'low' : 'medium'
 };

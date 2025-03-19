@@ -1,84 +1,58 @@
 const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
 
-/**
- * Session Schema
- * Represents a user session with device information and expiry
- */
-const SessionSchema = new Schema({
-  userId: {
-    type: Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true
-  },
-  deviceInfo: {
-    fingerprint: {
-      type: String,
-      required: true
+const SessionSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
     },
-    userAgent: {
+    refreshToken: {
       type: String,
-      required: true
+      select: false // Don't return in queries by default
     },
-    ip: {
-      type: String,
-      default: '0.0.0.0'
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true
     },
-    location: {
-      country: String,
-      city: String,
-      coordinates: [Number]
-    }
+    expiresAt: {
+      type: Date,
+      required: true,
+      index: true
+    },
+    ipAddress: String,
+    deviceInfo: {
+      userAgent: String,
+      browser: String,
+      os: String,
+      device: String,
+      deviceType: {
+        type: String,
+        enum: ['desktop', 'mobile', 'tablet', 'unknown'],
+        default: 'unknown'
+      }
+    },
+    lastActivity: Date
   },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  lastActivity: {
-    type: Date,
-    default: Date.now
-  },
-  expiresAt: {
-    type: Date,
-    required: true,
-    index: true
-  },
-  rememberMe: {
-    type: Boolean,
-    default: false
-  },
-  tokenVersion: {
-    type: Number,
-    default: 0
+  {
+    timestamps: true
   }
-}, {
-  timestamps: true
-});
+);
 
-// Add index for finding and cleaning expired sessions
-SessionSchema.index({ expiresAt: 1, isActive: 1 });
-
-// Add index for finding user's active sessions
-SessionSchema.index({ userId: 1, isActive: 1 });
+// Index for cleanup of expired sessions
+SessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Add method to check if session is expired
 SessionSchema.methods.isExpired = function() {
-  return this.expiresAt < new Date();
+  return new Date() > this.expiresAt;
 };
 
 // Add method to extend session expiry
-SessionSchema.methods.extend = function(durationInSeconds) {
-  const newExpiryDate = new Date();
-  newExpiryDate.setSeconds(newExpiryDate.getSeconds() + durationInSeconds);
-  this.expiresAt = newExpiryDate;
+SessionSchema.methods.extend = function(durationMs) {
+  this.expiresAt = new Date(Date.now() + durationMs);
   this.lastActivity = new Date();
-  return this.save();
-};
-
-// Add method to invalidate session
-SessionSchema.methods.invalidate = function() {
-  this.isActive = false;
   return this.save();
 };
 

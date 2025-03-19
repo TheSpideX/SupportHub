@@ -1,836 +1,422 @@
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const config = require('../config');
-const { redisClient } = require('../../../config/redis');
-// Comment out missing dependencies
-// const User = require('../../user/models/user.model');
-const { AuthError } = require('../errors');
+/**
+ * Security Service
+ * Handles security-specific concerns including:
+ * - Rate limiting detection
+ * - CSRF protection
+ * - Security context validation
+ * - Suspicious activity detection
+ * - Device fingerprinting
+ */
+const securityConfig = require('../config/security.config');
+const cookieConfig = require('../config/cookie.config');
+const { AuthError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
-// const axios = require('axios');
-// const geoip = require('geoip-lite');
-const AuditService = require('./audit.service');
-
-const COMPONENT = 'SecurityService';
+const tokenService = require('./token.service');
+const sessionService = require('./session.service');
+const User = require('../models/user.model');
+const SecurityEvent = require('../models/security-event.model');
+const DeviceInfo = require('../models/device-info.model');
 
 class SecurityService {
-    constructor() {
-        this.redis = redisClient;
-        this.maxAttempts = config.security?.lockout?.maxAttempts || 5;
-        this.lockoutDuration = (config.security?.lockout?.durationMinutes || 30) * 60;
-        this.auditService = new AuditService();
+  constructor() {
+    this.tokenService = tokenService;
+  }
+
+  /**
+   * Validate security context from client
+   * @param {Object} securityContext - Client security context
+   * @param {String} userId - User ID
+   * @returns {Promise<Boolean>} Validation result
+   */
+  async validateSecurityContext(securityContext, userId) {
+    try {
+      if (!securityContext || !securityContext.id) {
+        logger.warn('Invalid security context format');
+        return false;
+      }
+
+      // Check if context exists in database
+      const storedContext = await SecurityEvent.findOne({
+        contextId: securityContext.id,
+        userId
+      });
+
+      if (!storedContext) {
+        logger.warn(`Security context ${securityContext.id} not found for user ${userId}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('Security context validation error:', error);
+      return false;
     }
+  }
 
-    /**
-     * Centralized security validation for all authentication requests
-     * @param {Object} credentials - User credentials
-     * @param {Object} deviceInfo - Device information
-     * @param {string} action - Action being performed (login, reset, etc.)
-     */
-    async validateSecurityContext(credentials, deviceInfo, action) {
-        // Validate IP restrictions
-        await this.validateIPRestrictions(deviceInfo.ip);
-        
-        // Check rate limits
-        await this.checkRateLimit(credentials.email, deviceInfo);
-        
-        // Validate device if needed
-        const needsVerification = await this._isNewDevice(credentials.email, deviceInfo);
-        
-        // Return comprehensive security context
-        return {
-            riskLevel: await this._calculateRiskLevel(credentials.email, deviceInfo),
-            requiresVerification: needsVerification && config.deviceVerification.requireVerification,
-            rateLimited: false,
-            suspiciousActivity: await this.detectSuspiciousActivity(credentials.email, deviceInfo)
-        };
-    }
-
-    /**
-     * Calculate risk level based on various factors
-     * @private
-     */
-    async _calculateRiskLevel(identifier, deviceInfo) {
-        // Implement risk scoring algorithm
-        let riskScore = 0;
-        
-        // Check for suspicious location
-        if (this._isHighRiskLocation(deviceInfo.location)) {
-            riskScore += 30;
-        }
-        
-        // Check for unusual login time
-        if (this._isUnusualLoginTime(identifier, deviceInfo.timezone)) {
-            riskScore += 20;
-        }
-        
-        // Check for impossible travel
-        const lastLogin = await this._getLastLoginLocation(identifier);
-        if (lastLogin && this._isImpossibleTravel(lastLogin.location, deviceInfo.location)) {
-            riskScore += 50;
-        }
-        
-        // Determine risk level
-        if (riskScore >= 50) return 'HIGH';
-        if (riskScore >= 30) return 'MEDIUM';
-        return 'LOW';
-    }
-
-    /**
-     * Check if the current request should be rate limited
-     * @param {string} identifier - User identifier (email)
-     * @param {Object} deviceInfo - Device information
-     * @returns {Promise<void>}
-     * @throws {AuthError} If rate limited
-     */
-    async checkRateLimit(identifier, deviceInfo = {}) {
-        try {
-            // Generate a key for rate limiting
-            const fingerprint = deviceInfo.fingerprint || 'unknown';
-            const ip = deviceInfo.ip || '0.0.0.0';
-            const key = `ratelimit:login:${identifier}:${fingerprint}:${ip}`;
-            
-            // Get current attempts from Redis
-            const attempts = parseInt(await this.redis.get(key) || '0', 10);
-            const maxAttempts = config.security.lockout.maxAttempts || 5;
-            
-            // Check if rate limited
-            if (attempts >= maxAttempts) {
-                logger.warn('Rate limit exceeded', { 
-                    component: COMPONENT, 
-                    identifier,
-                    attempts 
-                });
-                
-                throw new AuthError('RATE_LIMIT_EXCEEDED', {
-                    message: 'Too many login attempts. Please try again later.',
-                    remainingTime: config.security.lockout.durationMinutes * 60
-                });
-            }
-            
-            // Apply progressive delay if enabled
-            await this._applyProgressiveDelay(identifier, deviceInfo);
-            
-            return true;
-        } catch (error) {
-            // If it's not our specific AuthError, log and rethrow
-            if (error.name !== 'AuthError') {
-                logger.error('Rate limit check error', {
-                    component: COMPONENT,
-                    error: error.message
-                });
-            }
-            throw error;
-        }
-    }
-
-    /**
-     * Validate user credentials with security checks
-     * @param {Object} credentials - User credentials
-     * @param {Object} deviceInfo - Device information
-     * @returns {Object} User object if validation successful
-     */
-    async validateCredentials(credentials, deviceInfo) {
-        const startTime = Date.now();
-        try {
-            // Check rate limits first
-            await this.checkRateLimit(credentials.email, deviceInfo);
-            
-            // Find user and include security fields
-            const user = await User.findOne({ email: credentials.email })
-                .select('+security.password +security.loginAttempts +security.lockUntil +security.tokenVersion')
-                .lean();
-
-            // Check if user exists and is active
-            if (!user || !user.isActive) {
-                await this.handleFailedAttempt(credentials.email, deviceInfo);
-                throw new AuthError('INVALID_CREDENTIALS');
-            }
-
-            // Check if account is locked
-            if (user.security.lockUntil && user.security.lockUntil > Date.now()) {
-                throw new AuthError('ACCOUNT_LOCKED', {
-                    remainingTime: Math.ceil((user.security.lockUntil - Date.now()) / 1000)
-                });
-            }
-
-            // Validate password
-            const isPasswordValid = await bcrypt.compare(
-                credentials.password,
-                user.security.password
-            );
-
-            if (!isPasswordValid) {
-                await this.handleFailedAttempt(credentials.email, deviceInfo);
-                throw new AuthError('INVALID_CREDENTIALS');
-            }
-
-            // Check if this is a new device requiring verification
-            if (await this._isNewDevice(user, deviceInfo)) {
-                if (config.deviceVerification.requireVerification) {
-                    await this._sendDeviceVerificationEmail(user, deviceInfo);
-                    throw new AuthError('DEVICE_VERIFICATION_REQUIRED', {
-                        userId: user._id,
-                        email: user.email
-                    });
-                } else {
-                    // Log new device login but don't require verification
-                    await this.auditService.logSecurityEvent('NEW_DEVICE_LOGIN', {
-                        userId: user._id,
-                        deviceInfo: this._sanitizeDeviceInfo(deviceInfo)
-                    });
-                }
-            }
-
-            // Reset failed attempts on successful login
-            await this._resetFailedAttempts(credentials.email);
-            
-            return user;
-        } finally {
-            // Add timing delay to prevent timing attacks
-            await this._addTimingDelay(startTime);
-        }
-    }
-
-    /**
-     * Handle failed login attempt with consistent naming and behavior
-     * @param {string} identifier - User identifier
-     * @param {Object} deviceInfo - Device information
-     */
-    async handleFailedAttempt(identifier, deviceInfo = {}) {
-        try {
-            // Standardize key naming
-            const key = `failures:${identifier}`;
-            const deviceKey = `failures:device:${deviceInfo.fingerprint || deviceInfo.ip || 'unknown'}`;
-            
-            // Increment both user and device counters
-            const attempts = await this.redis.incr(key);
-            await this.redis.incr(deviceKey);
-            
-            // Set consistent expiration on first attempt
-            if (attempts === 1) {
-                const lockoutDuration = config.security.lockout.durationMinutes * 60;
-                await this.redis.expire(key, lockoutDuration);
-                await this.redis.expire(deviceKey, lockoutDuration);
-            }
-            
-            // Log failed attempt
-            if (this.auditService && this.auditService.logSecurityEvent) {
-                await this.auditService.logSecurityEvent('FAILED_LOGIN_ATTEMPT', {
-                    identifier,
-                    deviceInfo: this._sanitizeDeviceInfo(deviceInfo),
-                    attempts
-                });
-            }
-            
-            // Apply progressive delay if enabled
-            if (config.security.lockout.progressiveDelay) {
-                // Calculate delay: 1s, 2s, 4s, 8s, etc. (exponential backoff)
-                const delayMs = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
-                await new Promise(resolve => setTimeout(resolve, delayMs));
-            }
-            
-            // Lock account if max attempts reached
-            if (attempts >= config.security.lockout.maxAttempts) {
-                await this._lockAccount(identifier);
-                throw new AuthError('ACCOUNT_LOCKED', {
-                    remainingTime: config.security.lockout.durationMinutes * 60
-                });
-            }
-            
-            return attempts;
-        } catch (error) {
-            logger.error('Error handling failed login attempt', {
-                component: this.COMPONENT,
-                error: error.message
-            });
-            // Rethrow if it's an AuthError
-            if (error.name === 'AuthError') {
-                throw error;
-            }
-            // Return a default value to avoid breaking the flow
-            return 1;
-        }
-    }
-
-    /**
-     * Lock an account after too many failed attempts
-     * @param {string} identifier - User identifier
-     * @private
-     */
-    async _lockAccount(identifier) {
-        try {
-            const key = `locked:${identifier}`;
-            // Default lockout duration of 30 minutes if config is not available
-            const lockoutDuration = 30 * 60; // 30 minutes in seconds
-            
-            await this.redis.set(key, 'true');
-            await this.redis.expire(key, lockoutDuration);
-            
-            // Log the account lockout
-            if (this.auditService && this.auditService.logSecurityEvent) {
-                await this.auditService.logSecurityEvent('ACCOUNT_LOCKED', {
-                    identifier,
-                    duration: lockoutDuration,
-                    timestamp: new Date()
-                });
-            }
-        } catch (error) {
-            logger.error('Error locking account', {
-                component: this.COMPONENT,
-                error: error.message
-            });
-        }
-    }
-
-    /**
-     * Reset failed attempts counter
-     * @param {string} identifier - User email
-     */
-    async _resetFailedAttempts(identifier) {
-        const key = `failures:${identifier}`;
-        await this.redis.del(key);
-    }
-
-    /**
-     * Check if device is new for this user
-     * @param {Object} user - User object
-     * @param {Object} deviceInfo - Device information
-     * @returns {boolean} True if device is new
-     */
-    async _isNewDevice(user, deviceInfo) {
-        const deviceHash = this._generateDeviceHash(deviceInfo);
-        const knownDevices = await this._getKnownDevices(user._id);
-        return !knownDevices.includes(deviceHash);
-    }
-
-    /**
-     * Get known devices for user
-     * @param {string} userId - User ID
-     * @returns {Array} Array of device hashes
-     */
-    async _getKnownDevices(userId) {
-        const key = `known_devices:${userId}`;
-        const devices = await this.redis.smembers(key);
-        return devices || [];
-    }
-
-    /**
-     * Add device to known devices
-     * @param {string} userId - User ID
-     * @param {Object} deviceInfo - Device information
-     */
-    async addKnownDevice(userId, deviceInfo) {
-        const deviceHash = this._generateDeviceHash(deviceInfo);
-        const key = `known_devices:${userId}`;
-        await this.redis.sadd(key, deviceHash);
-        
-        // Set expiration based on config
-        await this.redis.expire(key, config.deviceVerification.deviceFingerprintTimeout);
-        
-        await this.auditService.logSecurityEvent('DEVICE_VERIFIED', {
-            userId,
-            deviceInfo: this._sanitizeDeviceInfo(deviceInfo)
+  /**
+   * Detect suspicious activity
+   * @param {Object} activity - Activity data
+   * @param {String} userId - User ID
+   * @returns {Promise<Boolean>} True if suspicious
+   */
+  async detectSuspiciousActivity(activity, userId) {
+    try {
+      // Get user's known devices and IP addresses
+      const knownDevices = await DeviceInfo.find({ userId });
+      
+      // Check if IP is known
+      const isKnownIP = knownDevices.some(device => 
+        device.ipHash === activity.ipHash
+      );
+      
+      // Check if device fingerprint is known
+      const isKnownDevice = knownDevices.some(device => 
+        device.fingerprint === activity.deviceFingerprint
+      );
+      
+      // Check for location change
+      const hasLocationChanged = knownDevices.some(device => 
+        device.ipHash !== activity.ipHash && 
+        device.fingerprint === activity.deviceFingerprint
+      );
+      
+      // Log suspicious activity
+      if (!isKnownIP || !isKnownDevice || hasLocationChanged) {
+        await this.logSecurityEvent(userId, 'suspicious_activity', {
+          isKnownIP,
+          isKnownDevice,
+          hasLocationChanged,
+          deviceFingerprint: activity.deviceFingerprint,
+          ipHash: activity.ipHash,
+          userAgent: activity.userAgent
         });
-        
-        return deviceHash;
-    }
-
-    /**
-     * Generate hash for device fingerprinting
-     * @param {Object} deviceInfo - Device information
-     * @returns {string} Device hash
-     */
-    _generateDeviceHash(deviceInfo) {
-        return crypto.createHash('sha256')
-            .update(`${deviceInfo.userAgent}|${deviceInfo.screenResolution}|${deviceInfo.timezone}|${deviceInfo.platform}|${deviceInfo.fingerprint}`)
-            .digest('hex');
-    }
-
-    /**
-     * Send device verification email
-     * @param {Object} user - User object
-     * @param {Object} deviceInfo - Device information
-     */
-    async _sendDeviceVerificationEmail(user, deviceInfo) {
-        // Generate verification code
-        const verificationCode = crypto.randomBytes(32).toString('hex');
-        const key = `device_verification:${user._id}:${this._generateDeviceHash(deviceInfo)}`;
-        
-        // Store verification code in Redis with expiration
-        await this.redis.set(key, verificationCode);
-        await this.redis.expire(key, config.deviceVerification.verificationTimeout);
-        
-        // Log event
-        await this.auditService.logSecurityEvent('DEVICE_VERIFICATION_REQUESTED', {
-            userId: user._id,
-            deviceInfo: this._sanitizeDeviceInfo(deviceInfo)
-        });
-        
-        // Send email (implementation would depend on email service)
-        // emailService.sendDeviceVerificationEmail(user.email, verificationCode, deviceInfo);
-        
-        logger.info('Device verification email sent', {
-            component: COMPONENT,
-            userId: user._id,
-            email: user.email
-        });
-    }
-
-    /**
-     * Verify device with verification code
-     * @param {string} userId - User ID
-     * @param {string} verificationCode - Verification code
-     * @param {Object} deviceInfo - Device information
-     * @returns {boolean} True if verification successful
-     */
-    async verifyDevice(userId, verificationCode, deviceInfo) {
-        const deviceHash = this._generateDeviceHash(deviceInfo);
-        const key = `device_verification:${userId}:${deviceHash}`;
-        
-        const storedCode = await this.redis.get(key);
-        if (!storedCode || storedCode !== verificationCode) {
-            throw new AuthError('INVALID_VERIFICATION_CODE');
-        }
-        
-        // Delete verification code
-        await this.redis.del(key);
-        
-        // Add device to known devices
-        await this.addKnownDevice(userId, deviceInfo);
         
         return true;
+      }
+      
+      return false;
+    } catch (error) {
+      logger.error('Suspicious activity detection error:', error);
+      return false;
     }
+  }
 
-    /**
-     * Validate login attempt for suspicious activity
-     * @param {Object} user - User object
-     * @param {Object} deviceInfo - Device information
-     */
-    async validateLoginAttempt(user, deviceInfo) {
-        // Check for impossible travel
-        const lastLogin = await this._getLastLoginLocation(user._id);
-        if (lastLogin && this._isImpossibleTravel(lastLogin.location, deviceInfo.location)) {
-            await this.auditService.logSecurityEvent('IMPOSSIBLE_TRAVEL_DETECTED', {
-                userId: user._id,
-                previousLocation: lastLogin.location,
-                currentLocation: deviceInfo.location,
-                timeDifference: Date.now() - lastLogin.timestamp
+  /**
+   * Handle failed authentication attempt
+   * @param {String} userId - User ID (if known)
+   * @param {String} email - Email used in attempt
+   * @param {Object} deviceInfo - Device information
+   * @returns {Promise<void>}
+   */
+  async handleFailedAttempt(userId, email, deviceInfo) {
+    try {
+      // Log the failed attempt
+      await this.logSecurityEvent(userId, 'failed_login_attempt', {
+        email,
+        deviceInfo
+      });
+      
+      // If user exists, update failed attempts
+      if (userId) {
+        const user = await User.findById(userId);
+        
+        if (user) {
+          user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+          
+          // Check if account should be locked
+          if (user.failedLoginAttempts >= securityConfig.lockout.maxAttempts) {
+            user.isLocked = true;
+            user.lockUntil = new Date(Date.now() + securityConfig.lockout.durationMinutes * 60 * 1000);
+            
+            await this.logSecurityEvent(userId, 'account_locked', {
+              reason: 'too_many_failed_attempts',
+              lockUntil: user.lockUntil
             });
-            
-            // Depending on security policy, we might throw an error here
-            if (config.security?.suspicious?.blockImpossibleTravel) {
-                throw new AuthError('SUSPICIOUS_LOGIN_LOCATION');
-            }
+          }
+          
+          await user.save();
         }
-
-        // Check for unusual login time
-        if (this._isUnusualLoginTime(user, deviceInfo.timezone)) {
-            await this.auditService.logSecurityEvent('UNUSUAL_LOGIN_TIME', {
-                userId: user._id,
-                time: new Date(),
-                timezone: deviceInfo.timezone
-            });
-        }
-
-        // Check for high-risk location
-        if (this._isHighRiskLocation(deviceInfo.location)) {
-            await this.auditService.logSecurityEvent('HIGH_RISK_LOCATION', {
-                userId: user._id,
-                location: deviceInfo.location
-            });
-        }
-
-        // Store current login location
-        await this._storeLoginLocation(user._id, deviceInfo.location);
+      }
+    } catch (error) {
+      logger.error('Failed attempt handling error:', error);
     }
+  }
 
-    /**
-     * Get last login location for user
-     * @param {string} userId - User ID
-     * @returns {Object} Last login location
-     */
-    async _getLastLoginLocation(userId) {
-        const key = `last_login:${userId}`;
-        const data = await this.redis.get(key);
-        return data ? JSON.parse(data) : null;
+  /**
+   * Reset failed attempts counter
+   * @param {String} userId - User ID
+   * @returns {Promise<void>}
+   */
+  async resetFailedAttempts(userId) {
+    try {
+      const user = await User.findById(userId);
+      
+      if (user && user.failedLoginAttempts > 0) {
+        user.failedLoginAttempts = 0;
+        await user.save();
+      }
+    } catch (error) {
+      logger.error('Reset failed attempts error:', error);
     }
+  }
 
-    /**
-     * Store login location
-     * @param {string} userId - User ID
-     * @param {Object} location - Location object
-     */
-    async _storeLoginLocation(userId, location) {
-        const key = `last_login:${userId}`;
-        await this.redis.set(key, JSON.stringify({
-            location,
-            timestamp: Date.now()
-        }));
-        await this.redis.expire(key, 30 * 24 * 60 * 60); // 30 days
+  /**
+   * Generate CSRF token and set in cookie
+   * @param {Object} res - Express response object
+   * @returns {String} CSRF token
+   */
+  generateCsrfToken(res) {
+    const csrfToken = this.tokenService.generateCsrfToken();
+    
+    // Set CSRF token in cookie using the correct config
+    res.cookie(cookieConfig.names.CSRF_TOKEN, csrfToken, {
+      httpOnly: false, // Must be accessible to JavaScript
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+    
+    return csrfToken;
+  }
+
+  /**
+   * Validate CSRF token
+   * @param {String} token - CSRF token from request header
+   * @param {String} cookieToken - CSRF token from cookie
+   * @returns {Boolean} Validation result
+   */
+  validateCsrfToken(token, cookieToken) {
+    if (!token || !cookieToken) {
+      return false;
     }
+    
+    return token === cookieToken;
+  }
 
-    /**
-     * Check if travel between locations is impossible
-     * @param {Object} loc1 - First location
-     * @param {Object} loc2 - Second location
-     * @returns {boolean} True if travel is impossible
-     */
-    _isImpossibleTravel(loc1, loc2) {
-        const speed = this._calculateTravelSpeed(loc1, loc2);
-        return speed > (config.security?.suspicious?.maxLoginVelocity || 800); // km/h
+  /**
+   * Log security event
+   * @param {String} userId - User ID
+   * @param {String} eventType - Event type
+   * @param {Object} details - Event details
+   * @returns {Promise<Object>} Created event
+   */
+  async logSecurityEvent(userId, eventType, details = {}) {
+    try {
+      const event = new SecurityEvent({
+        userId,
+        eventType,
+        details,
+        timestamp: new Date(),
+        contextId: details.contextId || undefined
+      });
+      
+      await event.save();
+      return event;
+    } catch (error) {
+      logger.error('Security event logging error:', error);
+      return null;
     }
+  }
 
-    /**
-     * Calculate travel speed between locations
-     * @param {Object} loc1 - First location
-     * @param {Object} loc2 - Second location
-     * @returns {number} Speed in km/h
-     */
-    _calculateTravelSpeed(loc1, loc2) {
-        if (!loc1 || !loc2 || !loc1.lat || !loc1.lon || !loc2.lat || !loc2.lon) {
-            return 0;
-        }
-
-        // Calculate distance using Haversine formula
-        const R = 6371; // Earth radius in km
-        const dLat = this._toRad(loc2.lat - loc1.lat);
-        const dLon = this._toRad(loc2.lon - loc1.lon);
-        const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(this._toRad(loc1.lat)) * Math.cos(this._toRad(loc2.lat)) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-
-        // Calculate time difference in hours
-        const timeDiff = (loc2.timestamp - loc1.timestamp) / (1000 * 60 * 60);
-        
-        // Calculate speed in km/h
-        return timeDiff > 0 ? distance / timeDiff : 0;
+  /**
+   * Get recent security events for user
+   * @param {String} userId - User ID
+   * @param {Number} limit - Maximum number of events to return
+   * @returns {Promise<Array>} Security events
+   */
+  async getRecentSecurityEvents(userId, limit = 10) {
+    try {
+      return await SecurityEvent.find({ userId })
+        .sort({ timestamp: -1 })
+        .limit(limit);
+    } catch (error) {
+      logger.error('Get security events error:', error);
+      return [];
     }
+  }
 
-    /**
-     * Convert degrees to radians
-     * @param {number} degrees - Degrees
-     * @returns {number} Radians
-     */
-    _toRad(degrees) {
-        return degrees * Math.PI / 180;
+  /**
+   * Verify a new device
+   * @param {String} userId - User ID
+   * @param {String} verificationCode - Verification code
+   * @param {Object} deviceInfo - Device information
+   * @returns {Promise<Boolean>} Verification result
+   */
+  async verifyDevice(userId, verificationCode, deviceInfo) {
+    try {
+      // Verify the code (implementation depends on how codes are stored)
+      const isValid = await this.validateVerificationCode(userId, verificationCode);
+      
+      if (!isValid) {
+        return false;
+      }
+      
+      // Add device to known devices
+      await this.addKnownDevice(userId, deviceInfo);
+      
+      // Log the verification
+      await this.logSecurityEvent(userId, 'device_verified', {
+        deviceInfo
+      });
+      
+      return true;
+    } catch (error) {
+      logger.error('Device verification error:', error);
+      return false;
     }
+  }
 
-    /**
-     * Check if login time is unusual for user
-     * @param {Object} user - User object
-     * @param {string} timezone - User timezone
-     * @returns {boolean} True if login time is unusual
-     */
-    _isUnusualLoginTime(user, timezone) {
-        // Implementation would depend on user's typical login patterns
-        // For now, we'll consider 1am-5am as unusual hours
-        const userTime = new Date();
-        if (timezone) {
-            // Adjust for user's timezone
-            const offset = parseInt(timezone.replace(/GMT([+-]\d+)/, '$1'), 10);
-            userTime.setHours(userTime.getHours() + offset);
-        }
-        
-        const hour = userTime.getHours();
-        return hour >= 1 && hour <= 5;
+  /**
+   * Add device to known devices
+   * @param {String} userId - User ID
+   * @param {Object} deviceInfo - Device information
+   * @returns {Promise<Object>} Created device info
+   */
+  async addKnownDevice(userId, deviceInfo) {
+    try {
+      // Check if device already exists
+      const existingDevice = await DeviceInfo.findOne({
+        userId,
+        fingerprint: deviceInfo.fingerprint
+      });
+      
+      if (existingDevice) {
+        // Update existing device
+        existingDevice.lastSeen = new Date();
+        existingDevice.ipHash = deviceInfo.ipHash;
+        existingDevice.userAgent = deviceInfo.userAgent;
+        await existingDevice.save();
+        return existingDevice;
+      }
+      
+      // Create new device
+      const device = new DeviceInfo({
+        userId,
+        fingerprint: deviceInfo.fingerprint,
+        ipHash: deviceInfo.ipHash,
+        userAgent: deviceInfo.userAgent,
+        name: deviceInfo.name || 'Unknown device',
+        firstSeen: new Date(),
+        lastSeen: new Date(),
+        isTrusted: true
+      });
+      
+      await device.save();
+      return device;
+    } catch (error) {
+      logger.error('Add known device error:', error);
+      return null;
     }
+  }
 
-    /**
-     * Check if location is high risk
-     * @param {Object} location - Location object
-     * @returns {boolean} True if location is high risk
-     */
-    _isHighRiskLocation(location) {
-        if (!location || !location.country) {
-            return false;
-        }
-        
-        const highRiskCountries = config.security?.suspicious?.highRiskCountries || 
-            ['XX', 'YY', 'ZZ']; // Placeholder for actual high-risk countries
-            
-        return highRiskCountries.includes(location.country);
+  /**
+   * Get user security information
+   * @param {String} userId - User ID
+   * @returns {Promise<Object>} Security information
+   */
+  async getUserSecurityInfo(userId) {
+    try {
+      const user = await User.findById(userId);
+      
+      if (!user) {
+        throw new AuthError('User not found', 'USER_NOT_FOUND');
+      }
+      
+      return {
+        mfaEnabled: user.mfaEnabled || false,
+        lastPasswordChange: user.lastPasswordChange,
+        securityLevel: user.securityLevel || 'medium',
+        accountLocked: user.isLocked || false,
+        lockUntil: user.lockUntil
+      };
+    } catch (error) {
+      logger.error('Get user security info error:', error);
+      throw error;
     }
+  }
 
-    /**
-     * Add timing delay to prevent timing attacks
-     * @param {number} startTime - Start time in milliseconds
-     */
-    async _addTimingDelay(startTime) {
-        const elapsed = Date.now() - startTime;
-        const minTime = 1000; // Minimum processing time in ms
-        
-        if (elapsed < minTime) {
-            await new Promise(resolve => setTimeout(resolve, minTime - elapsed));
-        }
+  /**
+   * Get last login information
+   * @param {String} userId - User ID
+   * @returns {Promise<Object>} Last login info
+   */
+  async getLastLoginInfo(userId) {
+    try {
+      const lastLogin = await SecurityEvent.findOne({
+        userId,
+        eventType: 'login_success'
+      }).sort({ timestamp: -1 });
+      
+      if (!lastLogin) {
+        return null;
+      }
+      
+      return {
+        timestamp: lastLogin.timestamp,
+        ipHash: lastLogin.details.ipHash,
+        deviceInfo: lastLogin.details.deviceInfo
+      };
+    } catch (error) {
+      logger.error('Get last login info error:', error);
+      return null;
     }
+  }
 
-    /**
-     * Sanitize device info for logging
-     * @param {Object} deviceInfo - Device information
-     * @returns {Object} Sanitized device info
-     */
-    _sanitizeDeviceInfo(deviceInfo) {
-        const { ip, fingerprint, ...safeInfo } = deviceInfo;
-        // Only include last octet of IP for privacy
-        const sanitizedIp = ip ? ip.replace(/(\d+\.\d+\.\d+\.)\d+/, '$1*') : null;
-        
-        return {
-            ...safeInfo,
-            ipPrefix: sanitizedIp,
-            fingerprintHash: fingerprint ? 
-                crypto.createHash('sha256').update(fingerprint).digest('hex').substring(0, 8) : null
-        };
+  /**
+   * Get password status
+   * @param {String} userId - User ID
+   * @returns {Promise<Object>} Password status
+   */
+  async getPasswordStatus(userId) {
+    try {
+      const user = await User.findById(userId);
+      
+      if (!user) {
+        throw new AuthError('User not found', 'USER_NOT_FOUND');
+      }
+      
+      const lastPasswordChange = user.lastPasswordChange || user.createdAt;
+      const passwordAgeDays = Math.floor((Date.now() - lastPasswordChange) / (1000 * 60 * 60 * 24));
+      
+      // Get expiry days based on security level
+      const securityLevel = user.securityLevel || 'medium';
+      const expiryDays = securityConfig.levels[securityLevel].passwordExpiryDays;
+      
+      return {
+        lastChanged: lastPasswordChange,
+        ageInDays: passwordAgeDays,
+        expiresInDays: Math.max(0, expiryDays - passwordAgeDays),
+        needsChange: passwordAgeDays >= expiryDays
+      };
+    } catch (error) {
+      logger.error('Get password status error:', error);
+      throw error;
     }
+  }
 
-    /**
-     * Check if password has been breached
-     * @param {string} password - Password to check
-     * @returns {Promise<boolean>} True if password is breached
-     */
-    async isPasswordBreached(password) {
-        try {
-            // Use k-anonymity model with HIBP API
-            const sha1 = crypto.createHash('sha1').update(password).digest('hex').toUpperCase();
-            const prefix = sha1.substring(0, 5);
-            const suffix = sha1.substring(5);
-            
-            const response = await axios.get(`https://api.pwnedpasswords.com/range/${prefix}`);
-            
-            // Check if password hash suffix is in the response
-            return response.data.split('\n').some(line => {
-                const [hashSuffix] = line.split(':');
-                return hashSuffix === suffix;
-            });
-        } catch (error) {
-            logger.error('Error checking password breach status', {
-                component: COMPONENT,
-                error: error.message
-            });
-            
-            // Default to false if API is unavailable
-            return false;
-        }
-    }
+  /**
+   * Check if request is rate limited
+   * @param {String} actionType - Action type (login, register, etc.)
+   * @param {String} identifier - Identifier (IP, user ID, etc.)
+   * @returns {Promise<Boolean>} True if rate limited
+   */
+  async isRateLimited(actionType, identifier) {
+    // This would typically use Redis or another store to track rate limits
+    // For now, return false as the actual implementation depends on your rate limiting strategy
+    return false;
+  }
 
-    /**
-     * Validate IP against restrictions
-     * @param {string} ip - IP address
-     */
-    async validateIPRestrictions(ip) {
-        // Check if IP is blocked
-        const isBlocked = await this.redis.get(`blocked_ip:${ip}`);
-        if (isBlocked) {
-            throw new AuthError('IP_BLOCKED', {
-                remainingTime: await this.redis.ttl(`blocked_ip:${ip}`)
-            });
-        }
-        
-        // Check geo-restrictions if enabled
-        if (config.security?.geoRestrictions?.enabled) {
-            const geo = geoip.lookup(ip);
-            if (geo && config.security.geoRestrictions.blockedCountries.includes(geo.country)) {
-                await this.auditService.logSecurityEvent('GEO_RESTRICTED_ACCESS', {
-                    ip,
-                    country: geo.country
-                });
-                
-                throw new AuthError('GEO_RESTRICTED');
-            }
-        }
-    }
-
-    /**
-     * Block an IP address
-     * @param {string} ip - IP address to block
-     * @param {number} duration - Duration in seconds
-     */
-    async blockIP(ip, duration = 3600) {
-        await this.redis.set(`blocked_ip:${ip}`, '1');
-        await this.redis.expire(`blocked_ip:${ip}`, duration);
-        
-        await this.auditService.logSecurityEvent('IP_BLOCKED', {
-            ip,
-            duration
-        });
-        
-        logger.warn('IP address blocked', {
-            component: COMPONENT,
-            ip,
-            duration
-        });
-    }
-
-    /**
-     * Add progressive delay based on failed attempts
-     * @param {String} identifier - User identifier
-     * @param {Object} deviceInfo - Device information
-     * @returns {Promise<void>}
-     */
-    async _addProgressiveDelay(identifier, deviceInfo) {
-        if (!config.security.lockout.progressiveDelay) {
-            return;
-        }
-        
-        const key = `failures:${identifier}:${deviceInfo.fingerprint || deviceInfo.ip}`;
-        const attempts = parseInt(await this.redis.get(key) || '0', 10);
-        
-        if (attempts > 0) {
-            // Calculate delay: 200ms * 2^attempts (capped at 30 seconds)
-            const delayMs = Math.min(200 * Math.pow(2, attempts - 1), 30000);
-            
-            // Log the delay being applied
-            logger.debug('Adding progressive delay for failed login', {
-                component: 'SecurityService',
-                identifier,
-                attempts,
-                delayMs
-            });
-            
-            // Apply delay
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-    }
-
-    /**
-     * Handle failed login attempt with progressive delay
-     * @param {String} identifier - User identifier
-     * @param {Object} deviceInfo - Device information
-     */
-    async handleFailedAttempt(identifier, deviceInfo) {
-        const key = `failures:${identifier}:${deviceInfo.fingerprint || deviceInfo.ip}`;
-        const attempts = await this.redis.incr(key);
-        
-        // Set expiration on first attempt
-        if (attempts === 1) {
-            await this.redis.expire(key, config.security.lockout.durationMinutes * 60);
-        }
-        
-        // Log failed attempt
-        await this.auditService.logSecurityEvent('FAILED_LOGIN_ATTEMPT', {
-            identifier,
-            deviceInfo: this._sanitizeDeviceInfo(deviceInfo),
-            attempts
-        });
-        
-        // Apply progressive delay if enabled
-        if (config.security.lockout.progressiveDelay) {
-            // Calculate delay: 1s, 2s, 4s, 8s, etc. (exponential backoff)
-            const delayMs = Math.min(1000 * Math.pow(2, attempts - 1), 30000);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-        
-        // Lock account if max attempts reached
-        if (attempts >= config.security.lockout.maxAttempts) {
-            await this._lockAccount(identifier);
-            throw new AuthError('ACCOUNT_LOCKED', {
-                remainingTime: config.security.lockout.durationMinutes * 60
-            });
-        }
-    }
-
-    /**
-     * Track login attempt for security monitoring
-     * @param {string} identifier - User identifier (email or userId)
-     * @param {Object} deviceInfo - Device information
-     * @param {boolean} success - Whether the login was successful
-     */
-    async trackLoginAttempt(identifier, deviceInfo = {}, success = false) {
-        try {
-            logger.debug('Tracking login attempt', {
-                component: this.COMPONENT,
-                identifier: typeof identifier === 'string' ? identifier.substring(0, 3) + '***' : 'unknown', // Only log partial identifier for privacy
-                success,
-                hasDeviceInfo: !!deviceInfo
-            });
-            
-            // Ensure deviceInfo has required properties
-            const safeDeviceInfo = {
-                fingerprint: deviceInfo.fingerprint || 'unknown',
-                ip: deviceInfo.ip || '0.0.0.0',
-                userAgent: deviceInfo.userAgent || 'unknown',
-                location: deviceInfo.location || {}
-            };
-            
-            // Store the attempt in Redis for tracking
-            const key = `login:${identifier}:${success ? 'success' : 'failure'}`;
-            await this.redis.incr(key);
-            await this.redis.expire(key, 24 * 60 * 60); // 24 hours
-            
-            // If login failed, handle the failed attempt
-            if (!success) {
-                await this.handleFailedAttempt(identifier, safeDeviceInfo);
-            } else {
-                // Reset failed attempts on successful login
-                await this._resetFailedAttempts(identifier);
-            }
-            
-            // Log the attempt to audit trail
-            if (this.auditService && this.auditService.logSecurityEvent) {
-                await this.auditService.logSecurityEvent(success ? 'LOGIN_SUCCESS' : 'LOGIN_FAILURE', {
-                    identifier,
-                    deviceInfo: this._sanitizeDeviceInfo(safeDeviceInfo),
-                    timestamp: new Date()
-                });
-            }
-            
-            return true;
-        } catch (error) {
-            logger.error('Error tracking login attempt', {
-                component: this.COMPONENT,
-                error: error.message
-            });
-            // Don't throw, this is a non-critical operation
-            return false;
-        }
-    }
-
-    /**
-     * Reset failed login attempts for a user
-     * @param {string} identifier - User identifier
-     * @private
-     */
-    async _resetFailedAttempts(identifier) {
-        try {
-            const key = `failures:${identifier}`;
-            await this.redis.del(key);
-            
-            // Also clear IP-based rate limits if they exist
-            if (this.lastIpMap && this.lastIpMap.has(identifier)) {
-                const ip = this.lastIpMap.get(identifier);
-                const ipKey = `failures:ip:${ip}`;
-                await this.redis.del(ipKey);
-            }
-        } catch (error) {
-            logger.error('Error resetting failed attempts', {
-                component: this.COMPONENT,
-                error: error.message
-            });
-        }
-    }
-
-    /**
-     * Sanitize device info for logging (remove sensitive data)
-     * @param {Object} deviceInfo - Device information
-     * @returns {Object} Sanitized device info
-     * @private
-     */
-    _sanitizeDeviceInfo(deviceInfo) {
-        if (!deviceInfo) return {};
-        
-        // Create a copy to avoid modifying the original
-        const sanitized = { ...deviceInfo };
-        
-        // Remove potentially sensitive fields
-        delete sanitized.rawFingerprint;
-        delete sanitized.cookies;
-        delete sanitized.localStorage;
-        delete sanitized.sessionStorage;
-        
-        return sanitized;
-    }
+  /**
+   * Validate verification code
+   * @param {String} userId - User ID
+   * @param {String} code - Verification code
+   * @returns {Promise<Boolean>} Validation result
+   */
+  async validateVerificationCode(userId, code) {
+    // Implementation depends on how verification codes are stored
+    // This is a placeholder
+    return true;
+  }
 }
 
-module.exports = SecurityService;
+module.exports = new SecurityService();

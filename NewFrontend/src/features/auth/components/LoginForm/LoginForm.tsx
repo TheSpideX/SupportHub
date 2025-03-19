@@ -87,50 +87,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => 
       
       setFailedAttempts(prev => prev + 1);
       
+      // Extract error message in a consistent way
+      const errorMessage = getErrorMessage(error);
+      
       // Log detailed error information
       logger.error('Form submission error', {
         component: COMPONENT,
         action: 'handleFormSubmit',
         errorType: error?.constructor?.name || typeof error,
-        errorMessage: getErrorMessage(error),
-        isAxiosError: axios.isAxiosError(error),
-        hasResponse: !!error?.response,
-        stack: error?.stack
+        errorMessage,
+        isAxiosError: axios.isAxiosError(error)
       });
       
-      // Handle specific error types
-      if (axios.isAxiosError(error)) {
-        if (!error.response) {
-          // Network error
-          toast.error('Network error. Please check your connection and try again.');
-        } else {
-          // Server error
-          const status = error.response.status;
-          const errorData = error.response.data;
-          
-          if (status === 429) {
-            // Rate limiting
-            handleRateLimitError(errorData);
-          } else if (status === 401) {
-            // Authentication error
-            setError('password', { 
-              type: 'manual', 
-              message: 'Invalid email or password' 
-            });
-          } else {
-            // Generic error handling
-            toast.error(getErrorMessage(error));
-          }
-        }
-      } else {
-        // Generic error handling
-        toast.error(getErrorMessage(error));
-        logger.error('Login submission failed', {
-          component: COMPONENT,
-          action: 'handleFormSubmit',
-          error: getErrorMessage(error)
-        });
-      }
+      // Let the parent component handle the error display
+      // Don't show toast here to avoid duplicate error messages
     }
   };
 
