@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { AuthState, User, AuthError } from '../types/auth.types';
 import { RootState } from '@/store';
+import { logger } from '@/utils/logger';
 
 const initialState: AuthState = {
   isAuthenticated: false,
@@ -31,6 +32,11 @@ export const authSlice = createSlice({
     },
     setInitialized: (state, action: PayloadAction<boolean>) => {
       state.isInitialized = action.payload;
+      // Log the state change for debugging
+      logger.debug('Auth state initialized in Redux', { 
+        component: 'authSlice',
+        isInitialized: action.payload
+      });
     },
     updateUserData: (state, action: PayloadAction<Partial<User>>) => {
       if (state.user) {
@@ -40,8 +46,8 @@ export const authSlice = createSlice({
     clearAuthState: (state) => {
       return {
         ...initialState,
-        isLoading: false,
-        isInitialized: true
+        isInitialized: true, // Keep initialized state
+        isLoading: false
       };
     },
     setLastVerified: (state, action: PayloadAction<number>) => {

@@ -19,10 +19,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { logger } from '@/utils/logger';
 import { RootState } from '@/store';
-// If your store is in a different location, adjust the path
-import { setAuthState, clearAuthState } from '@/features/auth/store';
-// or
-import { setAuthState, clearAuthState } from '../store/authSlice';
 
 /**
  * Custom hook for authentication state and operations
@@ -75,16 +71,19 @@ export const useAuth = () => {
       const authServiceInstance = authService || getAuthService();
       
       // Attempt login through auth service
-      const success = await authServiceInstance.login(credentials);
+      const userData = await authServiceInstance.login(credentials);
       
-      if (success) {
+      if (userData) {
         logger.info('Login successful', { component: 'useAuth' });
         
-        // Update Redux state with user info
+        // Calculate session expiry time (30 minutes from now)
+        const expiryTime = Date.now() + 30 * 60 * 1000;
+        
+        // Update Redux state with user info - use timestamp instead of Date object
         dispatch(setAuthState({
-          user: authServiceInstance.user,
+          user: userData,
           isAuthenticated: true,
-          sessionExpiry: new Date(Date.now() + 30 * 60 * 1000)
+          sessionExpiry: expiryTime // Store as timestamp (number) instead of Date object
         }));
         
         return true;

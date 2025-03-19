@@ -66,7 +66,9 @@ export class AuthService {
   private authState: AuthState;
   private stateChangeListeners: Array<(state: AuthState) => void> = [];
   private broadcastChannel: BroadcastChannel | null = null;
-  // Add a flag to track initialization status
+  // Add authApi as a class property
+  private authApi: any; // Use proper type if available
+  // Existing properties
   private initialized = false;
   private userFetchInProgress = false;
   private lastFetchTimestamp = 0;
@@ -108,6 +110,9 @@ export class AuthService {
     this.tokenService = tokenService;
     this.sessionService = sessionService;
     this.securityService = securityService;
+    
+    // Initialize authApi
+    this.authApi = authApi;
     
     // Initialize auth state
     this.authState = {
@@ -310,7 +315,10 @@ export class AuthService {
       isInitialized: this.authState.isInitialized,
       user: this.authState.user,
       error: this.authState.error,
-      sessionExpiry: this.authState.sessionExpiry
+      sessionExpiry: this.authState.sessionExpiry,
+      twoFactorRequired: this.authState.twoFactorRequired,
+      emailVerificationRequired: this.authState.emailVerificationRequired,
+      lastVerified: this.authState.lastVerified
     };
   }
 
@@ -360,7 +368,7 @@ export class AuthService {
           isInitialized: true,
           user: response.data.user,
           error: null,
-          sessionExpiry: this.calculateDefaultExpiry(credentials.rememberMe)
+          sessionExpiry: this.calculateDefaultExpiry(credentials.rememberMe) // Make sure this returns a timestamp
         });
         
         // Validate session immediately after login
@@ -388,7 +396,7 @@ export class AuthService {
     } catch (error) {
       // Handle login error
       let errorMessage = 'Unknown error during login';
-      let errorCode = AUTH_ERROR_CODES.AUTHENTICATION_FAILED;
+      let errorCode = AUTH_ERROR_CODES.LOGIN_FAILED; // Use LOGIN_FAILED instead of AUTHENTICATION_FAILED
       
       // Extract error details if available
       if (error) {
@@ -419,12 +427,12 @@ export class AuthService {
   /**
    * Calculate default session expiry based on remember me setting
    */
-  private calculateDefaultExpiry(rememberMe?: boolean): number {
+  private calculateDefaultExpiry(rememberMe: boolean = false): number {
     const now = Date.now();
-    // Use the same duration as backend (from security.config.js)
+    // Return timestamp instead of Date object
     return rememberMe 
-      ? now + (7 * 24 * 60 * 60 * 1000) // 7 days for remember me
-      : now + (24 * 60 * 60 * 1000);    // 24 hours for regular session
+      ? now + (7 * 24 * 60 * 60 * 1000) // 7 days
+      : now + (30 * 60 * 1000); // 30 minutes
   }
 
   /**
@@ -985,52 +993,35 @@ export class AuthService {
   }
 
   /**
-   * Validate current session
+   * Validate the current session with the backend
    */
   public async validateSession(): Promise<boolean> {
     try {
-      logger.debug('Validating session');
+      logger.info('Validating session with backend');
       
-      // Call session validation endpoint
-      const response = await authApi.validateSession();
+      const response = await this.authApi.validateSession();
       
-      if (response && response.valid && response.user) {
-        // Update auth state with validated user
-        this.updateAuthState({
-          isAuthenticated: true,
-          isLoading: false,
-          isInitialized: true,
-          user: response.user,
-          error: null
-        });
-        
-        logger.debug('Session validated successfully');
+      // Check if the session is valid
+      if (response && response.success && response.valid) {
+        logger.info('Session validated successfully');
         return true;
       } else {
-        // Session is invalid
-        this.updateAuthState({
-          isAuthenticated: false,
-          user: null,
-          isLoading: false,
-          isInitialized: true,
-          error: null
+        // Session is invalid but API call succeeded
+        logger.warn('Session is invalid', { 
+          reason: response?.message || 'Unknown reason'
         });
-        
-        logger.debug('Session validation failed');
         return false;
       }
     } catch (error) {
-      logger.error('Session validation error', error);
-      
-      // Clear auth state on validation error
-      this.updateAuthState({
-        isAuthenticated: false,
-        user: null,
-        isLoading: false,
-        isInitialized: true,
-        error: createAuthError(AUTH_ERROR_CODES.SESSION_VALIDATION_FAILED, 'Failed to validate session')
+      logger.error('Session validation error', { 
+        error: { 
+          error: error.message || 'Unknown error',
+          stack: error.stack || 'No stack trace'
+        },
+        code: error.code
       });
       
+      // Consider any error as invalid session
       return false;
     }
   }
@@ -1040,14 +1031,10 @@ export class AuthService {
     return this.authState.isInitialized;
   }
 
-  // Update initialize method to prevent multiple calls
+  /**
+   * Initialize auth service
+   */
   public async initialize(): Promise<boolean> {
-    // Skip if already initialized
-    if (this.authState.isInitialized) {
-      logger.debug('Auth already initialized, skipping');
-      return this.authState.isAuthenticated;
-    }
-    
     try {
       logger.info('Initializing auth service and checking for existing session');
       
@@ -1057,35 +1044,50 @@ export class AuthService {
       
       // Validate session with backend
       logger.info('Attempting to validate session with backend');
-      const { isValid, userData, sessionExpiry } = await this.validateSession();
       
-      if (isValid && userData) {
-        logger.info('Valid session found, restoring user session', { userId: userData.id });
-        
-        // Update auth state with user data
-        this.updateAuthState({
-          isAuthenticated: true,
-          user: userData,
-          sessionExpiry: Date.now() + (30 * 60 * 1000),
-        });
-        
-        // Start session monitoring
-        this.sessionService.startSessionTracking();
-        
-        logger.info('Session restored successfully');
-        return true;
-      } else {
-        logger.info('No valid session found, initializing as unauthenticated');
-        
-        // Initialize with unauthenticated state
-        this.updateAuthState({
-          isAuthenticated: false,
-          user: null,
-          sessionExpiry: null
-        });
-        
-        return false;
+      // Check if we have tokens
+      const hasTokens = this.tokenService.hasTokens();
+      
+      if (hasTokens) {
+        try {
+          // Validate tokens
+          await this.tokenService.validateTokens();
+          
+          // Fetch user data
+          const userData = await this.fetchUserData();
+          
+          if (userData) {
+            logger.info('Valid session found, restoring user session', { userId: userData.id });
+            
+            // Update auth state with user data
+            this.updateAuthState({
+              isAuthenticated: true,
+              user: userData,
+              sessionExpiry: this.sessionService.getSessionExpiry(),
+              lastVerified: Date.now()
+            });
+            
+            // Start session monitoring
+            this.sessionService.startSessionTracking();
+            
+            logger.info('Session restored successfully');
+            return true;
+          }
+        } catch (error) {
+          logger.warn('Session validation failed', error);
+        }
       }
+      
+      logger.info('No valid session found, initializing as unauthenticated');
+      
+      // Initialize with unauthenticated state
+      this.updateAuthState({
+        isAuthenticated: false,
+        user: null,
+        sessionExpiry: null
+      });
+      
+      return false;
     } catch (error) {
       logger.error('Auth service initialization failed:', error);
       
@@ -1094,6 +1096,71 @@ export class AuthService {
         isAuthenticated: false,
         user: null,
         sessionExpiry: null
+      });
+      
+      return false;
+    }
+  }
+
+  /**
+   * Restore session from storage
+   */
+  private async restoreSession(): Promise<boolean> {
+    try {
+      logger.debug('Attempting to restore session from storage');
+      
+      // Check if we have tokens
+      const hasTokens = this.tokenService.hasTokens();
+      
+      if (hasTokens) {
+        // Validate tokens and get user data
+        try {
+          await this.tokenService.validateTokens();
+          const userData = await this.fetchUserData();
+          
+          if (userData) {
+            logger.info('Valid session found, restoring user session', { userId: userData.id });
+            
+            // Update auth state with user data
+            this.updateAuthState({
+              isAuthenticated: true,
+              user: userData,
+              sessionExpiry: this.sessionService.getSessionExpiry(),
+              lastVerified: Date.now()
+            });
+            
+            // Start session monitoring
+            this.sessionService.startSessionTracking();
+            
+            logger.info('Session restored successfully');
+            return true;
+          }
+        } catch (tokenError) {
+          logger.warn('Token validation failed during session restore', tokenError);
+          // Continue to unauthenticated state
+        }
+      }
+      
+      logger.info('No valid session found, initializing as unauthenticated');
+      
+      // Initialize with unauthenticated state
+      this.updateAuthState({
+        isAuthenticated: false,
+        user: null,
+        sessionExpiry: null,
+        lastVerified: null
+      });
+      
+      return false;
+    } catch (error) {
+      logger.error('Error restoring session', error);
+      
+      // Initialize with unauthenticated state on error
+      this.updateAuthState({
+        isAuthenticated: false,
+        user: null,
+        error: createAuthError(AUTH_ERROR_CODES.SESSION_INVALID, 'Failed to restore session'),
+        lastVerified: null
       });
       
       return false;

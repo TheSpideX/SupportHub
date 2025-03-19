@@ -19,7 +19,7 @@ import { useEffect, useRef, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
 import { logger } from './utils/logger';
-import { clearAuthState, setInitialized, setLoading } from '@/features/auth/store';
+import { clearAuthState, setInitialized, setLoading, setAuthState } from '@/features/auth/store';
 // Import the auth initialization function
 import { initAuth } from '@/features/auth/init';
 import { getAuthService } from './features/auth/services';
@@ -110,6 +110,9 @@ export function App() {
         // Additional check from service
         if (authService.isInitialized()) {
           logger.debug('Auth already initialized in service, skipping', { component: COMPONENT });
+          // Make sure Redux state is also initialized
+          dispatch(setInitialized(true));
+          setAuthInitialized(true);
           return;
         }
         
@@ -121,18 +124,27 @@ export function App() {
         
         if (isAuthenticated) {
           logger.info('User session restored successfully', { component: COMPONENT });
-          // You can dispatch additional actions here if needed
+          // Get current auth state from service
+          const currentState = authService.getAuthState();
+          // Update Redux with complete state
+          dispatch(setAuthState({
+            user: currentState.user,
+            isAuthenticated: true,
+            sessionExpiry: currentState.sessionExpiry,
+            isInitialized: true // Explicitly set initialized
+          }));
         } else {
           logger.info('No active session found, user is not authenticated', { component: COMPONENT });
+          // Clear auth state but ensure initialized is true
           dispatch(clearAuthState());
+          dispatch(setInitialized(true)); // Explicitly set initialized
         }
         
-        dispatch(setInitialized(true));
         setAuthInitialized(true);
         logger.info('Auth initialized successfully', { component: COMPONENT });
       } catch (error) {
         logger.error('Auth initialization failed', { component: COMPONENT, error });
-        dispatch(setInitialized(true));
+        dispatch(setInitialized(true)); // Ensure initialized is set even on error
         dispatch(clearAuthState());
         setAuthInitialized(true);
         toast.error('Failed to initialize authentication');

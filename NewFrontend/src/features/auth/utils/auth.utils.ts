@@ -323,6 +323,13 @@ export function updateLastActivity(sessionData: SessionData, timestamp: number =
   };
 }
 
+/**
+ * Convert session expiry timestamp to Date object when needed
+ */
+export function getExpiryDate(expiryTimestamp: number): Date {
+  return new Date(expiryTimestamp);
+}
+
 export default {
   extractUserData,
   calculateSessionExpiry,

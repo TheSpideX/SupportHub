@@ -247,7 +247,7 @@ router.get(
   })
 );
 
-// Add this endpoint for session validation
+// Update the validate-session endpoint to handle missing tokens gracefully
 router.get(
   "/validate-session",
   asyncHandler(async (req, res) => {
@@ -256,7 +256,8 @@ router.get(
       const token = req.cookies[cookieConfig.names.ACCESS_TOKEN];
       
       if (!token) {
-        return res.status(401).json({ 
+        return res.status(200).json({ 
+          success: false,
           valid: false,
           message: 'No authentication token found'
         });
@@ -273,20 +274,24 @@ router.get(
       });
       
       if (!session) {
-        return res.status(401).json({
+        return res.status(200).json({
+          success: false,
           valid: false,
           message: 'Session not found or inactive'
         });
       }
       
-      // Return validation result
+      // Return successful validation
       return res.status(200).json({
+        success: true,
         valid: true,
         userId: decoded.userId,
         sessionId: decoded.sessionId
       });
     } catch (error) {
-      return res.status(401).json({ 
+      // Return invalid but with 200 status for client handling
+      return res.status(200).json({ 
+        success: false,
         valid: false,
         message: 'Invalid or expired token'
       });

@@ -10,7 +10,7 @@ import { Logger } from '@/utils/logger';
 import toast from "react-hot-toast";
 import { useDispatch, useSelector } from 'react-redux';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { RootState } from '@/store/store';
+import { RootState } from '@/store'; // Changed from '@/store/store' to '@/store'
 // Import the services from our centralized auth system
 import { getSecurityService, getTokenService } from '@/features/auth/services';
 

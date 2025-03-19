@@ -161,16 +161,32 @@ export function initAuth(config: Partial<ExtendedAuthInitOptions> = {}): AuthIns
   }
   
   // 10. Return auth instance with public methods
+  // Make sure the auth state is properly initialized
+  authService.initializeAuthState().then(() => {
+    // Dispatch initial state after auth initialization
+    if (mergedConfig.stateManager) {
+      const { dispatch } = mergedConfig.stateManager;
+      const currentState = authService.getAuthState();
+      
+      dispatch(setAuthState({
+        user: currentState.user,
+        isAuthenticated: currentState.isAuthenticated,
+        sessionExpiry: currentState.sessionExpiry,
+        isInitialized: true // Make sure to set this flag
+      }));
+    }
+  });
+
   const authServiceInstance = {
-    initialize: () => authService.initializeAuthState(), // Use the correct method
+    initialize: () => authService.initializeAuthState(),
     login: authService.login.bind(authService),
     logout: authService.logout.bind(authService),
     register: authService.register.bind(authService),
     resetPassword: authService.resetPassword.bind(authService),
     refreshToken: tokenService.refreshToken.bind(tokenService),
-    getAuthState: () => authService.getState(),
-    isAuthenticated: () => authService.getState().isAuthenticated,
-    getCurrentUser: () => authService.getState().user,
+    getAuthState: () => authService.getAuthState(),
+    isAuthenticated: () => authService.getAuthState().isAuthenticated,
+    getCurrentUser: () => authService.getAuthState().user,
     extendSession: sessionService.extendSession.bind(sessionService),
     // Add service properties
     authService,

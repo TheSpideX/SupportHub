@@ -32,14 +32,16 @@ export const AuthGuard = ({
   const { refreshUserData } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   
-  // Add detailed logging
+  // Enhanced logging for component evaluation
   logger.info('AuthGuard evaluation', {
     component: 'AuthGuard',
     isAuthenticated,
     isInitialized,
     isLoading,
     path: location.pathname,
-    requiredPermissions
+    requiredPermissions,
+    state: location.state,
+    search: location.search
   });
   
   // Verify authentication status on mount and when dependencies change
@@ -47,38 +49,76 @@ export const AuthGuard = ({
     const verifyAuth = async () => {
       logger.info('AuthGuard verifyAuth started', { 
         component: 'AuthGuard',
-        isInitialized: isInitialized,
-        isAuthenticated: '[REDACTED]'
+        isInitialized,
+        isAuthenticated,
+        cookies: document.cookie ? 'Cookies present' : 'No cookies',
+        path: location.pathname
       });
       
       try {
         // If not initialized, initialize auth
         if (!isInitialized) {
-          logger.info('Setting auth as initialized', { component: 'AuthGuard' });
+          logger.info('Auth not initialized, initializing now', { component: 'AuthGuard' });
           
           // Check if we have a valid session
+          logger.info('Calling validateSession API', { component: 'AuthGuard' });
           const isValid = await getAuthService().validateSession();
+          logger.info('validateSession result', { 
+            component: 'AuthGuard', 
+            isValid,
+            authServiceState: {
+              isAuthenticated: getAuthService().getAuthState().isAuthenticated,
+              hasUser: !!getAuthService().getAuthState().user
+            }
+          });
           
           // If session is valid but Redux state doesn't reflect it, force update
           if (isValid && !isAuthenticated && getAuthService().getAuthState().isAuthenticated) {
+            logger.info('Session is valid but Redux state is not authenticated, updating state', { 
+              component: 'AuthGuard' 
+            });
+            
             const authState = getAuthService().getAuthState();
+            logger.info('Auth state from service', {
+              component: 'AuthGuard',
+              hasUser: !!authState.user,
+              isAuthenticated: authState.isAuthenticated,
+              hasSessionExpiry: !!authState.sessionExpiry
+            });
+            
             dispatch(setAuthState({
               user: authState.user,
               isAuthenticated: true,
               // Convert Date to timestamp to avoid non-serializable warning
-              sessionExpiry: typeof authState.sessionExpiry === 'object' 
-                ? authState.sessionExpiry.getTime() 
-                : authState.sessionExpiry || Date.now() + (30 * 60 * 1000)
+              sessionExpiry: authState.sessionExpiry != null
+                ? (typeof authState.sessionExpiry === 'object' 
+                  ? authState.sessionExpiry.getTime() 
+                  : authState.sessionExpiry) 
+                : Date.now() + (30 * 60 * 1000)
             }));
+            
+            logger.info('Redux state updated', { component: 'AuthGuard' });
+          } else if (!isValid) {
+            logger.warn('Session validation failed', { 
+              component: 'AuthGuard',
+              isValid
+            });
           }
           
           // Mark as initialized regardless of validation result
+          logger.info('Setting auth as initialized', { component: 'AuthGuard' });
           dispatch(setInitialized(true));
+        } else {
+          logger.info('Auth already initialized', { 
+            component: 'AuthGuard',
+            isAuthenticated
+          });
         }
       } catch (error) {
         logger.error('Error verifying authentication', { 
           component: 'AuthGuard', 
-          error: error instanceof Error ? error.message : 'Unknown error' 
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : 'No stack trace'
         });
         
         // On error, mark as initialized but not authenticated
@@ -86,19 +126,21 @@ export const AuthGuard = ({
         dispatch(clearAuthState());
       } finally {
         // Set loading to false
+        logger.info('Setting isLoading to false', { component: 'AuthGuard' });
         setIsLoading(false);
       }
     };
     
     verifyAuth();
-  }, [dispatch, isInitialized, isAuthenticated]);
+  }, [dispatch, isInitialized, isAuthenticated, location.pathname]);
 
   // Use a better loading component
   if (!isInitialized || (isLoading && isAuthenticated)) {
     logger.info('AuthGuard showing loading screen', {
       component: 'AuthGuard',
       isInitialized,
-      isLoading
+      isLoading,
+      isAuthenticated
     });
     return <LoadingScreen message="Verifying authentication..." />;
   }
@@ -107,7 +149,9 @@ export const AuthGuard = ({
   if (!isAuthenticated) {
     logger.info('AuthGuard redirecting to login', {
       component: 'AuthGuard',
-      from: location.pathname
+      from: location.pathname,
+      isInitialized,
+      isLoading
     });
     return <Navigate to={APP_ROUTES.AUTH.LOGIN} state={{ from: location }} replace />;
   }
@@ -124,7 +168,9 @@ export const AuthGuard = ({
   
   logger.info('AuthGuard rendering protected content', {
     component: 'AuthGuard',
-    path: location.pathname
+    path: location.pathname,
+    isAuthenticated,
+    isInitialized
   });
   return <>{children}</>;
 };

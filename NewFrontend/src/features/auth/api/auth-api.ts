@@ -23,20 +23,36 @@ export const authApi = {
   // Session-related API calls
   validateSession: async () => {
     try {
+      console.log('Calling validate-session API endpoint');
       const response = await apiClient.get('/api/auth/validate-session', {
         withCredentials: true
       });
       
+      console.log('validate-session API response:', response.status, response.data);
+      
+      // Return the data regardless of success/failure
+      // The caller will handle the valid/invalid state
       return response.data;
     } catch (error) {
       console.error('Session validation API error:', error);
       
       // Format error response
       if (error.response && error.response.data) {
-        throw error.response.data;
+        console.error('Error response data:', error.response.data);
+        // Return the error data for handling
+        return {
+          success: false,
+          valid: false,
+          message: error.response.data.message || 'Session validation failed'
+        };
       }
       
-      throw error;
+      // Return a generic error response
+      return {
+        success: false,
+        valid: false,
+        message: 'Session validation failed'
+      };
     }
   },
   
