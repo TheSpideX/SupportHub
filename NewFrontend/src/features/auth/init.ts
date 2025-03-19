@@ -84,16 +84,20 @@ export function initAuth(config: Partial<ExtendedAuthInitOptions> = {}): AuthIns
   });
   
   // 3. Initialize services
-  const sessionService = new SessionService({
-    sessionTimeout: mergedConfig.sessionTimeout
-  }, tokenService, null); // Fixed constructor arguments
-  
   const securityService = new SecurityService({
     apiBaseUrl: mergedConfig.apiUrl,
     securityLevel: mergedConfig.securityLevel,
     enableFingerprinting: true
   }, tokenService);
-  
+
+  const sessionService = new SessionService(
+    tokenService,
+    securityService,
+    {
+      sessionTimeout: mergedConfig.sessionTimeout
+    }
+  );
+
   const authService = new AuthService({
     apiBaseUrl: mergedConfig.apiUrl,
     // Remove errorHandling or update the AuthServiceConfig type to include it

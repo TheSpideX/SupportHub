@@ -3,6 +3,16 @@
  * Based on the auth-system-architecture using HTTP-only cookies
  */
 
+// Extend Window interface to include securityService
+declare global {
+  interface Window {
+    securityService?: {
+      getDeviceFingerprint: () => Promise<string>;
+      [key: string]: any;
+    };
+  }
+}
+
 // User types
 export interface User {
   id: string;
@@ -76,6 +86,7 @@ export interface SessionData {
     os: string;
     deviceType: string;
   };
+  id: string;
   securityContext?: SecurityContext;
   metadata?: {
     sessionId?: string;

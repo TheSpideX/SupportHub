@@ -310,65 +310,102 @@ export class AuthService {
   /**
    * Login user with credentials
    */
-  public async login(credentials: LoginCredentials): Promise<User | boolean> {
+  public async login(credentials: LoginCredentials): Promise<boolean> {
     try {
-      this.updateAuthState({ isLoading: true, error: null });
-      
-      // Use apiClient directly instead of authApi
-      const response = await apiClient.post(
-        `${this.config.apiBaseUrl}${this.config.loginEndpoint}`,
-        credentials
-      );
-      
-      if (response.data.success) {
-        // Set CSRF token if provided
-        if (response.data.data?.csrfToken) {
-          this.tokenService.setCsrfToken(response.data.data.csrfToken);
-        }
-        
-        // Store session info if provided
-        if (response.data.data?.session?.expiresAt) {
-          const sessionExpiry = new Date(response.data.data.session.expiresAt).getTime();
-          // Store in local state or localStorage
-          localStorage.setItem('sessionExpiry', sessionExpiry.toString());
-        }
-        
-        // Now fetch user data separately
-        const userData = await this.fetchUserData();
-        
-        if (userData) {
-          // Update auth state with fetched user data
-          this.updateAuthState({
-            isAuthenticated: true,
-            isLoading: false,
-            user: userData,
-            error: null,
-            sessionExpiry: localStorage.getItem('sessionExpiry') 
-              ? parseInt(localStorage.getItem('sessionExpiry') || '0', 10) 
-              : undefined,
-            twoFactorRequired: false,
-            emailVerificationRequired: userData.emailVerified === false
-          });
-          
-          // Trigger login success event
-          this.dispatchEvent('LOGIN_SUCCESS', { userId: userData.id });
-          
-          return userData;
-        } else {
-          throw new Error('Failed to fetch user data after login');
-        }
-      } else {
-        throw new Error('Login failed: Invalid response format');
-      }
-    } catch (error) {
       this.updateAuthState({
-        isLoading: false,
-        error: createAuthError('LOGIN_FAILED', error)
+        isLoading: true,
+        error: null
       });
       
-      logger.error('Login failed:', error);
-      return false;
+      logger.info('Attempting login');
+      
+      // Get device fingerprint for security
+      const fingerprint = await this.securityService.getDeviceFingerprint();
+      
+      // Create device info object
+      const deviceInfo = {
+        fingerprint,
+        userAgent: navigator.userAgent,
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        location: {}
+      };
+      
+      // Make login request with credentials and device info
+      const response = await authApi.login({
+        ...credentials,
+        deviceInfo
+      });
+      
+      logger.debug('Login response received', {
+        success: response.success,
+        hasUser: !!response.data?.user,
+        hasSession: !!response.data?.session
+      });
+      
+      if (response.success && response.data) {
+        // Set CSRF token if provided
+        if (response.data.csrfToken) {
+          this.tokenService.setCsrfToken(response.data.csrfToken);
+        }
+        
+        // Update auth state with user data
+        this.updateAuthState({
+          isAuthenticated: true,
+          user: response.data.user,
+          isLoading: false,
+          error: null
+        });
+        
+        // Start session tracking with robust error handling
+        try {
+          logger.info('Starting session tracking');
+          await this.sessionService.startSessionTracking();
+        } catch (sessionError) {
+          logger.error('Error starting session tracking, but continuing login process', sessionError);
+          // Continue with login even if session tracking fails
+        }
+        
+        logger.info('Login successful');
+        return true;
+      } else {
+        // Handle unsuccessful login
+        this.updateAuthState({
+          isAuthenticated: false,
+          user: null,
+          isLoading: false,
+          error: response.message || 'Login failed'
+        });
+        
+        return false;
+      }
+    } catch (error) {
+      // Handle login error
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during login';
+      
+      logger.error('Login failed', error);
+      
+      this.updateAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        isInitialized: true,
+        user: null,
+        error: createAuthError(AUTH_ERROR_CODES.INITIALIZATION_FAILED, 'Error initializing auth state')
+      });
+      
+      throw error;
     }
+  }
+
+  /**
+   * Calculate default session expiry based on remember me setting
+   */
+  private calculateDefaultExpiry(rememberMe?: boolean): number {
+    const now = Date.now();
+    // Use the same duration as backend (from security.config.js)
+    return rememberMe 
+      ? now + (7 * 24 * 60 * 60 * 1000) // 7 days for remember me
+      : now + (24 * 60 * 60 * 1000);    // 24 hours for regular session
   }
 
   /**

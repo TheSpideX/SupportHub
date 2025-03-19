@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_CONFIG } from '@/config/api';
+import { logger } from '@/utils/logger';
 
 // Update API client configuration to include credentials
 const apiClient = axios.create({
@@ -41,14 +42,40 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
-        // Attempt to refresh the token
-        await apiClient.post('/api/auth/refresh', {}, { withCredentials: true });
+        logger.debug('Token expired, attempting refresh');
         
-        // Retry the original request
-        return apiClient(originalRequest);
+        // Attempt to refresh the token
+        const refreshResponse = await apiClient.post('/api/auth/refresh', {}, { 
+          withCredentials: true,
+          // Add headers to help with CSRF protection
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        });
+        
+        // Check if refresh was successful
+        if (refreshResponse.status === 200) {
+          logger.debug('Token refresh successful');
+          
+          // If CSRF token is in the response, update it
+          if (refreshResponse.data?.csrfToken) {
+            // Update CSRF token in storage or state
+            if (window.tokenService && typeof window.tokenService.setCsrfToken === 'function') {
+              window.tokenService.setCsrfToken(refreshResponse.data.csrfToken);
+            }
+          }
+          
+          // Retry the original request
+          return apiClient(originalRequest);
+        }
       } catch (refreshError) {
+        logger.error('Token refresh failed', refreshError);
+        
         // If refresh fails, redirect to login
-        window.location.href = '/login';
+        // But first, check if we're already on the login page to avoid redirect loops
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login?session=expired';
+        }
         return Promise.reject(refreshError);
       }
     }

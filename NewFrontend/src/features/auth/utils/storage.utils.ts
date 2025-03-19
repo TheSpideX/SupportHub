@@ -290,7 +290,12 @@ export function setSessionMetadata(data: SessionData): boolean {
 export function hasAuthTokens(): boolean {
   // Check for the existence flag cookie that indicates token presence
   // This is the recommended approach for HTTP-only cookies
-  return !!getCookie('auth_token_exists');
+  const tokenExists = !!getCookie('auth_token_exists');
+  
+  // Log the token existence check result for debugging
+  logger.debug(`Auth token existence check: ${tokenExists}`);
+  
+  return tokenExists;
 }
 
 /**

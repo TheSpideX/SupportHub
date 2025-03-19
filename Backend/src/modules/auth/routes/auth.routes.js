@@ -180,12 +180,9 @@ router.get('/test-cookie', (req, res) => {
 // Add the auth status endpoint
 router.get('/status', authMiddleware.optionalAuth, authController.getAuthStatus);
 
-// Session sync route - fix this route that's causing the Promise error
-router.post(
-    '/session/sync',
-    authMiddleware.authenticateToken, // Don't wrap with asyncHandler
-    asyncHandler(authController.syncSession)
-);
+// Session sync endpoint
+router.post('/session/sync', authMiddleware.authenticate, authController.syncSession);
+router.head('/session/sync', (req, res) => res.status(200).end()); // Simple HEAD endpoint for checking existence
 
 // Fix any other routes that might be using asyncHandler incorrectly
 // For example:
@@ -310,6 +307,111 @@ router.get(
     }
   })
 );
+
+/**
+ * Validate authentication tokens
+ * @route GET /api/auth/validate
+ */
+router.get('/validate', authMiddleware.authenticateToken, (req, res) => {
+  // If we reach here, the token is valid (authenticateToken middleware passed)
+  return res.status(200).json({
+    success: true,
+    valid: true,
+    data: {
+      userId: req.user.id,
+      // Return minimal user data
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        role: req.user.role
+      }
+    }
+  });
+});
+
+/**
+ * Refresh access token
+ * @route POST /api/auth/refresh
+ */
+router.post('/refresh', async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies?.refresh_token;
+    
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'REFRESH_TOKEN_REQUIRED',
+          message: 'Refresh token is required'
+        }
+      });
+    }
+    
+    // Verify refresh token and generate new access token
+    const tokenService = new TokenService();
+    const result = await tokenService.refreshAccessToken(refreshToken);
+    
+    // Set new access token as HTTP-only cookie
+    res.cookie('access_token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      maxAge: securityConfig.session.accessTokenExpiry * 1000
+    });
+    
+    // Generate new CSRF token
+    const csrfToken = csrfUtils.generateToken();
+    res.cookie('csrf_token', csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 1 day
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Access token refreshed successfully',
+      csrfToken: csrfToken
+    });
+  } catch (error) {
+    logger.error('Token refresh failed', {
+      component: COMPONENT,
+      error: error.message
+    });
+    
+    // Clear all auth cookies on refresh failure
+    res.clearCookie('access_token');
+    res.clearCookie('refresh_token');
+    res.clearCookie('csrf_token');
+    res.clearCookie('auth_token_exists');
+    
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'REFRESH_FAILED',
+        message: 'Failed to refresh token'
+      }
+    });
+  }
+});
+
+/**
+ * Logout user
+ * @route POST /api/auth/logout
+ */
+router.post('/logout', (req, res) => {
+  // Clear all auth cookies
+  res.clearCookie('access_token');
+  res.clearCookie('refresh_token');
+  res.clearCookie('csrf_token');
+  res.clearCookie('auth_token_exists');
+  
+  return res.status(200).json({
+    success: true,
+    message: 'Logged out successfully'
+  });
+});
 
 // Make sure the router is properly exported at the end of the file
 module.exports = router;

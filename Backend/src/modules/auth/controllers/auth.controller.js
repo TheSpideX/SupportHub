@@ -314,45 +314,42 @@ exports.getAuthStatus = async (req, res) => {
 };
 
 /**
- * Sync session with frontend
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
+ * Sync session with server
  */
 exports.syncSession = async (req, res, next) => {
-    const requestStartTime = Date.now();
-    const COMPONENT = 'AuthController.syncSession';
+  const requestStartTime = Date.now();
+  const COMPONENT = 'auth.controller.syncSession';
+  
+  try {
+    const { sessionId, lastActivity, metrics, deviceInfo } = req.body;
     
-    try {
-        const { sessionId, lastActivity, metrics, deviceInfo } = req.body;
-        
-        // If user is authenticated, use their session
-        if (req.user) {
-            const result = await authService.syncSession({
-                sessionId: sessionId || req.decodedToken?.sessionId,
-                lastActivity,
-                metrics,
-                deviceInfo
-            });
-            
-            return res.json({
-                status: result.status,
-                expiresAt: result.expiresAt
-            });
-        }
-        
-        // For unauthenticated requests, return a generic response
-        return res.json({
-            status: 'valid',
-            expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutes from now
-        });
-    } catch (error) {
-        logger.error("Session sync failed", {
-            component: COMPONENT,
-            error: error.message,
-            responseTime: Date.now() - requestStartTime
-        });
-        
-        next(error);
+    // If user is authenticated, use their session
+    if (req.user) {
+      const result = await authService.syncSession({
+        sessionId: sessionId || req.decodedToken?.sessionId,
+        lastActivity,
+        metrics,
+        deviceInfo
+      });
+      
+      return res.json({
+        status: result.status,
+        expiresAt: result.expiresAt
+      });
     }
+    
+    // For unauthenticated requests, return a generic response
+    return res.json({
+      status: 'valid',
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutes from now
+    });
+  } catch (error) {
+    logger.error("Session sync failed", {
+      component: COMPONENT,
+      error: error.message,
+      responseTime: Date.now() - requestStartTime
+    });
+    
+    next(error);
+  }
 };

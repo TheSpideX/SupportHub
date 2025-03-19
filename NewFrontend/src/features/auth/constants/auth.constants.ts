@@ -82,7 +82,7 @@ export const AUTH_CONSTANTS = {
   // CSRF protection settings
   CSRF: {
     HEADER_NAME: 'X-CSRF-Token',
-    COOKIE_NAME: 'XSRF-TOKEN',
+    COOKIE_NAME: 'csrf_token', // Changed from 'XSRF-TOKEN' to match backend
     METHODS_REQUIRING_TOKEN: ['POST', 'PUT', 'PATCH', 'DELETE'],
   },
   

@@ -567,4 +567,31 @@ export class SecurityService {
     await this.generateDeviceFingerprint();
     return this.deviceFingerprint || 'unknown-device';
   }
+
+  /**
+   * Get device information for security purposes
+   * @returns Device information object
+   */
+  public async getDeviceInfo(): Promise<any> {
+    try {
+      // Collect basic device information
+      const deviceInfo = {
+        fingerprint: await this.generateDeviceFingerprint(),
+        userAgent: navigator.userAgent,
+        screenResolution: `${window.screen.width}x${window.screen.height}`,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        language: navigator.language,
+        platform: navigator.platform
+      };
+      
+      return deviceInfo;
+    } catch (error) {
+      logger.error('Error getting device info:', error);
+      // Return basic info if detailed collection fails
+      return {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform
+      };
+    }
+  }
 }

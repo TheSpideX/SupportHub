@@ -30,6 +30,7 @@ import {
   AUTH_ERROR_CODES,
   TokenRefreshQueueItem
 } from '../types/auth.types';
+import { apiClient } from '@/api/apiClient';
 
 // Constants
 const ACCESS_TOKEN_COOKIE = 'auth_access_token';
@@ -999,37 +1000,46 @@ export class TokenService {
   }
 
   /**
-   * Validate tokens
-   * Checks if the current tokens are valid and not expired
+   * Validate tokens and check if they're still valid
    */
-  public validateTokens(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
-      try {
-        // For HTTP-only cookies, we need to make a server request to validate
-        // since we can't directly access the token content
-        fetch(`${this.config.apiBaseUrl}/auth/validate`, {
-          method: 'GET',
-          credentials: 'include', // Important for cookies
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-        .then(response => {
-          if (response.ok) {
-            resolve(true);
-          } else {
-            reject(new Error('Invalid or expired tokens'));
-          }
-        })
-        .catch(error => {
-          logger.error('Token validation failed', error);
-          reject(error);
-        });
-      } catch (error) {
-        logger.error('Error validating tokens', error);
-        reject(error);
+  public async validateTokens(): Promise<boolean> {
+    try {
+      logger.debug('Validating authentication tokens');
+      
+      // First check if tokens exist
+      if (!this.hasTokens()) {
+        logger.debug('No tokens found during validation');
+        return false;
       }
-    });
+      
+      // For HTTP-only cookies, we need to make a validation request to the server
+      // since we can't directly access the token content
+      const response = await apiClient.get('/api/auth/validate', {
+        withCredentials: true,
+        headers: {
+          'X-CSRF-Token': this.getCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      
+      const isValid = response.data?.valid === true;
+      logger.debug(`Token validation result: ${isValid}`);
+      
+      if (isValid) {
+        // Update the token existence cookie to extend its lifetime
+        setCookie('auth_token_exists', 'true', {
+          path: '/',
+          secure: true,
+          sameSite: 'strict',
+          maxAge: 30 * 24 * 60 * 60 // 30 days
+        });
+      }
+      
+      return isValid;
+    } catch (error) {
+      logger.error('Token validation failed', error);
+      return false;
+    }
   }
 
   /**

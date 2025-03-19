@@ -8,6 +8,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clearAuthState, setInitialized } from "@/features/auth/store";
 import { useEffect } from "react";
 import LoadingScreen from "@/components/shared/LoadingScreen";
+import { logger } from '@/utils/logger';
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -28,6 +29,15 @@ export const AuthGuard = ({
   const { hasAllPermissions } = usePermissions();
   const { refreshUserData } = useAuth();
   
+  // Add debug logging
+  useEffect(() => {
+    logger.debug('AuthGuard state:', { 
+      isAuthenticated, 
+      isLoading, 
+      location: location.pathname 
+    });
+  }, [isAuthenticated, isLoading, location]);
+  
   // Verify auth status on mount
   useEffect(() => {
     const verifyAuth = async () => {
@@ -38,17 +48,18 @@ export const AuthGuard = ({
         }
         
         if (isAuthenticated) {
-          // Check with server if we're actually authenticated
-          const isValid = await refreshUserData();
-          
-          // If server says we're not authenticated but our state thinks we are,
-          // clear the auth state to fix the inconsistency
-          if (!isValid) {
-            dispatch(clearAuthState());
-            // Redirect will happen automatically due to !isAuthenticated
+          logger.debug('User is authenticated, proceeding to protected route');
+          // We're already authenticated, so we can proceed
+          // Optional: Check with server if we're actually authenticated
+          try {
+            await refreshUserData();
+          } catch (refreshError) {
+            logger.warn('Failed to refresh user data, but continuing', refreshError);
+            // Continue anyway since we're already authenticated
           }
         }
       } catch (error) {
+        logger.error('Auth verification failed', error);
         // On any error, assume we're not authenticated
         if (isAuthenticated) {
           dispatch(clearAuthState());

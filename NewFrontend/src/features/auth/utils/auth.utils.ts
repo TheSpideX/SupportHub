@@ -277,23 +277,26 @@ export async function withRetry<T>(
  * @returns Standardized auth error
  */
 export function createAuthError(
-  code: keyof typeof AUTH_ERROR_CODES,
+  code: keyof typeof AUTH_ERROR_CODES | string,
   message: string,
   originalError?: any
 ): AuthError {
+  // Handle both string literals and enum keys
+  const errorCode = typeof code === 'string' && AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES] 
+    ? AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES]
+    : code;
+  
   const error: AuthError = {
-    code: AUTH_ERROR_CODES[code],
+    code: errorCode as string,
     message
-    // Remove timestamp as it's not in the AuthError type
   };
   
-  // Use type assertion if you need to add properties not in the type
-  // or update your AuthError type definition to include these properties
+  // Add original error if provided
   if (originalError) {
     (error as any).originalError = originalError;
   }
   
-  logger.error(`Auth error: ${message}`, { code: error.code, originalError });
+  logger.error(`Auth error: ${message}`, { code: error.code, error: originalError });
   
   return error;
 }

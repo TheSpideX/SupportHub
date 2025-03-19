@@ -58,22 +58,29 @@ export class SessionService {
   private securityService: SecurityService;
   private sessionData: SessionData | null = null;
   private sessionStatus: SessionStatus = 'inactive';
-  private inactivityTimer: number | null = null;
-  private warningTimer: number | null = null;
-  private syncTimer: number | null = null;
+  private inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+  private warningTimer: ReturnType<typeof setTimeout> | null = null;
+  private syncTimer: ReturnType<typeof setTimeout> | null = null;
   private broadcastChannel: BroadcastChannel | null = null;
   private sessionListeners: Array<(status: SessionStatus, data?: SessionData) => void> = [];
   private boundActivityHandler: () => void;
+  private sessionInterval: ReturnType<typeof setInterval> | null = null;
+  private syncInterval: number;
+  private isAuthenticated: boolean = false;
+  private api: any; // Using any for now, should be properly typed
+  private lastActivity: number = Date.now();
 
   constructor(
-    config: Partial<SessionServiceConfig> = {},
     tokenService: TokenService,
-    securityService: SecurityService
+    securityService: SecurityService,
+    config: Partial<SessionServiceConfig> = {}
   ) {
-    this.config = { ...defaultConfig, ...config };
     this.tokenService = tokenService;
     this.securityService = securityService;
+    this.config = { ...defaultConfig, ...config };
+    this.syncInterval = this.config.syncInterval;
     this.boundActivityHandler = this.handleUserActivity.bind(this);
+    this.api = apiClient; // Assuming apiClient is imported
     
     // Initialize cross-tab communication if enabled
     if (this.config.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
@@ -118,81 +125,64 @@ export class SessionService {
   }
 
   /**
-   * Start tracking the user's session
+   * Create a default session when none exists
    */
-  public startSessionTracking(): void {
-    if (this.sessionStatus !== 'inactive') {
-      return; // Already tracking
-    }
+  private createDefaultSession(): void {
+    logger.debug('Creating default session');
+    
+    const defaultExpiry = new Date();
+    defaultExpiry.setHours(defaultExpiry.getHours() + 24); // Default 24 hour session
+    
+    const sessionData: SessionData = {
+      id: `session-${Date.now()}`,
+      expiresAt: defaultExpiry.getTime(), // Changed to number instead of string
+      lastActivity: Date.now(),
+      userId: '',
+      createdAt: Date.now(),
+      deviceInfo: {
+        browser: '',
+        os: '',
+        deviceType: ''
+      }
+    };
+    
+    this.sessionData = sessionData;
+    this.saveSessionToStorage(sessionData);
+    
+    logger.debug('Default session created', { id: sessionData.id });
+  }
 
+  /**
+   * Start tracking the user session
+   */
+  public startSessionTracking(): boolean {
     try {
-      // Get existing session data or create new
-      const existingData = getSessionMetadata();
+      logger.info('Starting session tracking');
       
-      if (existingData) {
-        this.sessionData = existingData;
+      // Get session data from storage
+      const sessionData = this.getSessionData();
+      
+      if (!sessionData) {
+        logger.warn('No session data available, creating default session');
+        this.createDefaultSession();
       } else {
-        // With HTTP-only cookies, we can't directly access the token
-        // Instead, we'll create a basic session data object
-        this.sessionData = {
-          userId: 'anonymous', // Will be updated when user logs in
-          createdAt: Date.now(), // Using timestamp instead of Date object
-          lastActivity: Date.now(), // Using timestamp instead of Date object
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours from now
-          deviceInfo: {
-            browser: this.getBrowserInfo(),
-            os: this.getOSInfo(),
-            deviceType: this.getDeviceType()
-          },
-          securityContext: {
-            id: 'temp-security-id',
-            userId: 'anonymous',
-            createdAt: Date.now(),
-            lastVerified: Date.now(),
-            deviceFingerprint: '',
-            userAgent: navigator.userAgent,
-            trustLevel: 'medium'
-          },
-          metadata: {
-            sessionId: 'temp-session-id'
-          }
-        };
-        
-        // Create security context for new session
-        createSecurityContext().then(securityContext => {
-          if (this.sessionData) {
-            this.sessionData.securityContext = securityContext;
-            setSessionMetadata(this.sessionData);
-          }
-        });
+        logger.debug('Retrieved existing session data', sessionData);
+        this.sessionData = sessionData;
       }
       
-      if (this.sessionData) {
-        // Update session status
-        this.sessionStatus = 'active';
-        this.notifyListeners();
-        
-        // Start inactivity timer
-        this.startInactivityTimer();
-        
-        // Start warning timer
-        this.startWarningTimer();
-        
-        // Start sync timer
-        this.startSyncTimer();
-        
-        // Add activity listeners
-        this.addActivityListeners();
-        
-        // Sync with server
-        this.syncSessionWithServer();
-        
-        logger.info('Session tracking started');
-      } else {
-        logger.error('Failed to start session tracking: No session data');
-      }
+      // Set up activity tracking
+      this.setupActivityTracking();
+      
+      // Set up session expiry check
+      this.setupExpiryCheck();
+      
+      // Sync with server
+      this.syncSession();
+      
+      return true;
     } catch (error) {
-      logger.error('Failed to start session tracking:', error);
+      logger.error('Failed to start session tracking', error);
+      return false;
     }
   }
 
@@ -200,6 +190,8 @@ export class SessionService {
    * Stop tracking the user's session
    */
   public stopSessionTracking(notifyExpired: boolean = true): void {
+    logger.info('Stopping session tracking', { notifyExpired });
+    
     try {
       // Clear timers
       if (this.inactivityTimer) {
@@ -300,7 +292,7 @@ export class SessionService {
     }
     
     // Set new timer
-    this.inactivityTimer = window.setTimeout(() => {
+    this.inactivityTimer = setTimeout(() => {
       // Check if session is still valid before expiring
       if (this.sessionData && this.getAccessToken()) {
         this.handleSessionExpired();
@@ -308,7 +300,7 @@ export class SessionService {
         // If no access token, stop tracking silently
         this.stopSessionTracking(false);
       }
-    }, this.config.sessionTimeout);
+    }, this.config.sessionTimeout) as unknown as ReturnType<typeof setTimeout>;
   }
 
   /**
@@ -320,24 +312,11 @@ export class SessionService {
       window.clearTimeout(this.warningTimer);
     }
     
-    // Calculate time until warning
-    const timeUntilExpiry = this.getTimeUntilExpiry();
-    const timeUntilWarning = timeUntilExpiry - this.config.sessionWarningThreshold;
-    
-    if (timeUntilWarning <= 0) {
-      // Already in warning period
-      if (timeUntilExpiry > 0) {
-        this.sessionStatus = 'warning';
-        this.notifyListeners();
-      }
-      return;
-    }
-    
     // Set new timer
-    this.warningTimer = window.setTimeout(() => {
+    this.warningTimer = setTimeout(() => {
       this.sessionStatus = 'warning';
       this.notifyListeners();
-    }, timeUntilWarning);
+    }, this.config.sessionTimeout - this.config.sessionWarningThreshold) as unknown as ReturnType<typeof setTimeout>;
   }
 
   /**
@@ -350,11 +329,11 @@ export class SessionService {
     }
     
     // Set new timer
-    this.syncTimer = window.setTimeout(() => {
-      this.syncSessionWithServer();
+    this.syncTimer = setTimeout(() => {
+      this.syncWithServer();
       // Restart sync timer
       this.startSyncTimer();
-    }, this.config.syncInterval);
+    }, this.config.syncInterval) as unknown as ReturnType<typeof setTimeout>;
   }
 
   /**
@@ -411,64 +390,84 @@ export class SessionService {
   /**
    * Sync session with server
    */
-  private async syncSessionWithServer(): Promise<void> {
-    if (!this.sessionData || !navigator.onLine) {
+  public async syncWithServer(): Promise<void> {
+    logger.debug('Syncing session with server');
+    
+    if (!this.sessionData) {
+      logger.warn('No session data available for sync');
+      return;
+    }
+    
+    const accessToken = this.getAccessToken();
+    if (!accessToken) {
+      logger.warn('No access token available for session sync');
       return;
     }
     
     try {
-      // First check if the endpoint exists to avoid 404 errors
-      const endpointExists = await this.checkEndpointExists(`${this.config.apiBaseUrl}/auth/session/sync`);
+      logger.debug('Preparing session sync data', { 
+        sessionId: this.sessionData.id,
+        hasLastActivity: !!this.lastActivity
+      });
+      
+      // Check if the endpoint exists before making the full request
+      logger.debug('Checking if session sync endpoint exists');
+      const endpointExists = await this.checkEndpointExists('/api/auth/session/sync');
       
       if (!endpointExists) {
-        // Endpoint doesn't exist, use local session management instead
+        logger.info('Session sync endpoint not available, using local session management');
         this.updateSessionLocally();
         return;
       }
       
-      // Check if the endpoint exists before making the request
-      const response = await apiClient.post('/api/auth/session/sync', {
-        sessionId: this.sessionData.metadata?.sessionId || null,
-        lastActivity: new Date().toISOString(),
-        metrics: this.sessionData.metrics || {},
-        deviceInfo: this.sessionData.deviceInfo
+      logger.debug('Sending session sync request');
+      const response = await this.api.post('/api/auth/session/sync', {
+        sessionId: this.sessionData.id,
+        lastActivity: this.lastActivity,
+        metrics: this.getSessionMetrics(),
+        deviceInfo: await this.securityService.getDeviceInfo()
+      });
+      
+      logger.debug('Session sync response received', { 
+        status: response.status,
+        responseStatus: response.data?.status
       });
       
       if (response.data && response.data.status === 'valid') {
         // Update session expiry time if provided
         if (response.data.expiresAt) {
+          logger.debug('Updating session expiry time', { 
+            expiresAt: response.data.expiresAt
+          });
           this.sessionData.expiresAt = response.data.expiresAt;
           setSessionMetadata(this.sessionData);
         }
         
-        logger.info('Session synced with server');
+        logger.info('Session successfully synced with server');
       } else if (response.data && response.data.status === 'terminated') {
-        this.handleSessionExpired();
         logger.warn(`Session terminated by server: ${response.data.reason}`);
+        this.handleSessionExpired();
+      } else {
+        logger.warn('Unexpected session sync response', { response: response.data });
       }
     } catch (error) {
-      // Handle 404 errors gracefully
-      if (error.response && error.response.status === 404) {
-        logger.info('Session sync endpoint not available, using local session management');
-        this.updateSessionLocally();
-      } else {
-        logger.warn('Session sync failed, continuing with local session management', error);
-      }
+      // Handle errors gracefully
+      logger.warn('Session sync failed, continuing with local session management', { error });
+      this.updateSessionLocally();
     }
   }
 
   /**
    * Check if an endpoint exists
    */
-  private async checkEndpointExists(url: string): Promise<boolean> {
+  private async checkEndpointExists(endpoint: string): Promise<boolean> {
+    logger.debug(`Checking if endpoint exists: ${endpoint}`);
     try {
-      // Use HEAD request to check if endpoint exists without fetching data
-      const response = await fetch(url, {
-        method: 'HEAD',
-        credentials: 'include'
-      });
-      return response.ok;
+      const response = await this.api.options(endpoint);
+      logger.debug(`Endpoint check result: ${response.status}`, { exists: response.status < 400 });
+      return response.status < 400;
     } catch (error) {
+      logger.debug(`Endpoint ${endpoint} does not exist or is not accessible`, { error });
       return false;
     }
   }
@@ -739,14 +738,102 @@ export class SessionService {
     if (userAgent.indexOf("Tablet") > -1) return "Tablet";
     return "Desktop";
   }
+
+  /**
+   * Set up activity tracking
+   */
+  private setupActivityTracking(): void {
+    // Remove any existing listeners
+    this.removeActivityListeners();
+    
+    // Add activity event listeners
+    this.config.activityEvents.forEach(eventType => {
+      window.addEventListener(eventType, this.boundActivityHandler, { passive: true });
+    });
+    
+    logger.debug('Activity tracking set up');
+  }
+
+  /**
+   * Get session metrics for reporting
+   */
+  private getSessionMetrics(): any {
+    // Return basic session metrics
+    return {
+      sessionDuration: this.sessionData ? Date.now() - (this.sessionData.createdAt || 0) : 0,
+      lastActivity: this.lastActivity,
+      // Add other metrics as needed
+    };
+  }
+
+  // Add retry logic for session sync
+  async syncSessionWithRetry(retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await this.syncWithServer();
+        return true;
+      } catch (error) {
+        logger.warn(`Session sync failed (attempt ${i+1}/${retries})`, error);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+      }
+    }
+    logger.error(`Session sync failed after ${retries} attempts`);
+    return false;
+  }
+
+  // Add the missing saveSessionToStorage method
+  private saveSessionToStorage(sessionData: SessionData): void {
+    setSessionMetadata(sessionData);
+  }
+
+  // Add the missing setupExpiryCheck method
+  private setupExpiryCheck(): void {
+    logger.debug('Setting up session expiry check');
+    
+    // Clear any existing interval
+    if (this.sessionInterval) {
+      clearInterval(this.sessionInterval);
+    }
+    
+    // Set up interval to check session expiry
+    this.sessionInterval = setInterval(() => {
+      if (!this.sessionData) return;
+      
+      if (isSessionExpired(this.sessionData)) {
+        this.handleSessionExpired();
+      } else if (this.shouldWarnAboutExpiry()) {
+        this.sessionStatus = 'warning';
+        this.notifyListeners();
+      }
+    }, 60000) as unknown as ReturnType<typeof setInterval>; // Check every minute
+  }
+
+  // Add the missing shouldWarnAboutExpiry method
+  private shouldWarnAboutExpiry(): boolean {
+    if (!this.sessionData) return false;
+    
+    const expiryTime = new Date(this.sessionData.expiresAt).getTime();
+    const warningTime = expiryTime - this.config.sessionWarningThreshold;
+    
+    return Date.now() >= warningTime;
+  }
+
+  // Add the missing syncSession method
+  private syncSession(): Promise<boolean> {
+    return this.syncWithServer()
+      .then(() => true)
+      .catch(error => {
+        logger.error('Session sync failed:', error);
+        return false;
+      });
+  }
 }
 
 // Export a singleton instance
 export const sessionService = new SessionService(
-  undefined,
-  // These will be injected by the auth module
-  {} as TokenService,
-  {} as SecurityService
+  {} as TokenService,  // These will be properly injected by the auth module
+  {} as SecurityService,
+  {}
 );
 
 // Export default for dependency injection in tests

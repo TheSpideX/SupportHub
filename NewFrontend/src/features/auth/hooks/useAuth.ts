@@ -53,42 +53,47 @@ export const useAuth = () => {
   };
 
   /**
-   * Enhanced login function with proper error handling
+   * Login with credentials
    */
-  const login = async (credentials: LoginCredentials) => {
+  const login = async (credentials: LoginCredentials): Promise<boolean> => {
+    dispatch(setLoading(true));
+    dispatch(setError(null));
+    
     try {
-      dispatch(setLoading(true));
+      const result = await authService.login(credentials);
       
-      // authService.login returns a boolean indicating success
-      const loginSuccess = await authService.login(credentials);
-      
-      if (loginSuccess) {
-        // After successful login, fetch user data
-        const userData = await authService.refreshUserData();
-        if (userData) {
-          dispatch(setUser(userData));
-          return userData;
-        }
+      if (!result) {
+        // If login failed, the error should be in the auth state already
+        // set by the AuthService
+        const currentError = error; // Using the error from the hook's state
+        
+        logger.error('Authentication error', { 
+          component: 'useAuth',
+          error: currentError || {}
+        });
+        
+        // Throw the error to be caught by the UI
+        throw currentError || new Error('Login failed');
       }
       
-      // If we get here, login was not successful
-      throw new Error('Login failed');
+      return result;
     } catch (error) {
-      // Log the error
-      logger.error('Authentication error', {
+      logger.error('Authentication error', { 
         component: 'useAuth',
-        error: error
+        error: error || {}
       });
       
-      // Handle the error
-      handleAuthError(error);
+      // Dispatch the error to the store
+      dispatch(setError({
+        code: error.code || 'LOGIN_FAILED',
+        message: error.message || 'Login failed. Please try again.'
+      }));
       
-      // Re-throw to ensure the calling code knows there was an error
       throw error;
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }
 
   // Logout
   const logout = useCallback(async () => {

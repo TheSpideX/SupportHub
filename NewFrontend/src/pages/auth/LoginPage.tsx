@@ -54,15 +54,18 @@ export const LoginPage = () => {
   
   // Handle form submission
   const handleSubmit = async (values: LoginFormData) => {
+    logger.info('Login form submitted', { component: COMPONENT, email: values.email ? '***@***' : 'undefined' });
     setIsSubmitting(true);
     setError(null);
     
     try {
       // Get device fingerprint if available
+      logger.debug('Getting device fingerprint', { component: COMPONENT });
       let fingerprint = deviceInfo || 
         `${navigator.userAgent}|${navigator.language}|${new Date().getTimezoneOffset()}|${window.screen.width}x${window.screen.height}`;
       
       // Add security context to login request
+      logger.debug('Preparing login request with security context', { component: COMPONENT });
       const loginRequest = {
         ...values,
         deviceInfo: {
@@ -75,23 +78,32 @@ export const LoginPage = () => {
       };
       
       // Call login function with enhanced request
-      await login(loginRequest);
+      logger.debug('Calling login function', { component: COMPONENT });
+      const result = await login(loginRequest);
       
-      // If login successful, redirect to dashboard or requested page
-      const redirectTo = location.state?.from?.pathname || '/dashboard';
-      navigate(redirectTo);
-      
-      logger.info('Login successful', { component: COMPONENT });
+      // Check if login was successful
+      if (result) {
+        logger.info('Login successful, navigating to:', { component: COMPONENT, destination: from });
+        // Force navigation with a slight delay to ensure state updates are processed
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 100);
+      } else {
+        // Handle case where login returns false but doesn't throw an error
+        logger.warn('Login returned null without throwing error', { component: COMPONENT });
+        setError('Login failed. Please check your credentials and try again.');
+      }
     } catch (error) {
       // Handle login error
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      setError(errorMessage);
       logger.error('Login failed', { 
         component: COMPONENT, 
         error: errorMessage
       });
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
+      logger.debug('Login form submission completed', { component: COMPONENT });
     }
   };
 
