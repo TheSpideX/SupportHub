@@ -1,0 +1,38 @@
+// Import API configuration
+import { API_CONFIG } from '../../../config/api';
+
+// Default values (for backward compatibility)
+const DEFAULT_SESSION_TIMEOUT_SECONDS = 1800; // 30 minutes
+const DEFAULT_WARNING_THRESHOLD_SECONDS = 300; // 5 minutes
+const DEFAULT_ACTIVITY_CHECK_INTERVAL = 60; // 1 minute
+
+// Get values from existing configs or use defaults
+export const SESSION_TIMEOUT_SECONDS = 
+  (API_CONFIG.AUTH?.SESSION?.TIMEOUT && Math.floor(API_CONFIG.AUTH.SESSION.TIMEOUT / 1000)) || 
+  DEFAULT_SESSION_TIMEOUT_SECONDS;
+
+export const SESSION_WARNING_THRESHOLD_SECONDS = 
+  (API_CONFIG.AUTH?.SESSION?.EXPIRY_THRESHOLD && Math.floor(API_CONFIG.AUTH.SESSION.EXPIRY_THRESHOLD / 1000)) || 
+  DEFAULT_WARNING_THRESHOLD_SECONDS;
+
+// Remove dependency on AUTH_CONSTANTS
+export const SESSION_ACTIVITY_CHECK_INTERVAL_SECONDS = DEFAULT_ACTIVITY_CHECK_INTERVAL;
+
+// Convert to milliseconds for components that need it
+export const SESSION_TIMEOUT_MS = SESSION_TIMEOUT_SECONDS * 1000;
+export const SESSION_WARNING_THRESHOLD_MS = SESSION_WARNING_THRESHOLD_SECONDS * 1000;
+export const SESSION_ACTIVITY_CHECK_INTERVAL_MS = SESSION_ACTIVITY_CHECK_INTERVAL_SECONDS * 1000;
+
+// Activity events that reset the idle timer
+export const SESSION_ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+
+// Export as default for backward compatibility
+export default {
+  SESSION_TIMEOUT_SECONDS,
+  SESSION_WARNING_THRESHOLD_SECONDS,
+  SESSION_ACTIVITY_CHECK_INTERVAL_SECONDS,
+  SESSION_TIMEOUT_MS,
+  SESSION_WARNING_THRESHOLD_MS,
+  SESSION_ACTIVITY_CHECK_INTERVAL_MS,
+  SESSION_ACTIVITY_EVENTS
+};

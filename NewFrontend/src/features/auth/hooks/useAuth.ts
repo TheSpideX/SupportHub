@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import { 
   selectAuthState, 
   selectUser, 
@@ -12,7 +12,6 @@ import {
   clearAuthState,
   setAuthState
 } from '../store';
-// Fix the import to use the getter function instead of direct import
 import { getAuthService } from '../services';
 import { LoginCredentials, RegistrationData, PasswordResetData, User } from '../types/auth.types';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -28,6 +27,8 @@ export const useAuth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [authService] = useState(getAuthService());
+  // Add store reference with proper typing
+  const store = useStore<RootState>();
   // Fix 1: Properly type the state selector
   const authState = useSelector((state: RootState) => state.auth);
 
@@ -85,14 +86,7 @@ export const useAuth = () => {
         return true;
       }
       
-      // If result is false but no error was thrown, it might be due to 2FA requirement
-      const authState = getState().auth;
-      if (authState.pendingTwoFactor) {
-        // Redirect to 2FA verification page
-        navigate('/auth/verify-2fa');
-        return false;
-      }
-      
+      // If login failed but no error was thrown
       return false;
     } catch (error) {
       // Handle authentication error

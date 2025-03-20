@@ -98,6 +98,7 @@ export class TokenService {
   private lastRefreshTime: number | null = null;
   private refreshQueue: Promise<boolean> | null = null;
   private refreshing = false;
+  private authChannel: BroadcastChannel | null = null;
 
   // Add a static instance tracker
   private static instance: TokenService | null = null;
@@ -1044,6 +1045,72 @@ export class TokenService {
       
       this.refreshRetryCount = 0;
       throw error;
+    }
+  }
+
+  /**
+   * Handle session update from another tab
+   */
+  private handleSessionUpdate(payload: any): void {
+    logger.debug('Received session update from another tab', payload);
+    // Update local session state based on the payload
+    // This might involve updating Redux store or other state management
+  }
+
+  /**
+   * Handle token refreshed event from another tab
+   */
+  private handleTokenRefreshed(payload: any): void {
+    logger.debug('Received token refreshed event from another tab', payload);
+    // Update local token state
+    // No need to refresh tokens again since another tab already did it
+    
+    // Emit local event for components that might be listening
+    this.emitTokenRefreshedEvent();
+  }
+
+  /**
+   * Handle logout event from another tab
+   */
+  private handleLogout(): void {
+    logger.debug('Received logout event from another tab');
+    // Clear local tokens and state
+    this.clearTokens();
+    
+    // Redirect to login page if needed
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+  }
+
+  /**
+   * Notify refresh listeners about token refresh
+   */
+  private notifyRefreshListeners(sessionData: any): void {
+    logger.debug('Notifying token refresh listeners', { sessionData });
+    
+    // Update local storage with session metadata if needed
+    if (sessionData) {
+      try {
+        localStorage.setItem('auth_token_metadata', JSON.stringify({
+          accessTokenExpiry: sessionData.expiresAt,
+          refreshTokenExpiry: sessionData.refreshExpiresAt,
+          lastRefresh: Date.now()
+        }));
+      } catch (error) {
+        logger.warn('Failed to update token metadata in storage', error);
+      }
+    }
+    
+    // Emit token refreshed event
+    this.emitTokenRefreshedEvent();
+    
+    // Notify other tabs if cross-tab communication is enabled
+    if (this.authChannel) {
+      this.authChannel.postMessage({
+        type: 'TOKEN_REFRESHED',
+        payload: { timestamp: Date.now() }
+      });
     }
   }
 }

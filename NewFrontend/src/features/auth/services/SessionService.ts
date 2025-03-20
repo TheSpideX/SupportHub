@@ -1068,7 +1068,8 @@ export class SessionService {
     }
     
     try {
-      await authApi.updateSessionActivity(this.sessionId);
+      // Remove the sessionId parameter since the API doesn't expect it
+      await authApi.updateSessionActivity();
       logger.debug('Session activity updated');
     } catch (error) {
       logger.error('Failed to update session activity', { error });

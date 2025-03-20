@@ -2,6 +2,7 @@ import axios, { AxiosResponse } from 'axios';
 import { API_CONFIG } from '@/config/api';
 import { SecurityContext, SessionData, UserRole } from '../types/auth.types';
 import { apiClient } from '@/api/apiClient';
+import { tokenService } from '../services/TokenService';
 
 // Helper function to convert string role to UserRole enum
 const mapStringToUserRole = (role: string): UserRole => {
@@ -267,7 +268,7 @@ export const authApi = {
   // Add method to get active sessions
   getActiveSessions: async () => {
     try {
-      const csrfToken = window.tokenService?.getCsrfToken() || 
+      const csrfToken = tokenService.getCsrfToken() || 
                         localStorage.getItem('csrf_token') || '';
       
       const response = await apiInstance.get('/api/auth/session/active', {
@@ -293,7 +294,7 @@ export const authApi = {
   }) => {
     try {
       // Get CSRF token from storage or service
-      const csrfToken = window.tokenService?.getCsrfToken() || 
+      const csrfToken = tokenService.getCsrfToken() || 
                         localStorage.getItem('csrf_token') || '';
       
       const response = await apiInstance.post('/api/auth/session/sync', data, {
@@ -335,7 +336,7 @@ export const authApi = {
   // Add method to acknowledge session warnings
   acknowledgeWarning: async (warningType: 'IDLE' | 'ABSOLUTE' | 'SECURITY') => {
     try {
-      const csrfToken = window.tokenService?.getCsrfToken() || 
+      const csrfToken = tokenService.getCsrfToken() || 
                         localStorage.getItem('csrf_token') || '';
       
       const response = await apiInstance.post('/api/auth/session/acknowledge-warning', 
