@@ -106,7 +106,7 @@ apiInstance.interceptors.response.use(
           return apiInstance(originalRequest);
         } catch (queueError) {
           // If refresh failed, redirect to login
-          window.location.href = '/auth/login'; // or use the correct route constant
+          window.location.href = '/login'; // Updated from '/auth/login'
           return Promise.reject(queueError);
         }
       }

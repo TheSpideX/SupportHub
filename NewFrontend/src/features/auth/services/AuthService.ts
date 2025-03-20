@@ -847,6 +847,9 @@ export class AuthService {
       error: createAuthError('SECURITY_VIOLATION', 'A security violation was detected. Please log in again.')
     });
     
+    // Redirect to login page
+    window.location.href = '/login';
+    
     // Trigger security violation event
     this.dispatchEvent(AUTH_CONSTANTS.EVENTS.SECURITY_VIOLATION, { type: violationType, details });
   }

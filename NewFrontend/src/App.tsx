@@ -55,20 +55,15 @@ const routes = [
         element: <Navigate to="/login" replace />,
       },
       {
-        path: '',
-        children: [
-          {
-            path: "login",
-            element: <LoginPage />,
-          },
-          {
-            path: "register",
-            element: <RegisterPage />,
-          },
-        ],
+        path: 'login',
+        element: <LoginPage />,
       },
       {
-        path: "dashboard",
+        path: 'register',
+        element: <RegisterPage />,
+      },
+      {
+        path: 'dashboard',
         element: (
           <AuthGuard>
             <DashboardPage />

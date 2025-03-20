@@ -141,7 +141,7 @@ class AuthErrorHandler {
           recovery: {
             action: 'REAUTHENTICATE',
             notification: true,
-            redirectUrl: '/auth/login'
+            redirectUrl: '/login' // Updated from '/auth/login'
           }
         };
         

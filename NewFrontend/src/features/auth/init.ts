@@ -5,6 +5,7 @@ import { SecurityService } from './services/SecurityService';
 import { setAuthState, clearAuthState } from './store/authSlice';
 import { AuthInitOptions, SecurityLevel, ErrorHandlingConfig } from './types/auth.types';
 import { logger } from '@/utils/logger';
+import { AUTH_CONSTANTS } from './constants/auth.constants';
 
 // Define AuthInstance interface
 interface AuthInstance {
@@ -211,3 +212,15 @@ export function isAuthInitialized(): boolean {
 export function getAuthInstance(): AuthInstance | null {
   return authInstance;
 }
+
+export const handleAuthFailure = (error) => {
+  console.error('Auth initialization failed:', error);
+  
+  // Clear any existing tokens
+  tokenService.clearTokens();
+  
+  // Redirect to login page with the correct path
+  window.location.href = '/login'; // Update from AUTH_CONSTANTS.ROUTES.LOGIN if it was '/auth/login'
+  
+  return false;
+};

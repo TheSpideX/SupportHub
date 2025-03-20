@@ -51,7 +51,7 @@ export const useAuth = () => {
         error?.code === 'AUTHENTICATION_ERROR') {
       dispatch(clearAuthState());
       
-      // Redirect to login on auth errors
+      // Redirect to login on auth errors - use correct path
       navigate('/login', { replace: true });
     }
     
