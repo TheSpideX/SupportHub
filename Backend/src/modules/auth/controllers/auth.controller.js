@@ -212,88 +212,68 @@ exports.verifyTwoFactor = asyncHandler(async (req, res) => {
 });
 
 /**
- * Refresh access token
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Refresh tokens
+ * @route POST /api/auth/token/refresh
  */
 exports.refreshToken = async (req, res) => {
   try {
-    // Get refresh token from HTTP-only cookie
-    const refreshToken = req.cookies.refresh_token;
+    // Get refresh token from cookie
+    const refreshToken = req.cookies.auth_refresh_token || 
+                         req.cookies.refresh_token || 
+                         req.cookies[cookieConfig.names.REFRESH_TOKEN];
     
     if (!refreshToken) {
+      logger.warn('No refresh token found in cookies');
       return res.status(401).json({
         status: 'error',
         message: 'No refresh token provided'
       });
     }
     
-    // Verify refresh token
-    const decoded = await tokenService.verifyRefreshToken(refreshToken);
+    // Refresh tokens using the token service
+    // This will verify the token and generate new tokens
+    const { accessToken, refreshToken: newRefreshToken, session } = 
+      await tokenService.refreshTokens(refreshToken);
     
-    if (!decoded) {
-      // Clear cookies if refresh token is invalid
-      res.clearCookie('access_token');
-      res.clearCookie('refresh_token');
-      
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid refresh token'
-      });
-    }
+    // Set cookies - Fix the cookieConfig issue
+    // Option 1: Use the token service to set cookies
+    // tokenService.setTokenCookies(res, { accessToken, refreshToken: newRefreshToken });
     
-    // Check if user exists and is active
-    const user = await userService.findById(decoded.userId);
+    // Option 2: Or fix the cookieConfig structure if you prefer direct usage
     
-    if (!user || !user.active) {
-      res.clearCookie('access_token');
-      res.clearCookie('refresh_token');
-      
-      return res.status(401).json({
-        status: 'error',
-        message: 'User not found or inactive'
-      });
-    }
-    
-    // Generate new tokens
-    const { accessToken, refreshToken: newRefreshToken, csrfToken } = 
-      await tokenService.generateAuthTokens(user);
-    
-    // Set HTTP-only cookies
-    res.cookie('access_token', accessToken, {
+    res.cookie(cookieConfig.names.ACCESS_TOKEN, accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: tokenConfig.access.expiresIn * 1000
+      maxAge: cookieConfig.maxAge?.access || 15 * 60 * 1000 // 15 minutes default
     });
-    
-    res.cookie('refresh_token', newRefreshToken, {
+    res.cookie(cookieConfig.names.REFRESH_TOKEN, newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: tokenConfig.refresh.expiresIn * 1000
+      maxAge: cookieConfig.maxAge?.refresh || 7 * 24 * 60 * 60 * 1000 // 7 days default
     });
     
-    // Log the token refresh
-    await auditService.logActivity({
-      userId: user._id,
-      action: 'TOKEN_REFRESH',
-      ip: req.ip,
-      userAgent: req.headers['user-agent']
-    });
     
     return res.status(200).json({
       status: 'success',
-      success: true,
-      csrfToken,
-      message: 'Token refreshed successfully'
+      data: {
+        session: {
+          id: session.id,
+          expiresAt: session.expiresAt
+        }
+      }
     });
   } catch (error) {
-    logger.error('Token refresh error:', error);
+    console.error('Token refresh error:', error);
     
-    return res.status(500).json({
+    // Clear cookies on error
+    res.clearCookie(cookieConfig.names.ACCESS_TOKEN);
+    res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
+    
+    return res.status(401).json({
       status: 'error',
-      message: 'Failed to refresh token'
+      message: error.message || 'Token refresh failed'
     });
   }
 };

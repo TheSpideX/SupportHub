@@ -11790,3 +11790,952 @@
 {"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 00:54:51"}
 {"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 00:55:43"}
 {"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 00:56:13"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:42:32"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:43:46"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:43:52"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:43:58"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:44:04"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:44:35"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:44:40"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:44:46"}
+{"level":"error","message":"Token refresh error: userService is not defined","service":"tech-support-crm","stack":"ReferenceError: userService is not defined\n    at exports.refreshToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:246:18)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-21 01:44:52"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:44:59"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:45:35"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:46:25"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:47:13"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:47:40"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:47:43"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:49:24"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:49:54"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:50:03"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:51:15"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:51:57"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:52:57"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:53:47"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:53:50"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:53:52"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:53:53"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:53:58"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:00"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:01"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:03"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:29"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:31"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:33"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:36"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:54:37"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:55:02"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:55:13"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:55:28"}
+{"level":"warn","message":"Inactive user attempted token refresh: 67d4a0b43019eebd5829ef34","service":"tech-support-crm","timestamp":"2025-03-21 01:56:02"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:56:31"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:57:02"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:57:32"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:58:55"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:59:30"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:59:32"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:59:40"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 01:59:41"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 01:59:45"}
+{"level":"warn","message":"Token version mismatch for user 67d4a0b43019eebd5829ef34: token=undefined, user=0","service":"tech-support-crm","timestamp":"2025-03-21 02:00:16"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:00:21"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:00:27"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:00:33"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:00:47"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:01:17"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:01:47"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:01:49"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:01:54"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:02:13"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:02:17"}
+{"body":{"email":"test@example.com","password":"Test123!","rememberMe":false,"securityContext":{}},"errorCode":"INTERNAL_SERVER_ERROR","errorName":"TypeError","level":"error","message":"tokenService.setTokenCookies is not a function","method":"POST","path":"/api/auth/login","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"TypeError: tokenService.setTokenCookies is not a function\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/controllers/auth.controller.js:99:16\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","statusCode":500,"timestamp":"2025-03-21 02:02:31"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:02:53"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:02:54"}
+{"level":"warn","message":"Token version mismatch for user 67d4a0b43019eebd5829ef34: token=undefined, user=0","service":"tech-support-crm","timestamp":"2025-03-21 02:03:29"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:03:35"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:03:41"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:03:46"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:03:47"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:03:58"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:04:08"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:04:18"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:04:28"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:04:38"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:04:55"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:05:20"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:05:28"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:05:37"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:05:54"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:05:58"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:05:59"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:05:59"}
+{"level":"warn","message":"No refresh token found in cookies","service":"tech-support-crm","timestamp":"2025-03-21 02:06:05"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:06:16"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:06:26"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:06:36"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:06:46"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:06:52"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:06:56"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:07:23"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:07:28"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-21 02:07:31"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-21 02:07:32"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:07:37"}
+{"body":{},"errorCode":401,"errorName":"AppError","level":"error","message":"Authentication required","method":"GET","path":"/api/auth/token-status","query":{},"requestId":"unknown","service":"tech-support-crm","stack":"AppError: Authentication required\n    at exports.authenticateToken (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/middleware/authenticate.js:15:19)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:149:13)\n    at Route.dispatch (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/route.js:119:3)\n    at Layer.handle [as handle_request] (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/layer.js:95:5)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:284:15\n    at Function.process_params (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:346:12)\n    at next (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:280:10)\n    at Function.handle (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:175:3)\n    at router (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/express/lib/router/index.js:47:12)","statusCode":500,"timestamp":"2025-03-21 02:07:45"}

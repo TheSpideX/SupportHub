@@ -8,6 +8,7 @@ const { redisClient } = require('../../../config/redis');
 const logger = require('../../../utils/logger');
 const sessionService = require('./session.service');
 const Token = require('../models/token.model');
+const User = require('../models/user.model');
 
 // Store cleanup intervals for proper shutdown
 const cleanupIntervals = [];
@@ -124,55 +125,80 @@ exports.generateAuthTokens = async (user, sessionData = {}) => {
  * @returns {Object} new access and refresh tokens
  */
 exports.refreshTokens = async (refreshToken) => {
+  logger.debug('Starting token refresh process');
+  
   // Verify refresh token
   const decoded = await exports.verifyRefreshToken(refreshToken);
+  logger.debug('Refresh token verified', { 
+    userId: decoded.sub || decoded.userId,
+    sessionId: decoded.sessionId || 'none'
+  });
   
-  // Blacklist the used refresh token
-  await exports.blacklistToken(refreshToken, 'refresh');
-  
-  // Get user ID from token
+  // Get user directly from token payload
   const userId = decoded.sub || decoded.userId;
+  if (!userId) {
+    throw new Error('User ID not found in token');
+  }
   
-  // Get session and update last activity
+  // Get user from database
+  const user = await User.findById(userId);
+  if (!user) {
+    logger.error(`User not found for ID: ${userId}`);
+    throw new Error('User not found');
+  }
+  
+  if (!user.status || !user.status.isActive) {
+    logger.warn(`Inactive user attempted token refresh: ${userId}`);
+    throw new Error('User account is inactive');
+  }
+  
+  // Check token version if implemented
+  if (user.security && user.security.tokenVersion !== undefined && 
+      decoded.version !== undefined && 
+      decoded.version !== user.security.tokenVersion) {
+    logger.warn(`Token version mismatch for user ${userId}: token=${decoded.version}, user=${user.security.tokenVersion}`);
+    throw new Error('Token has been revoked');
+  }
+  
+  // Get session if available
   let session;
   if (decoded.sessionId) {
     try {
-      session = await sessionService.updateSessionActivity(decoded.sessionId);
-    } catch (error) {
-      logger.warn('Failed to update session during token refresh', { 
-        sessionId: decoded.sessionId,
-        error: error.message 
-      });
-      // Create new session if the old one can't be found
+      session = await sessionService.getSessionById(decoded.sessionId);
+      if (!session) {
+        logger.warn(`Session not found: ${decoded.sessionId}`);
+        // Create a new session instead of failing
+        session = await sessionService.createSession({
+          userId: user._id,
+          userAgent: decoded.userAgent || 'Unknown'
+        });
+      }
+    } catch (err) {
+      logger.error('Error retrieving session:', err);
+      // Create a new session
       session = await sessionService.createSession({
-        userId,
-        sessionData: { previousSessionId: decoded.sessionId }
+        userId: user._id,
+        userAgent: decoded.userAgent || 'Unknown'
       });
     }
   } else {
-    // For backward compatibility - create a new session
-    session = await sessionService.createSession({ userId });
+    // Create a new session if none exists
+    session = await sessionService.createSession({
+      userId: user._id,
+      userAgent: decoded.userAgent || 'Unknown'
+    });
   }
-
-  // Generate new tokens with the same session
-  const basePayload = {
-    sub: userId,
-    userId, // For backward compatibility
-    email: decoded.email,
-    role: decoded.role,
+  
+  // Generate new tokens
+  const tokenData = await exports.generateAuthTokens(user, {
     sessionId: session.id,
-    jti: uuidv4()
-  };
-
-  const newAccessToken = generateToken(basePayload, 'access');
-  const newRefreshToken = generateToken(basePayload, 'refresh');
-
+    userAgent: decoded.userAgent
+  });
+  
   return {
-    tokens: {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken
-    },
-    session
+    accessToken: tokenData.accessToken,
+    refreshToken: tokenData.refreshToken,
+    session: tokenData.session
   };
 };
 

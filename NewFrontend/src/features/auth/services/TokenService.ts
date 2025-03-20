@@ -102,7 +102,7 @@ export class TokenService {
   private refreshQueue: Promise<boolean> | null = null;
   private refreshing = false;
   private authChannel: BroadcastChannel | null = null;
-  private readonly heartbeatInterval = 60 * 1000; // 1 minute
+  private readonly heartbeatInterval = 30 * 1000; // 1 minute
 
   // Strengthen the singleton pattern
   public static instance: TokenService | null = null;
@@ -128,7 +128,7 @@ export class TokenService {
     
     // Set heartbeat interval
     this.heartbeatInterval = Math.min(
-      30 * 1000, // 30 seconds default
+      10 * 1000, // 30 seconds default
       (this.config.refreshThreshold * 1000) / 3 // Or 1/3 of refresh threshold
     );
     
@@ -1176,7 +1176,10 @@ export class TokenService {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
           ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
-        }
+        },
+        body: JSON.stringify({
+          tokenVersion: this.tokenVersion
+        })
       });
       
       if (!response.ok) {
@@ -1336,7 +1339,8 @@ export class TokenService {
             // if it will expire before next heartbeat check
             const refreshNeeded = 
               data.expiresIn < this.config.refreshThreshold || 
-              data.expiresIn < (this.heartbeatInterval / 1000) + 5; // Add 5s buffer
+              data.expiresIn < (this.heartbeatInterval / 1000) + 5
+              || data.expiresIn < 890; // Add 5s buffer
             
             if (refreshNeeded) {
               logger.debug(`Token expiring soon (${data.expiresIn}s), initiating refresh`);
