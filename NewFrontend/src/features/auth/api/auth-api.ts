@@ -123,9 +123,21 @@ export const authApi = {
   
   validateSession: async () => {
     try {
-      const response = await apiInstance.get('/api/auth/session/validate');
+      // First try the status endpoint which works without authentication
+      const response = await apiInstance.get('/api/auth/session/status');
+      
+      // If authenticated, then get full session details
+      if (response.data && response.data.authenticated) {
+        // Optionally get more detailed session info if needed
+        const detailsResponse = await apiInstance.get('/api/auth/session/validate');
+        return {
+          success: true,
+          data: detailsResponse.data
+        };
+      }
+      
       return {
-        success: true,
+        success: false,
         data: response.data
       };
     } catch (error) {
@@ -206,7 +218,10 @@ export const authApi = {
   refreshToken: async () => {
     try {
       const response = await apiInstance.post('/api/auth/token/refresh', {}, {
-        withCredentials: true // Ensure cookies are sent with the request
+        withCredentials: true,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
       });
       return response.data;
     } catch (error) {
@@ -234,10 +249,13 @@ export const authApi = {
     });
   },
   
-  updateSessionActivity: async (sessionId) => {
+  updateSessionActivity: async () => {
     try {
-      const response = await apiClient.post('/api/auth/sessions/activity', { sessionId }, {
-        withCredentials: true // Important for HTTP-only cookies
+      const response = await apiInstance.post('/api/auth/session/heartbeat', {}, {
+        withCredentials: true,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
       });
       return response.data;
     } catch (error) {
@@ -246,19 +264,117 @@ export const authApi = {
     }
   },
   
-  // Update the sessionSync method to include CSRF token
+  // Add method to get active sessions
+  getActiveSessions: async () => {
+    try {
+      const csrfToken = window.tokenService?.getCsrfToken() || 
+                        localStorage.getItem('csrf_token') || '';
+      
+      const response = await apiInstance.get('/api/auth/session/active', {
+        withCredentials: true,
+        headers: {
+          'X-CSRF-Token': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Get active sessions error:', error);
+      throw error;
+    }
+  },
+  
+  // Update the sessionSync method to properly handle cross-tab synchronization
   sessionSync: async (data: {
     tabId: string;
     lastActivity: number;
     sessionId: string | null;
+    screenSize?: { width: number; height: number };
   }) => {
     try {
+      // Get CSRF token from storage or service
+      const csrfToken = window.tokenService?.getCsrfToken() || 
+                        localStorage.getItem('csrf_token') || '';
+      
       const response = await apiInstance.post('/api/auth/session/sync', data, {
-        withCredentials: true
+        withCredentials: true,
+        headers: {
+          'X-CSRF-Token': csrfToken,
+          'X-Requested-With': 'XMLHttpRequest'
+        }
       });
+      
+      // Update session data in storage
+      if (response.data?.sessionId && response.data?.expiresAt) {
+        const sessionData = {
+          id: response.data.sessionId,
+          expiresAt: new Date(response.data.expiresAt).getTime(),
+          warningAt: response.data.warningAt ? new Date(response.data.warningAt).getTime() : null
+        };
+        
+        // Store updated session data
+        localStorage.setItem(API_CONFIG.AUTH.SESSION.STORAGE_KEY, JSON.stringify(sessionData));
+        
+        // Broadcast session update to other tabs if BroadcastChannel is available
+        if (window.BroadcastChannel) {
+          const authChannel = new BroadcastChannel('auth_channel');
+          authChannel.postMessage({
+            type: 'SESSION_UPDATED',
+            payload: sessionData
+          });
+        }
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Session sync error:', error);
+      throw error;
+    }
+  },
+  
+  // Add method to acknowledge session warnings
+  acknowledgeWarning: async (warningType: 'IDLE' | 'ABSOLUTE' | 'SECURITY') => {
+    try {
+      const csrfToken = window.tokenService?.getCsrfToken() || 
+                        localStorage.getItem('csrf_token') || '';
+      
+      const response = await apiInstance.post('/api/auth/session/acknowledge-warning', 
+        { warningType },
+        {
+          withCredentials: true,
+          headers: {
+            'X-CSRF-Token': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        }
+      );
+      
+      // Update session data if response contains updated expiration
+      if (response.data?.success && response.data?.session?.expiresAt) {
+        const currentSessionData = JSON.parse(
+          localStorage.getItem(API_CONFIG.AUTH.SESSION.STORAGE_KEY) || '{}'
+        );
+        
+        const updatedSessionData = {
+          ...currentSessionData,
+          expiresAt: new Date(response.data.session.expiresAt).getTime()
+        };
+        
+        localStorage.setItem(API_CONFIG.AUTH.SESSION.STORAGE_KEY, JSON.stringify(updatedSessionData));
+        
+        // Broadcast to other tabs
+        if (window.BroadcastChannel) {
+          const authChannel = new BroadcastChannel('auth_channel');
+          authChannel.postMessage({
+            type: 'SESSION_UPDATED',
+            payload: updatedSessionData
+          });
+        }
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Acknowledge warning error:', error);
       throw error;
     }
   }

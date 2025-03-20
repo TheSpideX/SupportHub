@@ -16,6 +16,12 @@ router.get(
   sessionController.validateSession
 );
 
+// Add a new route for checking auth status that works before login
+router.get(
+  '/status',
+  sessionController.getSessionStatus  // New controller method
+);
+
 // Session synchronization endpoint for cross-tab communication
 router.post('/sync', 
   authenticateToken, 

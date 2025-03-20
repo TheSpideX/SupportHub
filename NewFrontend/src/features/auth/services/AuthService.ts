@@ -33,6 +33,7 @@ import {
 import { apiClient } from '@/api/apiClient';
 import { authApi } from '../api/auth-api';
 import { debounce } from 'lodash';
+import { setAuthState } from '../store/authSlice';
 
 export interface AuthServiceConfig {
   apiBaseUrl: string;
@@ -1038,9 +1039,6 @@ export class AuthService {
       if (this.store && this.store.dispatch) {
         // Calculate session expiry time
         const expiryTime = this.authState.sessionExpiry || this.calculateDefaultExpiry(false);
-        
-        // Import actions directly to avoid circular dependencies
-        const { setAuthState } = require('../store/authSlice');
         
         // Dispatch action to update Redux state
         this.store.dispatch(setAuthState({

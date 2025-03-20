@@ -6,6 +6,8 @@ const Session = require('../models/session.model');
 const { AppError } = require('../../../utils/errors');
 const sessionService = require('../services/session.service');
 const sessionConfig = require('../config/session.config');
+const tokenService = require('../services/token.service');
+const cookieConfig = require('../config/cookie.config');
 
 /**
  * Validate current session
@@ -304,5 +306,61 @@ exports.updateSessionActivity = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Get session status (works without authentication)
+ * @route GET /api/auth/session/status
+ */
+exports.getSessionStatus = async (req, res) => {
+  try {
+    // Check for token in cookies
+    const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+    
+    if (!accessToken) {
+      return res.status(200).json({
+        authenticated: false
+      });
+    }
+    
+    // Try to verify the token
+    try {
+      const decoded = await tokenService.verifyAccessToken(accessToken);
+      
+      // Check if session exists and is active
+      const session = await Session.findOne({ 
+        _id: decoded.sessionId,
+        userId: decoded.userId || decoded.sub
+      });
+      
+      if (!session) {
+        return res.status(200).json({
+          authenticated: false,
+          reason: 'SESSION_NOT_FOUND'
+        });
+      }
+      
+      // Return authenticated status with minimal user info
+      return res.status(200).json({
+        authenticated: true,
+        user: {
+          id: decoded.userId || decoded.sub
+        },
+        session: {
+          expiresAt: session.expiresAt
+        }
+      });
+    } catch (error) {
+      return res.status(200).json({
+        authenticated: false,
+        reason: error.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN'
+      });
+    }
+  } catch (error) {
+    return res.status(200).json({
+      authenticated: false,
+      error: 'Error checking authentication status'
+    });
   }
 };

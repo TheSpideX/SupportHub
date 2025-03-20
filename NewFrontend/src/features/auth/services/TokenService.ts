@@ -31,6 +31,7 @@ import {
   TokenRefreshQueueItem
 } from '../types/auth.types';
 import { apiClient } from '@/api/apiClient';
+import { AUTH_CONSTANTS } from '../constants/auth.constants';
 
 // Constants
 const ACCESS_TOKEN_COOKIE = 'auth_access_token';
@@ -95,6 +96,8 @@ export class TokenService {
   private offlineTokenCache: Map<string, string> = new Map();
   private isRefreshing: boolean = false;
   private lastRefreshTime: number | null = null;
+  private refreshQueue: Promise<boolean> | null = null;
+  private refreshing = false;
 
   // Add a static instance tracker
   private static instance: TokenService | null = null;
@@ -140,44 +143,24 @@ export class TokenService {
    * Initialize cross-tab communication
    */
   private initCrossTabCommunication(): void {
-    try {
-      this.broadcastChannel = new BroadcastChannel('auth_channel');
+    if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      this.authChannel = new BroadcastChannel('auth_channel');
       
-      this.broadcastChannel.addEventListener('message', (event) => {
-        const { type, payload } = event.data;
-        
-        switch (type) {
-          case 'TOKEN_REFRESH':
-            // Another tab refreshed the token, update our state
-            if (payload.success) {
-              // Clear any scheduled refresh in this tab
-              if (this.refreshTimeoutId) {
-                clearTimeout(this.refreshTimeoutId);
-                this.refreshTimeoutId = null;
-              }
-              
-              // Schedule next refresh
-              this.scheduleTokenRefresh();
-            }
-            break;
-            
-          case 'TOKEN_CLEARED':
-            // Another tab cleared tokens, do the same here
-            this.clearTokensLocally();
-            break;
-            
-          case 'CSRF_UPDATED':
-            // Another tab updated the CSRF token
-            if (payload.token) {
-              this.setCsrfToken(payload.token);
-            }
-            break;
+      this.authChannel.addEventListener('message', (event) => {
+        if (event.data && event.data.type) {
+          switch (event.data.type) {
+            case 'SESSION_UPDATED':
+              this.handleSessionUpdate(event.data.payload);
+              break;
+            case 'TOKEN_REFRESHED':
+              this.handleTokenRefreshed(event.data.payload);
+              break;
+            case 'LOGOUT':
+              this.handleLogout();
+              break;
+          }
         }
       });
-      
-      logger.info('Cross-tab communication initialized');
-    } catch (error) {
-      logger.error('Failed to initialize cross-tab communication:', error);
     }
   }
 
@@ -505,11 +488,21 @@ export class TokenService {
 
   /**
    * Check if authentication tokens exist
-   * For HTTP-only cookies, we can't directly access them,
-   * so we check for the existence flag cookie
+   * For HTTP-only cookies, we check both the existence flag and session cookie
    */
   public hasTokens(): boolean {
-    return !!getCookie(TOKEN_EXISTS_FLAG);
+    // Check for both the existence flag and session cookie
+    const hasFlag = !!getCookie(TOKEN_EXISTS_FLAG);
+    const hasSession = !!getCookie('session_id') || !!getCookie('access_token');
+    
+    // Log the token check for debugging
+    logger.debug('Token existence check', { 
+      hasFlag, 
+      hasSession,
+      cookies: document.cookie.split(';').map(c => c.trim().split('=')[0])
+    });
+    
+    return hasFlag || hasSession;
   }
 
   /**
@@ -597,59 +590,20 @@ export class TokenService {
    * Refreshes the access token using the refresh token
    */
   public async refreshToken(): Promise<boolean> {
-    try {
-      // For HTTP-only cookies, we don't need to send the refresh token
-      // The browser will automatically include it in the request
-      const response = await fetch(`${this.config.apiBaseUrl}${this.config.refreshEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        credentials: 'include', // Important for cookies
-        body: JSON.stringify({
-          deviceFingerprint: this.getDeviceFingerprint()
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Token refresh failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      // Store the new tokens
-      if (data.accessToken) {
-        this.storeTokens(data.accessToken, data.refreshToken || '');
-        
-        // Update CSRF token if provided
-        if (data.csrfToken) {
-          this.setCsrfToken(data.csrfToken);
-        }
-        
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      logger.error('Token refresh failed:', error);
-      
-      // If we have retries left, try again
-      if (this.refreshRetryCount < this.config.maxRefreshRetries) {
-        this.refreshRetryCount++;
-        
-        // Wait with exponential backoff
-        const delay = this.config.refreshRetryDelay * Math.pow(2, this.refreshRetryCount - 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        
-        // Try again
-        return this.performTokenRefresh();
-      }
-      
-      // If refresh fails and we're out of retries, clear tokens to force re-login
-      this.clearTokens();
-      return false;
+    // If already refreshing, return the existing promise
+    if (this.refreshing && this.refreshQueue) {
+      return this.refreshQueue;
     }
+    
+    // Set refreshing flag and create a new promise
+    this.refreshing = true;
+    this.refreshQueue = this.performTokenRefresh()
+      .finally(() => {
+        this.refreshing = false;
+        this.refreshQueue = null;
+      });
+    
+    return this.refreshQueue;
   }
 
   /**
@@ -954,16 +908,6 @@ export class TokenService {
   }
 
   /**
-   * Check if tokens exist
-   * For HTTP-only cookies, we check indirectly
-   */
-  public hasTokens(): boolean {
-    // Check for HTTP-only cookie existence indirectly
-    return document.cookie.includes('access_token') || 
-           localStorage.getItem('auth_initialized') === 'true';
-  }
-
-  /**
    * Sync tokens from storage
    * For HTTP-only cookies, this is handled by the browser automatically
    * but we need to update our local state
@@ -1046,6 +990,60 @@ export class TokenService {
     } catch (error) {
       logger.error('Error getting refresh token expiry', error);
       return null;
+    }
+  }
+
+  /**
+   * Get device fingerprint
+   */
+  private getDeviceFingerprint(): string | null {
+    return this.deviceFingerprint;
+  }
+
+  /**
+   * Perform token refresh (internal implementation)
+   */
+  private async performTokenRefresh(): Promise<boolean> {
+    try {
+      // Get CSRF token if available
+      const csrfToken = this.getCsrfToken();
+      
+      const response = await fetch(`${this.config.apiBaseUrl}/api/auth/token/refresh`, {
+        method: 'POST',
+        credentials: 'include', // Important for cookies
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Token refresh failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Update CSRF token if provided
+      if (data.data?.csrfToken) {
+        this.setCsrfToken(data.data.csrfToken);
+      }
+      
+      // Notify listeners about token refresh
+      this.notifyRefreshListeners(data.data?.session || {});
+      
+      return true;
+    } catch (error) {
+      // Handle retry logic
+      if (this.refreshRetryCount < this.config.maxRefreshRetries) {
+        this.refreshRetryCount++;
+        const delay = this.config.refreshRetryDelay * Math.pow(2, this.refreshRetryCount - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.performTokenRefresh();
+      }
+      
+      this.refreshRetryCount = 0;
+      throw error;
     }
   }
 }
