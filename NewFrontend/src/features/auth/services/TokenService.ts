@@ -935,44 +935,20 @@ export class TokenService {
   }
 
   /**
-   * Validate tokens and check if they're still valid
+   * Validate tokens with the backend
    */
   public async validateTokens(): Promise<boolean> {
     try {
-      logger.debug('Validating authentication tokens');
+      logger.debug('Validating tokens with backend');
       
-      // First check if tokens exist
-      if (!this.hasTokens()) {
-        logger.debug('No tokens found during validation');
-        return false;
-      }
+      // Use the correct endpoint from constants
+      const response = await apiClient.get(
+        AUTH_CONSTANTS.ENDPOINTS.VALIDATE_SESSION
+      );
       
-      // For HTTP-only cookies, we need to make a validation request to the server
-      // since we can't directly access the token content
-      const response = await apiClient.get('/api/auth/validate', {
-        withCredentials: true,
-        headers: {
-          'X-CSRF-Token': this.getCsrfToken(),
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      });
-      
-      const isValid = response.data?.valid === true;
-      logger.debug(`Token validation result: ${isValid}`);
-      
-      if (isValid) {
-        // Update the token existence cookie to extend its lifetime
-        setCookie('auth_token_exists', 'true', {
-          path: '/',
-          secure: true,
-          sameSite: 'strict',
-          maxAge: 30 * 24 * 60 * 60 // 30 days
-        });
-      }
-      
-      return isValid;
+      return response.data && response.data.success;
     } catch (error) {
-      logger.error('Token validation failed', error);
+      logger.error('Token validation failed', { error });
       return false;
     }
   }

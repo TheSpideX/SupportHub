@@ -1,49 +1,71 @@
 /**
- * Auth Module Configuration
- * Single source of truth for all auth-related configuration
+ * Centralized auth configuration
+ * Single source of truth for all auth-related settings
  */
-const token = require('./token.config');
-const cookie = require('./cookie.config');
-const security = require('./security.config');
-const session = require('./session.config');
+const tokenConfig = require('./token.config');
+const sessionConfig = require('./session.config');
+const securityConfig = require('./security.config');
+const cookieConfig = require('./cookie.config');
 
-// Environment-aware settings
-const isDevelopment = process.env.NODE_ENV === 'development';
+// Validate configuration for consistency
+function validateConfig() {
+  // Ensure token and session expiry times are aligned
+  if (tokenConfig.refresh.expiresInSeconds !== sessionConfig.store.ttl) {
+    console.warn('WARNING: Refresh token expiry and session TTL are not aligned');
+    // Align them
+    sessionConfig.store.ttl = tokenConfig.refresh.expiresInSeconds;
+  }
+  
+  // Ensure CSRF token expiry matches in all places
+  if (tokenConfig.csrf.expiresInSeconds !== (cookieConfig.csrfOptions?.maxAge || 0) / 1000) {
+    console.warn('WARNING: CSRF token expiry times are not consistent');
+    // Align them
+    if (!cookieConfig.csrfOptions) {
+      cookieConfig.csrfOptions = {};
+    }
+    cookieConfig.csrfOptions.maxAge = tokenConfig.csrf.expiresInSeconds * 1000;
+  }
+  
+  // Ensure cookie domains match if specified
+  const domain = cookieConfig.baseOptions?.domain;
+  const csrfDomain = cookieConfig.csrfOptions?.domain;
 
-// Export consolidated auth configuration
-module.exports = {
-  // Re-export specific configs
-  token,
-  cookie,
-  security,
-  session,
+  if (domain && csrfDomain && domain !== csrfDomain) {
+    console.warn('WARNING: Cookie domains are not consistent between base and CSRF options');
+  }
   
-  // Common auth settings
-  passwordPolicy: {
-    minLength: 8,
-    requireUppercase: true,
-    requireLowercase: true,
-    requireNumbers: true,
-    requireSpecialChars: true
-  },
+  return true;
+}
+
+// Convert string time to seconds
+function parseTimeToSeconds(timeStr) {
+  if (typeof timeStr === 'number') return timeStr;
   
-  // Session limits
-  maxSessionsPerUser: isDevelopment ? 10 : 5,
+  const match = timeStr.match(/^(\d+)([smhd])$/);
+  if (!match) return parseInt(timeStr, 10) || 0;
   
-  // Login attempts
-  maxLoginAttempts: isDevelopment ? 10 : 5,
-  lockoutDuration: 15 * 60, // 15 minutes
+  const [, value, unit] = match;
+  const multipliers = { s: 1, m: 60, h: 3600, d: 86400 };
+  return parseInt(value, 10) * multipliers[unit];
+}
+
+// Normalize config values
+function normalizeConfig() {
+  // Convert all time values to seconds for consistency
+  tokenConfig.access.expiresInSeconds = parseTimeToSeconds(tokenConfig.access.expiresIn);
+  tokenConfig.refresh.expiresInSeconds = parseTimeToSeconds(tokenConfig.refresh.expiresIn);
+  tokenConfig.csrf.expiresInSeconds = parseTimeToSeconds(tokenConfig.csrf.expiresIn);
   
-  // Registration
-  requireEmailVerification: false,
-  emailVerificationExpiry: 24 * 60 * 60, // 24 hours
-  
-  // Password reset
-  passwordResetExpiry: 60 * 60, // 1 hour
-  
-  // 2FA
-  enable2FA: false, // Disabled as requested
-  
-  // Security level
-  securityLevel: isDevelopment ? 'low' : 'medium'
-};
+  return {
+    token: tokenConfig,
+    session: sessionConfig,
+    security: securityConfig,
+    cookie: cookieConfig
+  };
+}
+
+// Run validation and normalization
+const config = normalizeConfig();
+validateConfig();
+
+module.exports = config;

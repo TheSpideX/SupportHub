@@ -2,8 +2,8 @@ const { asyncHandler } = require('../../../utils/errorHandlers');
 const { AppError } = require('../../../utils/errors');
 const User = require('../models/user.model');
 const Session = require('../models/session.model');
-const TokenBlacklist = require('../models/token-blacklist.model');
 const tokenService = require('../services/token.service');
+const sessionService = require('../services/session.service');
 const emailService = require('../services/email.service');
 const securityService = require('../services/security.service');
 const authService = require('../services/auth.service');
@@ -11,6 +11,7 @@ const authConfig = require('../config');
 const { token: tokenConfig, cookie: cookieConfig } = authConfig;
 const authUtils = require('../utils/auth.utils');
 const { passwordPolicy, requireEmailVerification } = require('../config');
+const { getClientInfo } = require('../../../utils/request');
 
 /**
  * Register a new user
@@ -61,114 +62,52 @@ exports.register = asyncHandler(async (req, res) => {
 
 /**
  * Login user
+ * @route POST /api/auth/login
  */
 exports.login = asyncHandler(async (req, res) => {
   const { email, password, rememberMe = false } = req.body;
   
-  // Find user by email with password field included
-  const user = await User.findOne({ email }).select('+security.password');
-  
-  if (!user) {
-    throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
-  }
-  
-  // Verify password
-  const isPasswordValid = await user.comparePassword(password);
-  
-  if (!isPasswordValid) {
-    // Increment login attempts
-    if (user.security) {
-      user.security.loginAttempts = (user.security.loginAttempts || 0) + 1;
-      
-      // Lock account if max attempts reached
-      if (user.security.loginAttempts >= authConfig.maxLoginAttempts) {
-        user.security.lockUntil = new Date(Date.now() + authConfig.lockoutDuration * 1000);
-      }
-      
-      await user.save();
-    }
-    
-    throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
-  }
-  
-  // Check if account is locked
-  const accountIsLocked = user.isLocked();
-  if (accountIsLocked && !await user.checkAndUnlockAccount()) {
-    throw new AppError('Account is locked', 401, 'ACCOUNT_LOCKED');
-  }
-  
-  // Reset login attempts on successful login
-  if (user.security && user.security.loginAttempts > 0) {
-    user.security.loginAttempts = 0;
-    await user.save();
-  }
-  
-  // Get client info
-  const clientInfo = {
+  // Authenticate user - Fix: use login method instead of authenticateUser
+  const result = await authService.login(email, password, {
     userAgent: req.headers['user-agent'],
     ipAddress: req.ip,
-    ...req.body.deviceInfo
-  };
+    ...authUtils.getClientInfo(req)
+  });
   
-  // Create session
-  const session = await Session.create({
-    userId: user._id,
+  // Get client info
+  const clientInfo = authUtils.getClientInfo(req);
+  
+  // Create session through session service
+  const session = result.session || await sessionService.createSession({
+    userId: result.user._id,
     userAgent: req.headers['user-agent'],
     ipAddress: req.ip,
     deviceInfo: clientInfo,
-    isActive: true,
-    expiresAt: rememberMe 
-      ? new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000 * 7) // 7x longer for remember me
-      : new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000)
+    rememberMe
   });
   
-  // Generate tokens
-  const { accessToken, refreshToken, csrfToken } = await tokenService.generateTokens(
-    user,
+  // Generate tokens through token service
+  const tokens = result.tokens || await tokenService.generateAuthTokens(
+    result.user._id,
+    result.user.security?.tokenVersion || 0,
     session._id,
     rememberMe
   );
-
-  // Set cookies
-  // Access token cookie (short-lived)
-  res.cookie(cookieConfig.names.ACCESS_TOKEN, accessToken, {
-    ...cookieConfig.baseOptions,
-    maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
-  });
   
-  // Refresh token cookie (longer-lived)
-  res.cookie(cookieConfig.names.REFRESH_TOKEN, refreshToken, {
-    ...cookieConfig.baseOptions,
-    maxAge: rememberMe 
-      ? tokenConfig.REFRESH_TOKEN_EXPIRY * 1000 * 7 // 7x longer for remember me
-      : tokenConfig.REFRESH_TOKEN_EXPIRY * 1000
-  });
+  // Set tokens in HTTP-only cookies
+  tokenService.setTokenCookies(res, tokens);
   
-  // CSRF token (JavaScript accessible)
-  res.cookie(cookieConfig.names.CSRF_TOKEN, csrfToken, {
-    ...cookieConfig.csrfOptions,
-    maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
-  });
-  
-  // Return user data
-  res.status(200).json({
-    status: 'success',
+  // Return session metadata for frontend
+  return res.status(200).json({
+    success: true,
     message: 'Login successful',
     data: {
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        emailVerified: user.security.emailVerified
-      },
+      user: authService.sanitizeUser(result.user), // Fix: use result.user instead of user
       session: {
         id: session._id,
-        createdAt: session.createdAt,
-        expiresAt: session.expiresAt
-      },
-      csrfToken // Include in response body for immediate use
+        expiresAt: session.expiresAt,
+        lastActivity: session.lastActiveAt
+      }
     }
   });
 });
@@ -272,129 +211,52 @@ exports.verifyTwoFactor = asyncHandler(async (req, res) => {
 });
 
 /**
- * Refresh access token
+ * Refresh token
+ * @route POST /api/auth/refresh-token
  */
 exports.refreshToken = asyncHandler(async (req, res) => {
   // Get refresh token from cookie
   const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
   
   if (!refreshToken) {
-    throw new AppError('Refresh token not found', 401, 'REFRESH_TOKEN_NOT_FOUND');
+    throw new AppError('Refresh token not found', 401, 'REFRESH_TOKEN_MISSING');
   }
   
-  // Verify refresh token
-  const decoded = await tokenService.verifyRefreshToken(refreshToken);
+  // Use token service to refresh tokens
+  const tokens = await tokenService.refreshTokens(refreshToken);
   
-  // Check if token is blacklisted
-  const isBlacklisted = await TokenBlacklist.findOne({ tokenId: decoded.jti });
-  if (isBlacklisted) {
-    throw new AppError('Token has been revoked', 401, 'TOKEN_REVOKED');
-  }
+  // Set cookies
+  tokenService.setTokenCookies(res, tokens);
   
-  // Find user
-  const user = await User.findById(decoded.sub);
-  if (!user) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
-  }
-  
-  // Check token version
-  if (decoded.version !== user.security.tokenVersion) {
-    throw new AppError('Token is invalid', 401, 'TOKEN_INVALID');
-  }
-  
-  // Find session
-  const session = await Session.findById(decoded.sessionId);
-  if (!session || !session.isActive) {
-    throw new AppError('Session not found or inactive', 401, 'SESSION_INVALID');
-  }
-  
-  // Update session last activity
-  session.lastActivity = new Date();
-  await session.save();
-  
-  // Generate new access token
-  const newAccessToken = await tokenService.generateAccessToken(
-    user._id,
-    user.security.tokenVersion,
-    session._id
-  );
-  
-  // Set new access token cookie
-  res.cookie(
-    cookieConfig.names.ACCESS_TOKEN, 
-    newAccessToken, 
-    cookieConfig.accessTokenOptions
-  );
-  
-  // Generate new CSRF token
-  const csrfToken = securityService.generateCsrfToken(res);
-  res.cookie(
-    cookieConfig.names.CSRF_TOKEN, 
-    csrfToken, 
-    cookieConfig.csrfOptions
-  );
-  
-  // Return success
-  res.status(200).json({
-    status: 'success',
-    message: 'Token refreshed successfully',
-    data: {
-      csrfToken
-    }
+  return res.status(200).json({
+    success: true,
+    message: 'Token refreshed successfully'
   });
 });
 
 /**
  * Logout user
+ * @route POST /api/auth/logout
  */
 exports.logout = asyncHandler(async (req, res) => {
-  // Get tokens from cookies
+  // Get session ID from request
+  const sessionId = req.session?._id || req.user.sessionId;
+  
+  if (sessionId) {
+    // Terminate session
+    await sessionService.terminateSession(sessionId, req.user._id, 'user_logout');
+  }
+  
+  // Revoke tokens
   const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
   const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
   
-  // If tokens exist, blacklist them
   if (accessToken) {
-    try {
-      const decoded = await tokenService.verifyAccessToken(accessToken);
-      
-      // Blacklist the token
-      await TokenBlacklist.create({
-        tokenId: decoded.jti,
-        expiresAt: new Date(decoded.exp * 1000)
-      });
-      
-      // Deactivate session
-      if (decoded.sessionId) {
-        await Session.findByIdAndUpdate(decoded.sessionId, {
-          isActive: false,
-          endedAt: new Date()
-        });
-      }
-    } catch (error) {
-      // Ignore token verification errors during logout
-    }
+    await tokenService.revokeToken(accessToken, 'access');
   }
   
   if (refreshToken) {
-    try {
-      const decoded = await tokenService.verifyRefreshToken(refreshToken);
-      
-      // Blacklist the token
-      await TokenBlacklist.create({
-        tokenId: decoded.jti,
-        expiresAt: new Date(decoded.exp * 1000)
-      });
-      
-      // Deactivate session
-      if (decoded.sessionId) {
-        await Session.findByIdAndUpdate(decoded.sessionId, {
-          isActive: false,
-          endedAt: new Date()
-        });
-      }
-    } catch (error) {
-      // Ignore token verification errors during logout
-    }
+    await tokenService.revokeToken(refreshToken, 'refresh');
   }
   
   // Clear cookies
@@ -402,10 +264,9 @@ exports.logout = asyncHandler(async (req, res) => {
   res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
   res.clearCookie(cookieConfig.names.CSRF_TOKEN);
   
-  // Return success
-  res.status(200).json({
-    status: 'success',
-    message: 'Logged out successfully'
+  return res.status(200).json({
+    success: true,
+    message: 'Logout successful'
   });
 });
 
@@ -704,60 +565,82 @@ exports.getCsrfToken = asyncHandler(async (req, res) => {
 });
 
 /**
- * Validate user session
+ * Validate session
  * @route GET /api/auth/validate-session
  */
-exports.validateSession = async (req, res) => {
+exports.validateSession = asyncHandler(async (req, res) => {
   try {
-    // Get user and session from request (added by authenticateToken middleware)
-    const { user } = req;
+    // Check for token in cookies
+    const token = req.cookies[cookieConfig.names.ACCESS_TOKEN];
     
-    if (!user) {
-      return res.status(401).json({
+    if (!token) {
+      return res.status(200).json({ 
         success: false,
-        error: {
-          code: 'SESSION_INVALID',
-          message: 'Session is invalid or expired'
-        }
+        valid: false,
+        message: 'No authentication token found'
       });
     }
     
-    // Find active session for this user
-    const session = await Session.findOne({ 
-      userId: user._id,
-      isActive: true
-    });
+    // Verify the token
+    const decoded = await tokenService.verifyAccessToken(token);
     
-    if (!session) {
-      return res.status(401).json({
+    // Check if session exists and is active
+    const isValidSession = await sessionService.validateSession(
+      decoded.sessionId,
+      decoded.userId || decoded.sub
+    );
+    
+    if (!isValidSession) {
+      return res.status(200).json({
         success: false,
-        error: {
-          code: 'SESSION_NOT_FOUND',
-          message: 'No active session found'
-        }
+        valid: false,
+        message: 'Session not found or inactive'
       });
     }
     
-    // Return session validation result
+    // Return successful validation
     return res.status(200).json({
       success: true,
-      data: {
-        isValid: true,
-        user: authService.sanitizeUser(user),
-        session: {
-          id: session._id,
-          expiresAt: session.expiresAt,
-          createdAt: session.createdAt
-        }
-      }
+      valid: true,
+      userId: decoded.userId || decoded.sub,
+      sessionId: decoded.sessionId
     });
   } catch (error) {
-    return res.status(500).json({
+    // Return invalid but with 200 status for client handling
+    return res.status(200).json({ 
       success: false,
-      error: {
-        code: 'SERVER_ERROR',
-        message: 'An error occurred while validating session'
+      valid: false,
+      message: 'Invalid or expired token'
+    });
+  }
+});
+
+/**
+ * Get authentication status
+ * @route GET /api/auth/status
+ */
+exports.getAuthStatus = async (req, res) => {
+  // If user is authenticated (req.user exists from optionalAuth middleware)
+  if (req.user) {
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        isAuthenticated: true,
+        user: {
+          id: req.user._id,
+          email: req.user.email,
+          role: req.user.role
+        },
+        sessionId: req.session?.id
       }
     });
   }
+  
+  // If not authenticated
+  return res.status(200).json({
+    status: 'success',
+    data: {
+      isAuthenticated: false
+    }
+  });
 };

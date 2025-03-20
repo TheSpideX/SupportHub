@@ -18,27 +18,26 @@ const sessionConfig = {
   // Session limits
   maxConcurrentSessions: isDevelopment ? 10 : 5,
   
-  // Session timeout (idle timeout) - 30 minutes
-  // IMPORTANT: This must match frontend's sessionTimeout value (30 * 60 * 1000)
-  idleTimeout: 30 * 60, // 30 minutes in seconds
+  // Session timeouts
+  timeouts: {
+    idle: process.env.SESSION_IDLE_TIMEOUT || 30 * 60, // 30 minutes
+    absolute: process.env.SESSION_ABSOLUTE_TIMEOUT || 24 * 60 * 60, // 24 hours
+    warning: 5 * 60 // 5 minutes before timeout
+  },
   
-  // Session absolute timeout (force re-login) - 24 hours
-  absoluteTimeout: 24 * 60 * 60, // 24 hours in seconds
-  
-  // Session synchronization - 5 minutes
-  // IMPORTANT: This must match frontend's syncInterval value (5 * 60 * 1000)
-  syncInterval: 5 * 60, // 5 minutes in seconds
-  
-  // Device tracking
-  trackDevices: true,
-  requireDeviceVerification: !isDevelopment,
+  // Session tracking
+  tracking: {
+    updateFrequency: 60, // Update last activity every 60 seconds
+    deviceInfo: true, // Store device information
+    maxConcurrentSessions: isDevelopment ? 10 : 5
+  },
   
   // Cross-tab synchronization
-  enableCrossTabs: true,
-  
-  // Session warning threshold - 5 minutes before expiry
-  // IMPORTANT: This must match frontend's sessionWarningThreshold value (5 * 60 * 1000)
-  warningThreshold: 5 * 60 // 5 minutes in seconds
+  sync: {
+    enabled: true,
+    checkInterval: 10 * 1000, // Check every 10 seconds
+    storageKey: 'session_sync'
+  }
 };
 
 module.exports = sessionConfig;

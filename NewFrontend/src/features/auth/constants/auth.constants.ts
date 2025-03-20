@@ -2,6 +2,9 @@
  * Authentication system constants
  * Based on the auth-system-architecture using HTTP-only cookies
  */
+// Import API config to ensure alignment
+import { API_CONFIG } from '../../../config/api';
+
 export const AUTH_CONSTANTS = {
   // Cookie names (for HTTP-only cookies set by server)
   COOKIES: {
@@ -20,7 +23,7 @@ export const AUTH_CONSTANTS = {
   
   // Session settings
   SESSION: {
-    TIMEOUT: 30 * 60 * 1000, // 30 minutes
+    TIMEOUT: API_CONFIG.AUTH.SESSION.TIMEOUT, // 30 minutes - reference API_CONFIG
     ACTIVITY_EVENTS: ['mousedown', 'keydown', 'scroll', 'touchstart'],
     INACTIVITY_CHECK_INTERVAL: 60 * 1000, // 1 minute
   },
@@ -55,15 +58,17 @@ export const AUTH_CONSTANTS = {
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
     REGISTER: '/api/auth/register',
-    REFRESH: '/api/auth/refresh',
+    REFRESH: '/api/auth/token/refresh',
     VERIFY_EMAIL: '/api/auth/verify-email',
     FORGOT_PASSWORD: '/api/auth/forgot-password',
     RESET_PASSWORD: '/api/auth/reset-password',
     CHANGE_PASSWORD: '/api/auth/change-password',
-    TWO_FACTOR: '/api/auth/two-factor',
-    VERIFY_DEVICE: '/api/auth/verify-device',
-    CSRF_TOKEN: '/api/auth/csrf-token',
+    TWO_FACTOR: '/api/auth/security/verify-2fa',
+    VERIFY_DEVICE: '/api/auth/security/verify-device',
+    CSRF_TOKEN: '/api/auth/token/csrf',
     USER_INFO: '/api/auth/me',
+    VALIDATE_SESSION: '/api/auth/session/validate', // Updated to match backend
+    SESSION_HEARTBEAT: '/api/auth/session/heartbeat',
   },
   
   // Events for cross-component and cross-tab communication

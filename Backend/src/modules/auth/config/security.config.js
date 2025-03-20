@@ -2,6 +2,7 @@
  * Centralized security configuration
  */
 const isDevelopment = process.env.NODE_ENV === 'development';
+const sessionConfig = require('./session.config');
 
 module.exports = {
     // Rate limiting settings
@@ -40,23 +41,21 @@ module.exports = {
         headerName: 'X-CSRF-Token'      // Match the header name expected by frontend
     },
     
-    // Password requirements (moved to main index.js)
-    
-    // Security levels
+    // Security levels - reference session.config.js for timeout values
     levels: {
         low: {
             requireMFA: false,
-            sessionTimeout: 24 * 60 * 60, // 24 hours
+            sessionTimeout: sessionConfig.absoluteTimeout, // Use value from session.config.js
             passwordExpiryDays: 180       // 6 months
         },
         medium: {
             requireMFA: false,
-            sessionTimeout: 8 * 60 * 60,  // 8 hours
+            sessionTimeout: sessionConfig.absoluteTimeout / 3, // 8 hours
             passwordExpiryDays: 90        // 3 months
         },
         high: {
             requireMFA: true,
-            sessionTimeout: 1 * 60 * 60,  // 1 hour
+            sessionTimeout: sessionConfig.absoluteTimeout / 24, // 1 hour
             passwordExpiryDays: 30        // 1 month
         }
     }

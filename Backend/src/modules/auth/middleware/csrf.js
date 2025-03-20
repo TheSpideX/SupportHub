@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { AppError } = require('../../../utils/errors');
 const securityConfig = require('../config/security.config');
 const cookieConfig = require('../config/cookie.config');
@@ -8,20 +7,18 @@ const cookieConfig = require('../config/cookie.config');
  */
 exports.generateToken = (req, res, next) => {
   try {
-    // Only generate token if not already present
-    if (!req.cookies[cookieConfig.names.CSRF_TOKEN]) {
-      // Generate random token
-      const token = crypto.randomBytes(32).toString('hex');
-      
-      // Set cookie with appropriate settings
-      // Note: This cookie must be readable by JavaScript
-      res.cookie(cookieConfig.names.CSRF_TOKEN, token, {
-        httpOnly: false, // Must be accessible to frontend
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: cookieConfig.maxAge.CSRF_TOKEN
-      });
-    }
+    // Use token service to generate CSRF token
+    const tokenService = require('../services/token.service');
+    const csrfToken = tokenService.generateCsrfToken();
+    
+    // Set cookie with appropriate settings
+    // Note: This cookie must be readable by JavaScript
+    res.cookie(cookieConfig.names.CSRF_TOKEN, csrfToken, {
+      httpOnly: false, // Must be accessible to frontend
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: cookieConfig.maxAge.CSRF_TOKEN
+    });
     
     next();
   } catch (error) {
@@ -45,8 +42,11 @@ exports.validateToken = (req, res, next) => {
     // Get token from cookie
     const cookieToken = req.cookies[cookieConfig.names.CSRF_TOKEN];
     
-    // Validate tokens exist and match
-    if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+    // Use token service to validate CSRF token
+    const tokenService = require('../services/token.service');
+    const isValid = tokenService.validateCsrfToken(headerToken, cookieToken);
+    
+    if (!isValid) {
       return next(new AppError('CSRF token validation failed', 403, 'CSRF_VALIDATION_FAILED'));
     }
     

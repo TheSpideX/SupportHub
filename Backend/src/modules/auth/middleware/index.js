@@ -1,20 +1,35 @@
 /**
  * Auth Middleware Index
  * Exports all authentication and security middleware
+ * 
+ * This file organizes middleware by functionality:
+ * - Token authentication
+ * - Session validation
+ * - CSRF protection
+ * - Rate limiting
  */
 
 // Authentication middleware
 const { 
   authenticateToken, 
   optionalAuth, 
-  refreshToken 
+  refreshToken,
+  validateAccessToken
 } = require('./authenticate');
+
+// Session middleware
+const {
+  validateSession,
+  enforceSessionLimits,
+  updateSessionActivity
+} = require('./session');
 
 // Rate limiting middleware
 const { 
   loginRateLimit,
   apiRateLimit,
-  refreshTokenRateLimit
+  refreshTokenRateLimit,
+  registrationRateLimit
 } = require('./rate-limit');
 
 // CSRF protection middleware
@@ -29,15 +44,22 @@ const validationSchemas = require('../validations/schemas');
 
 // Export all middleware
 module.exports = {
-  // Authentication
+  // Token authentication
   authenticateToken,
   optionalAuth,
   refreshToken,
+  validateAccessToken,
+  
+  // Session management
+  validateSession,
+  enforceSessionLimits,
+  updateSessionActivity,
   
   // Rate limiting
   loginRateLimit,
   apiRateLimit,
   refreshTokenRateLimit,
+  registrationRateLimit,
   
   // CSRF protection
   csrfProtection: validateToken,

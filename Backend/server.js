@@ -10,7 +10,6 @@ const morgan = require("morgan");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 const EventEmitter = require('events');
-const session = require('express-session');
 EventEmitter.defaultMaxListeners = 15;
 
 // Import custom modules
@@ -26,32 +25,20 @@ const {
 } = require("./src/middleware/errorMiddleware");
 const { apiRateLimit } = require("./src/modules/auth/middleware/rate-limit");
 const csrfMiddleware = require('./src/modules/auth/middleware/csrf');
+const { tokenService, sessionService } = require('./src/modules/auth/services');
 
 // Initialize express app
 const app = express();
 const httpServer = createServer(app);
 
 // Essential middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+}));
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser(process.env.COOKIE_SECRET || 'your-fallback-secret-key'));
-
-// Configure session middleware
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-fallback-secret-key',
-  name: 'app_session',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: '/'
-  }
-}));
 
 // Configure CORS using the centralized config
 app.use(cors(corsConfig));
@@ -121,11 +108,16 @@ const swaggerOptions = {
     ],
     components: {
       securitySchemes: {
-        bearerAuth: {
-          type: "http",
-          scheme: "bearer",
-          bearerFormat: "JWT",
+        cookieAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "access_token"
         },
+        csrfToken: {
+          type: "apiKey",
+          in: "header",
+          name: "X-CSRF-Token"
+        }
       },
     },
   },
@@ -148,6 +140,10 @@ app.get('/api/health', apiRateLimit(), (req, res) => {
   }
   res.json(healthCache.data);
 });
+
+// Initialize token and session services
+tokenService.initialize();
+sessionService.initialize();
 
 // Initialize modules
 auth.initializeAuthModule(app);
@@ -174,12 +170,13 @@ const startServer = async () => {
 
     // Check Redis connections
     try {
-      await Promise.all([
-        redisClient.ping(),
-        redisPublisher.ping(),
-        redisSubscriber.ping()
-      ]);
-      logger.info("Redis connected successfully");
+      // The redisClient is a wrapper, not the actual Redis client
+      // We need to check Redis availability differently
+      if (require("./src/config/redis").isRedisAvailable()) {
+        logger.info("Redis connected successfully");
+      } else {
+        logger.warn("Redis not available, using in-memory fallback");
+      }
     } catch (error) {
       throw new Error(`Redis connection failed: ${error.message}`);
     }

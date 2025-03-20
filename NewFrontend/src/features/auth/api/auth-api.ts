@@ -54,13 +54,63 @@ interface SessionValidationResponse {
   [key: string]: any;
 }
 
-// Create auth-specific API client
+// Create auth-specific API client with interceptors for CSRF token
 const apiInstance = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
+  baseURL: API_CONFIG.BASE_URL, // Make sure this doesn't already include '/api'
   timeout: API_CONFIG.TIMEOUT,
-  withCredentials: true, // Important for HTTP-only cookies
+  withCredentials: true,
   headers: API_CONFIG.HEADERS
 });
+
+// Add request interceptor to include CSRF token in headers
+apiInstance.interceptors.request.use(
+  (config) => {
+    // Get CSRF token from cookie
+    const csrfToken = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('csrf_token='))
+      ?.split('=')[1];
+    
+    // Add CSRF token to header if available
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
+    
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor to handle token expiration
+apiInstance.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If error is due to token expiration and we haven't tried refreshing yet
+    if (error.response?.status === 401 && 
+        error.response?.data?.errorName === 'AppError' && 
+        error.response?.data?.message?.includes('Token expired') && 
+        !originalRequest._retry) {
+      
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        await authApi.refreshToken();
+        
+        // Retry the original request
+        return apiInstance(originalRequest);
+      } catch (refreshError) {
+        // If refresh fails, redirect to login
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 export const authApi = {
   // Security-related API calls
@@ -71,42 +121,15 @@ export const authApi = {
     return apiInstance.post('/api/auth/security/validate', data);
   },
   
-  // Session-related API calls
   validateSession: async () => {
     try {
-      // Check if cookies exist
-      const cookies = document.cookie;
-      console.log('🔍 [DEBUG] Cookies present:', cookies ? 'Yes' : 'No', 
-        cookies ? `(length: ${cookies.length})` : '');
-      
-      // Use apiInstance instead of api
-      const response = await apiInstance.get<SessionValidationResponse>('/api/auth/validate-session', {
-        withCredentials: true, // Important for cookies
-      });
-      
-      console.log('🔍 [DEBUG] validate-session API response:', response.status, response.data);
-      
-      // Check response headers for Set-Cookie
-      const setCookieHeader = response.headers['set-cookie'];
-      console.log('🔍 [DEBUG] Set-Cookie header present:', setCookieHeader ? 'Yes' : 'No');
-      
-      // Ensure session data is properly structured
-      const responseData: SessionValidationResponse = response.data;
-      
-      // Add default values for required fields if they're missing
-      if (responseData.user) {
-        responseData.user.name = responseData.user.name || responseData.user.email?.split('@')[0] || '';
-        responseData.user.twoFactorEnabled = responseData.user.twoFactorEnabled || false;
-        responseData.user.emailVerified = responseData.user.emailVerified || false;
-      }
-      
+      const response = await apiInstance.get('/api/auth/session/validate');
       return {
         success: true,
-        data: responseData
+        data: response.data
       };
     } catch (error) {
       console.log('🔍 [DEBUG] validate-session API error:', error);
-      // Define a simple error handler if handleApiError is not defined
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Session validation failed'
@@ -114,29 +137,16 @@ export const authApi = {
     }
   },
   
-  refreshSession: async (sessionId: string) => {
-    return apiInstance.post('/api/auth/session/refresh', { sessionId });
+  refreshSession: async () => {
+    return apiInstance.post('/api/auth/token/refresh');
+  },
+  
+  sessionHeartbeat: async () => {
+    return apiInstance.post('/api/auth/session/heartbeat');
   },
   
   terminateSession: async (sessionId: string) => {
-    return apiInstance.post('/api/auth/session/terminate', { sessionId });
-  },
-  
-  /**
-   * Sync session with the server
-   * @param sessionData Current session data
-   * @returns Promise with sync response
-   */
-  syncSession: (sessionData: SessionData) => {
-    return apiInstance.post('/auth/session/sync', {
-      // Only send sessionId if it's a valid MongoDB ObjectId
-      sessionId: sessionData.metadata?.sessionId && 
-                 sessionData.metadata.sessionId.match(/^[0-9a-fA-F]{24}$/) ? 
-                 sessionData.metadata.sessionId : null,
-      lastActivity: sessionData.lastActivity,
-      metrics: sessionData.metrics || {},
-      deviceInfo: sessionData.deviceInfo
-    });
+    return apiInstance.delete(`/api/auth/session/${sessionId}`);
   },
   
   // Other auth API calls
@@ -165,14 +175,13 @@ export const authApi = {
         deviceInfo: {
           fingerprint,
           userAgent: navigator.userAgent,
-          screenResolution: `${window.screen.width}x${window.screen.height}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          ip: window.location.hostname // This is a fallback, actual IP will be determined by server
         }
       };
       
-      // Make login request
-      const response = await apiClient.post('/api/auth/login', requestData, {
-        withCredentials: true
+      // Make login request - use apiInstance for consistent cookie handling
+      const response = await apiInstance.post('/api/auth/login', requestData, {
+        withCredentials: true // Important for receiving HTTP-only cookies
       });
       
       // Return response data
@@ -182,10 +191,6 @@ export const authApi = {
       
       // Format error response
       if (error.response && error.response.data) {
-        // Make sure we're not throwing a success message as an error
-        if (error.response.data.status === 'success') {
-          return error.response.data;
-        }
         throw error.response.data;
       }
       
@@ -197,8 +202,17 @@ export const authApi = {
     return apiInstance.post('/api/auth/logout');
   },
   
-  refreshToken: async (refreshToken) => {
-    return apiInstance.post('/api/auth/refresh-token', { refreshToken });
+  // Update the refreshToken method to properly handle HTTP-only cookies
+  refreshToken: async () => {
+    try {
+      const response = await apiInstance.post('/api/auth/token/refresh', {}, {
+        withCredentials: true // Ensure cookies are sent with the request
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      throw error;
+    }
   },
   
   /**
@@ -218,5 +232,34 @@ export const authApi = {
       },
       withCredentials: true // For HTTP-only cookie auth
     });
+  },
+  
+  updateSessionActivity: async (sessionId) => {
+    try {
+      const response = await apiClient.post('/api/auth/sessions/activity', { sessionId }, {
+        withCredentials: true // Important for HTTP-only cookies
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Session activity update error:', error);
+      throw error;
+    }
+  },
+  
+  // Update the sessionSync method to include CSRF token
+  sessionSync: async (data: {
+    tabId: string;
+    lastActivity: number;
+    sessionId: string | null;
+  }) => {
+    try {
+      const response = await apiInstance.post('/api/auth/session/sync', data, {
+        withCredentials: true
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Session sync error:', error);
+      throw error;
+    }
   }
 };

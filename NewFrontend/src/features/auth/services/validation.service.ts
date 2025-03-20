@@ -61,17 +61,10 @@ export const loginSchema = z.object({
   password: z.string()
     .min(1, "Password is required"),
   rememberMe: z.boolean().default(false),
-  securityContext: z.object({
-    deviceInfo: z.object({
-      userAgent: z.string().optional(),
-      fingerprint: z.string().optional(),
-      location: z.object({
-        country: z.string().optional(),
-        city: z.string().optional(),
-        ip: z.string().optional()
-      }).optional().default({})
-    }).optional().default({}),
-    captchaToken: z.string().optional()
+  deviceInfo: z.object({
+    fingerprint: z.string().optional(),
+    userAgent: z.string().optional(),
+    ip: z.string().optional()
   }).optional().default({})
 });
 

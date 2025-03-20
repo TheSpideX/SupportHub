@@ -1,327 +1,493 @@
-const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const TokenModel = require('../models/token.model');
-const tokenConfig = require('../config/token.config');
-const logger = require('../../../utils/logger');
 const { v4: uuidv4 } = require('uuid');
+const { AppError } = require('../../../utils/errors');
+const tokenConfig = require('../config/token.config');
+const { cookie: cookieConfig } = require('../config');
+const redisClient = require('../../../config/redis');
+const logger = require('../../../utils/logger');
+const sessionService = require('./session.service');
 
-class TokenService {
-  /**
-   * Generate authentication tokens
-   * @param {Object} user - User object
-   * @param {String} sessionId - Session ID
-   * @param {Boolean} rememberMe - Whether to extend token lifetime
-   * @returns {Object} Object containing tokens
-   */
-  async generateTokens(user, sessionId, rememberMe = false) {
-    // Generate access token with short expiry
-    const accessToken = jwt.sign(
-      {
-        sub: user._id,
-        email: user.email,
-        role: user.role,
-        tokenVersion: user.security.tokenVersion,
-        sessionId
-      },
-      tokenConfig.ACCESS_TOKEN_SECRET,
-      {
-        expiresIn: tokenConfig.ACCESS_TOKEN_EXPIRY,
-        jwtid: uuidv4()
-      }
-    );
+// Store cleanup intervals for proper shutdown
+const cleanupIntervals = [];
+
+/**
+ * Generate token
+ * @param {Object} payload
+ * @param {string} type - 'access' or 'refresh'
+ * @returns {string}
+ */
+const generateToken = (payload, type = 'access') => {
+  if (!tokenConfig || !tokenConfig[type]) {
+    logger.error(`Token configuration for ${type} is missing`);
+    throw new Error(`Token configuration for ${type} is missing`);
+  }
+
+  const { secret, expiresIn, algorithm } = tokenConfig[type];
+  
+  if (!secret) {
+    logger.error(`Secret for ${type} token is missing`);
+    throw new Error(`Secret for ${type} token is missing`);
+  }
+
+  return jwt.sign(
+    payload,
+    secret,
+    {
+      expiresIn,
+      algorithm: algorithm || 'HS256'
+    }
+  );
+};
+
+/**
+ * Verify token
+ * @param {string} token
+ * @param {string} type - 'access' or 'refresh'
+ * @returns {Object} decoded token
+ */
+const verifyToken = (token, type = 'access') => {
+  try {
+    const secret = type === 'access' 
+      ? tokenConfig.accessToken.secret 
+      : tokenConfig.refreshToken.secret;
     
-    // Generate refresh token with longer expiry if rememberMe
-    const refreshToken = jwt.sign(
-      {
-        sub: user._id,
-        tokenVersion: user.security.tokenVersion,
-        sessionId
-      },
-      tokenConfig.REFRESH_TOKEN_SECRET,
-      {
-        expiresIn: rememberMe 
-          ? tokenConfig.REFRESH_TOKEN_EXPIRY * 7 // 7x longer for remember me
-          : tokenConfig.REFRESH_TOKEN_EXPIRY,
-        jwtid: uuidv4()
-      }
-    );
-    
-    // Generate CSRF token
-    const csrfToken = crypto.randomBytes(32).toString('hex');
-    
-    return {
-      accessToken,
-      refreshToken,
-      csrfToken
-    };
+    return jwt.verify(token, secret);
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new AppError('Token expired', 401, 'TOKEN_EXPIRED');
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      throw new AppError('Invalid token', 401, 'INVALID_TOKEN');
+    }
+    throw error;
   }
+};
 
-  /**
-   * Generate access token
-   * @param {Object} user - User object
-   * @returns {String} JWT access token
-   */
-  generateAccessToken(user) {
-    const payload = {
-      sub: user.id || user._id,
-      email: user.email,
-      role: user.role,
-      permissions: user.permissions || [],
-      type: 'access'
-    };
+/**
+ * Check if token is blacklisted
+ * @param {string} token
+ * @returns {boolean}
+ */
+const isTokenBlacklisted = async (token) => {
+  const blacklisted = await redisClient.get(`blacklist:${token}`);
+  return !!blacklisted;
+};
 
-    return jwt.sign(payload, tokenConfig.ACCESS_TOKEN_SECRET, {
-      expiresIn: tokenConfig.ACCESS_TOKEN_EXPIRY
-    });
-  }
-
-  /**
-   * Generate refresh token
-   * @param {Object} user - User object
-   * @returns {String} JWT refresh token
-   */
-  generateRefreshToken(user) {
-    const payload = {
-      sub: user.id || user._id,
-      type: 'refresh',
-      tokenVersion: user.tokenVersion || 0
-    };
-
-    return jwt.sign(payload, tokenConfig.REFRESH_TOKEN_SECRET, {
-      expiresIn: tokenConfig.REFRESH_TOKEN_EXPIRY
-    });
-  }
-
-  /**
-   * Generate CSRF token
-   * @returns {String} CSRF token
-   */
-  generateCsrfToken() {
-    return crypto.randomBytes(32).toString('hex');
-  }
-
-  /**
-   * Save refresh token to database
-   * @param {String|ObjectId} userId - User ID
-   * @param {String} refreshToken - Refresh token
-   * @returns {Promise} Promise resolving to saved token
-   */
-  async saveRefreshToken(userId, refreshToken) {
-    try {
-      // Convert userId to a valid ObjectId
-      let userObjectId;
-      
-      try {
-        // If it's already an ObjectId, use it directly
-        if (mongoose.Types.ObjectId.isValid(userId)) {
-          userObjectId = new mongoose.Types.ObjectId(userId);
-        } else if (typeof userId === 'string') {
-          // If it's a string that can be converted to ObjectId
-          if (mongoose.Types.ObjectId.isValid(userId)) {
-            userObjectId = new mongoose.Types.ObjectId(userId);
-          } else {
-            throw new Error(`Invalid user ID format: ${userId}`);
-          }
-        } else {
-          // For other cases, try to get string representation
-          const userIdStr = userId.toString();
-          if (mongoose.Types.ObjectId.isValid(userIdStr)) {
-            userObjectId = new mongoose.Types.ObjectId(userIdStr);
-          } else {
-            throw new Error(`Cannot convert user ID to ObjectId: ${userIdStr}`);
-          }
-        }
-      } catch (err) {
-        logger.error('Error converting user ID to ObjectId:', err);
-        throw new Error(`Invalid user ID: ${userId}`);
-      }
-      
-      // Create token document
-      const tokenDoc = new TokenModel({
-        user: userObjectId,
-        token: refreshToken,
-        type: 'refresh',
-        expiresAt: new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000)
+/**
+ * Generate tokens for a user
+ * @param {Object} user
+ * @param {Object} sessionData - Optional session data
+ * @returns {Object} access and refresh tokens
+ */
+exports.generateAuthTokens = async (user, sessionData = {}) => {
+  // Create or get session
+  const session = sessionData.sessionId 
+    ? await sessionService.getSessionById(sessionData.sessionId)
+    : await sessionService.createSession({
+        userId: user._id,
+        userAgent: sessionData.userAgent,
+        ipAddress: sessionData.ipAddress,
+        deviceInfo: sessionData.deviceInfo
       });
 
-      // Save to database
-      return await tokenDoc.save();
-    } catch (error) {
-      logger.error('Error saving refresh token:', error);
-      throw error;
-    }
-  }
+  // Base payload for both tokens
+  const basePayload = {
+    sub: user._id.toString(),
+    userId: user._id.toString(), // For backward compatibility
+    email: user.email,
+    role: user.role,
+    sessionId: session.id,
+    jti: uuidv4() // Unique token ID
+  };
 
-  /**
-   * Set token cookies on response object
-   * @param {Object} res - Express response object
-   * @param {Object} tokens - Object containing tokens
-   */
-  setTokenCookies(res, tokens) {
-    // Access token cookie (short-lived)
-    res.cookie(cookieConfig.names.ACCESS_TOKEN, tokens.accessToken, {
-      ...cookieConfig.baseOptions,
-      maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
-    });
-    
-    // Refresh token cookie (longer-lived)
-    res.cookie(cookieConfig.names.REFRESH_TOKEN, tokens.refreshToken, {
-      ...cookieConfig.baseOptions,
-      maxAge: tokenConfig.REFRESH_TOKEN_EXPIRY * 1000
-    });
-    
-    // CSRF token (JavaScript accessible)
-    res.cookie(cookieConfig.names.CSRF_TOKEN, tokens.csrfToken, {
-      ...cookieConfig.csrfOptions,
-      maxAge: tokenConfig.ACCESS_TOKEN_EXPIRY * 1000
-    });
-  }
+  // Generate tokens
+  const accessToken = generateToken(basePayload, 'access');
+  const refreshToken = generateToken(basePayload, 'refresh');
 
-  /**
-   * Clear token cookies
-   * @param {Object} res - Express response object
-   */
-  clearTokenCookies(res) {
-    res.cookie(cookieConfig.names.ACCESS_TOKEN, '', { 
-      ...cookieConfig.baseOptions, 
-      maxAge: 0 
-    });
-    
-    res.cookie(cookieConfig.names.REFRESH_TOKEN, '', { 
-      ...cookieConfig.baseOptions, 
-      maxAge: 0 
-    });
-    
-    res.cookie(cookieConfig.names.CSRF_TOKEN, '', { 
-      ...cookieConfig.csrfOptions, 
-      maxAge: 0 
-    });
-  }
+  return {
+    accessToken,
+    refreshToken,
+    session
+  };
+};
 
-  /**
-   * Verify access token
-   * @param {String} token - JWT access token
-   * @returns {Object} Decoded token payload
-   */
-  verifyAccessToken(token) {
+/**
+ * Refresh tokens
+ * @param {string} refreshToken
+ * @returns {Object} new access and refresh tokens
+ */
+exports.refreshTokens = async (refreshToken) => {
+  // Verify refresh token
+  const decoded = await exports.verifyRefreshToken(refreshToken);
+  
+  // Blacklist the used refresh token
+  await exports.blacklistToken(refreshToken, 'refresh');
+  
+  // Get user ID from token
+  const userId = decoded.sub || decoded.userId;
+  
+  // Get session and update last activity
+  let session;
+  if (decoded.sessionId) {
     try {
-      const decoded = jwt.verify(token, tokenConfig.ACCESS_TOKEN_SECRET);
-      
-      // Verify it's an access token
-      if (decoded.type !== 'access') {
-        throw new Error('Invalid token type');
-      }
-      
-      return decoded;
+      session = await sessionService.updateSessionActivity(decoded.sessionId);
     } catch (error) {
-      logger.error('Access token verification failed:', error.message);
-      throw error;
+      logger.warn('Failed to update session during token refresh', { 
+        sessionId: decoded.sessionId,
+        error: error.message 
+      });
+      // Create new session if the old one can't be found
+      session = await sessionService.createSession({
+        userId,
+        sessionData: { previousSessionId: decoded.sessionId }
+      });
     }
+  } else {
+    // For backward compatibility - create a new session
+    session = await sessionService.createSession({ userId });
   }
 
-  /**
-   * Verify refresh token
-   * @param {String} token - JWT refresh token
-   * @returns {Object} Decoded token payload
-   */
-  verifyRefreshToken(token) {
-    try {
-      const decoded = jwt.verify(token, tokenConfig.REFRESH_TOKEN_SECRET);
-      
-      // Verify it's a refresh token
-      if (decoded.type !== 'refresh') {
-        throw new Error('Invalid token type');
-      }
-      
-      return decoded;
-    } catch (error) {
-      logger.error('Refresh token verification failed:', error.message);
-      throw error;
-    }
-  }
+  // Generate new tokens with the same session
+  const basePayload = {
+    sub: userId,
+    userId, // For backward compatibility
+    email: decoded.email,
+    role: decoded.role,
+    sessionId: session.id,
+    jti: uuidv4()
+  };
 
-  /**
-   * Verify token exists in database
-   * @param {String} token - Refresh token
-   * @returns {Promise<Boolean>} Whether token exists and is valid
-   */
-  async verifyTokenInDatabase(token) {
-    try {
-      const tokenDoc = await TokenModel.findOne({ token, type: 'refresh' });
-      
-      if (!tokenDoc) {
-        return false;
-      }
-      
-      // Check if token is expired
-      if (tokenDoc.expiresAt < new Date()) {
-        await TokenModel.deleteOne({ _id: tokenDoc._id });
-        return false;
-      }
-      
+  const newAccessToken = generateToken(basePayload, 'access');
+  const newRefreshToken = generateToken(basePayload, 'refresh');
+
+  return {
+    tokens: {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    },
+    session
+  };
+};
+
+/**
+ * Verify an access token
+ * @param {string} token - The access token to verify
+ * @returns {Promise<Object>} - The decoded token payload
+ */
+exports.verifyAccessToken = async (token) => {
+  try {
+    // Use the correct secret key from config
+    // Fix: Use the correct property path based on your token config structure
+    const secret = tokenConfig.access.secret;
+    
+    // Add logging for debugging
+    console.log('Verifying access token with secret:', secret ? (secret.substring(0, 3) + '...') : 'undefined');
+    
+    // Verify the token
+    const decoded = jwt.verify(token, secret);
+    return decoded;
+  } catch (error) {
+    console.error('Access token verification failed:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Verify refresh token
+ * @param {string} token
+ * @returns {Object} decoded token
+ */
+exports.verifyRefreshToken = async (token) => {
+  // Check if token is blacklisted
+  const blacklisted = await isTokenBlacklisted(token);
+  if (blacklisted) {
+    throw new AppError('Refresh token has been revoked', 401, 'TOKEN_REVOKED');
+  }
+  
+  return verifyToken(token, 'refresh');
+};
+
+/**
+ * Blacklist a token with proper TTL management
+ * @param {string} token
+ * @param {string} type - 'access' or 'refresh'
+ */
+exports.blacklistToken = async (token, type = 'access') => {
+  try {
+    // Decode token without verification to get expiration
+    const decoded = jwt.decode(token);
+    
+    if (!decoded || !decoded.exp) {
+      throw new Error('Invalid token format');
+    }
+    
+    // Calculate TTL (time-to-live) in seconds
+    const expiryTime = decoded.exp;
+    const currentTime = Math.floor(Date.now() / 1000);
+    const ttl = Math.max(expiryTime - currentTime, 0);
+    
+    // Skip blacklisting if token is already expired or about to expire
+    if (ttl < 10) {
+      logger.debug('Token already expired or about to expire, skipping blacklist');
       return true;
-    } catch (error) {
-      logger.error('Error verifying token in database:', error);
-      return false;
     }
-  }
-
-  /**
-   * Delete refresh token from database
-   * @param {String} token - Refresh token
-   * @returns {Promise<Boolean>} Whether deletion was successful
-   */
-  async deleteRefreshToken(token) {
-    try {
-      const result = await TokenModel.deleteOne({ token, type: 'refresh' });
-      return result.deletedCount > 0;
-    } catch (error) {
-      logger.error('Error deleting refresh token:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Delete all refresh tokens for a user
-   * @param {String} userId - User ID
-   * @returns {Promise<Number>} Number of tokens deleted
-   */
-  async deleteAllUserTokens(userId) {
-    try {
-      const result = await TokenModel.deleteMany({ user: userId, type: 'refresh' });
-      return result.deletedCount;
-    } catch (error) {
-      logger.error('Error deleting all user tokens:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Rotate refresh token
-   * @param {String} oldToken - Old refresh token
-   * @param {Object} user - User object
-   * @returns {Promise<Object>} New tokens
-   */
-  async rotateRefreshToken(oldToken, user) {
-    try {
-      // Verify old token exists in database
-      const isValid = await this.verifyTokenInDatabase(oldToken);
+    
+    // Use token ID or hash instead of full token to save space
+    const tokenId = decoded.jti || crypto.createHash('sha256').update(token).digest('hex');
+    
+    // Add token to blacklist with expiry
+    await redisClient.set(`blacklist:${tokenId}`, '1', 'EX', ttl + 60); // Add 60s buffer
+    
+    // Track blacklist size periodically
+    if (Math.random() < 0.01) { // 1% chance to check size
+      const blacklistSize = await getBlacklistSize();
+      logger.debug(`Current token blacklist size: ${blacklistSize} entries`);
       
-      if (!isValid) {
-        throw new Error('Invalid refresh token');
+      // Alert if blacklist grows too large
+      if (blacklistSize > 10000) {
+        logger.warn(`Token blacklist size (${blacklistSize}) is large, consider cleanup`);
       }
-      
-      // Delete old token
-      await this.deleteRefreshToken(oldToken);
-      
-      // Generate new tokens
-      return await this.generateAuthTokens(user);
-    } catch (error) {
-      logger.error('Error rotating refresh token:', error);
-      throw error;
     }
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to blacklist token', { error: error.message, type });
+    return false;
+  }
+};
+
+/**
+ * Revoke token
+ * @param {string} token
+ * @param {string} type - 'access' or 'refresh'
+ */
+exports.revokeToken = async (token, type = 'access') => {
+  try {
+    // Decode token to get session ID
+    const decoded = jwt.decode(token);
+    
+    // Blacklist the token
+    await exports.blacklistToken(token, type);
+    
+    // If it's a refresh token and has a session ID, mark the session for cleanup
+    if (type === 'refresh' && decoded && decoded.sessionId) {
+      try {
+        await sessionService.markSessionForCleanup(decoded.sessionId);
+      } catch (error) {
+        logger.warn('Failed to mark session for cleanup during token revocation', {
+          sessionId: decoded.sessionId,
+          error: error.message
+        });
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to revoke token', { error: error.message, type });
+    return false;
+  }
+};
+
+/**
+ * Generate CSRF token
+ * @param {string} userId
+ * @returns {string} CSRF token
+ */
+exports.generateCsrfToken = async (userId) => {
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  
+  // Store CSRF token in Redis with user ID association
+  if (userId) {
+    await redisClient.set(
+      `csrf:${csrfToken}`, 
+      userId.toString(),
+      'EX',
+      tokenConfig.csrfToken.expiresIn
+    );
+  }
+  
+  return csrfToken;
+};
+
+/**
+ * Verify CSRF token
+ * @param {string} token
+ * @param {string} userId
+ * @returns {boolean}
+ */
+exports.verifyCsrfToken = async (token, userId) => {
+  if (!token) return false;
+  
+  const storedUserId = await redisClient.get(`csrf:${token}`);
+  
+  // If no user ID is stored or provided, just check if token exists
+  if (!userId) return !!storedUserId;
+  
+  // If user ID is provided, check if it matches
+  return storedUserId === userId.toString();
+};
+
+/**
+ * Set token cookies
+ * @param {Object} res - Express response object
+ * @param {Object} tokens - Access and refresh tokens
+ */
+exports.setTokenCookies = (res, tokens) => {
+  if (tokens.accessToken) {
+    res.cookie(
+      cookieConfig.names.ACCESS_TOKEN, 
+      tokens.accessToken, 
+      cookieConfig.accessTokenOptions
+    );
+  }
+  
+  if (tokens.refreshToken) {
+    res.cookie(
+      cookieConfig.names.REFRESH_TOKEN, 
+      tokens.refreshToken, 
+      cookieConfig.refreshTokenOptions
+    );
+  }
+};
+
+/**
+ * Clear token cookies
+ * @param {Object} res - Express response object
+ */
+exports.clearTokenCookies = (res) => {
+  res.clearCookie(cookieConfig.names.ACCESS_TOKEN, cookieConfig.accessTokenOptions);
+  res.clearCookie(cookieConfig.names.REFRESH_TOKEN, cookieConfig.refreshTokenOptions);
+  res.clearCookie(cookieConfig.names.CSRF_TOKEN, cookieConfig.csrfTokenOptions);
+};
+
+/**
+ * Initialize token service
+ * Sets up token cleanup and other initialization tasks
+ */
+exports.initialize = function() {
+  // Set up scheduled cleanup of expired tokens
+  exports.setupTokenCleanup();
+  
+  // Initialize token blacklist if using Redis
+  if (process.env.TOKEN_BLACKLIST_ENABLED === 'true') {
+    initializeTokenBlacklist();
+  }
+  
+  logger.info('Token service initialized');
+};
+
+/**
+ * Set up scheduled cleanup of expired tokens
+ */
+exports.setupTokenCleanup = function() {
+  logger.info('Setting up token cleanup schedule');
+  
+  // Set up interval to clean up expired tokens
+  const cleanupInterval = setInterval(async () => {
+    try {
+      const result = await Token.cleanupExpiredTokens();
+      logger.debug(`Cleaned up ${result.deletedCount || 0} expired tokens`);
+    } catch (error) {
+      logger.error('Error during token cleanup:', error);
+    }
+  }, 3600000); // Run every hour
+  
+  // Store interval reference for cleanup
+  cleanupIntervals.push(cleanupInterval);
+  
+  logger.info('Token cleanup schedule established');
+};
+
+/**
+ * Get current size of token blacklist
+ * @returns {Promise<number>} Number of blacklisted tokens
+ */
+async function getBlacklistSize() {
+  try {
+    const keys = await redisClient.keys('blacklist:*');
+    return keys.length;
+  } catch (error) {
+    logger.error('Failed to get blacklist size', error);
+    return 0;
   }
 }
 
-module.exports = new TokenService();
+/**
+ * Clean up expired tokens from blacklist
+ * This is automatically handled by Redis TTL, but this function
+ * can be used for manual cleanup if needed
+ */
+async function cleanupExpiredTokens() {
+  try {
+    // Redis automatically removes expired keys
+    // This function is mainly for monitoring
+    const before = await getBlacklistSize();
+    
+    // Force cleanup of any tokens without proper TTL
+    const keys = await redisClient.keys('blacklist:*');
+    let cleaned = 0;
+    
+    for (const key of keys) {
+      const ttl = await redisClient.ttl(key);
+      if (ttl < 0) {
+        await redisClient.del(key);
+        cleaned++;
+      }
+    }
+    
+    const after = await getBlacklistSize();
+    logger.info(`Blacklist cleanup: ${before} → ${after} entries (${cleaned} manually removed)`);
+  } catch (error) {
+    logger.error('Failed to clean up expired tokens:', error);
+  }
+}
+
+/**
+ * Initialize token blacklist
+ */
+function initializeTokenBlacklist() {
+  // Implementation depends on your storage mechanism
+  logger.info('Token blacklist initialized');
+}
+
+/**
+ * Validate CSRF token
+ * @param {string} headerToken - Token from request header
+ * @param {string} cookieToken - Token from cookie
+ * @returns {boolean} Whether the token is valid
+ */
+exports.validateCsrfToken = function(headerToken, cookieToken) {
+  if (!headerToken || !cookieToken) {
+    return false;
+  }
+  
+  try {
+    // Simple comparison for double-submit cookie pattern
+    return headerToken === cookieToken;
+  } catch (error) {
+    logger.error('Error validating CSRF token:', error);
+    return false;
+  }
+};
+
+/**
+ * Clean up resources used by the token service
+ * Called during application shutdown
+ */
+exports.cleanup = function() {
+  logger.info('Cleaning up token service resources');
+  
+  try {
+    // Clear all intervals
+    cleanupIntervals.forEach(interval => {
+      clearInterval(interval);
+    });
+    cleanupIntervals.length = 0;
+    
+    logger.info('Token service cleanup completed');
+    return true;
+  } catch (error) {
+    logger.error('Error during token service cleanup:', error);
+    return false;
+  }
+};

@@ -41,6 +41,8 @@ import {
 } from '../types/auth.types';
 import { authApi } from '@/features/auth/api/auth-api';
 import { apiClient } from '@/api/apiClient';
+import { AUTH_CONSTANTS } from '../constants/auth.constants';
+import { API_CONFIG } from '../../../config/api';
 
 export interface SessionServiceConfig {
   apiBaseUrl: string;
@@ -57,13 +59,13 @@ export interface SessionServiceConfig {
 const defaultConfig: SessionServiceConfig = {
   apiBaseUrl: '/api',
   sessionEndpoint: '/auth/session',
-  sessionSyncEndpoint: '/api/auth/session/sync', // Update with full path
-  sessionTimeout: 30 * 60 * 1000, // 30 minutes
-  sessionWarningThreshold: 5 * 60 * 1000, // 5 minutes before expiry
-  activityEvents: ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'],
+  sessionSyncEndpoint: '/api/auth/session/sync',
+  sessionTimeout: AUTH_CONSTANTS.SESSION.TIMEOUT, // Reference constants
+  sessionWarningThreshold: API_CONFIG.AUTH.SESSION.EXPIRY_THRESHOLD, // Reference API config
+  activityEvents: AUTH_CONSTANTS.SESSION.ACTIVITY_EVENTS, // Reference constants
   enableCrossTabs: true,
   enableOfflineSupport: true,
-  syncInterval: 5 * 60 * 1000 // 5 minutes
+  syncInterval: API_CONFIG.AUTH.REFRESH_THRESHOLD // Reference API config
 };
 
 export class SessionService {
@@ -83,6 +85,12 @@ export class SessionService {
   private isAuthenticated: boolean = false;
   private api: any; // Using any for now, should be properly typed
   private lastActivity: number = Date.now();
+  private sessionId: string | null = null;
+  private monitoringInterval: number | null = null;
+  private activityListeners: { [key: string]: EventListener } = {};
+  private lastActivityTime: number = Date.now();
+  private csrfToken: string | null = null;
+  private deviceInfo: { [key: string]: any } | null = null;
 
   constructor(
     tokenService: TokenService,
@@ -413,11 +421,30 @@ export class SessionService {
         return false;
       }
       
+      // First, try to get the existing CSRF token
+      let csrfToken = this.tokenService.getCsrfToken();
+      
+      // If no token exists, try to rotate/generate a new one
+      if (!csrfToken) {
+        logger.debug('No CSRF token found, attempting to rotate token');
+        const rotated = await this.tokenService.rotateCsrfToken();
+        if (rotated) {
+          csrfToken = this.tokenService.getCsrfToken();
+        }
+      }
+      
+      if (!csrfToken) {
+        logger.error('Failed to obtain CSRF token');
+        return false;
+      }
+      
+      logger.debug('Using CSRF token for session sync');
+      
       // Prepare session data for sync
       const syncData = {
         sessionId: this.sessionData.id && this.sessionData.id.match(/^[0-9a-fA-F]{24}$/) 
-          ? this.sessionData.id  // Use existing ID if it's a valid MongoDB ObjectId
-          : null,                // Otherwise let the server find or create a session
+          ? this.sessionData.id
+          : null,
         lastActivity: this.sessionData.lastActivity,
         deviceInfo: this.securityService.getDeviceInfo()
       };
@@ -438,7 +465,7 @@ export class SessionService {
           withCredentials: true,
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': this.tokenService.getCsrfToken() || ''
+            'X-CSRF-Token': csrfToken
           }
         }
       );
@@ -929,6 +956,134 @@ export class SessionService {
     }
 
     return success;
+  }
+
+  /**
+   * Start session monitoring with the given session ID
+   * @param sessionId The ID of the current session
+   */
+  public startSessionMonitoring(sessionId: string): void {
+    logger.debug('Starting session monitoring', { sessionId });
+    
+    // Store the session ID
+    this.sessionId = sessionId;
+    
+    // Start activity tracking
+    this.startActivityTracking();
+    
+    // Start the monitoring interval
+    this.startMonitoringInterval();
+    
+    logger.info('Session monitoring started', { sessionId });
+  }
+  
+  /**
+   * Start tracking user activity
+   */
+  private startActivityTracking(): void {
+    // Clear any existing listeners
+    this.stopActivityTracking();
+    
+    // Set up activity listeners
+    AUTH_CONSTANTS.SESSION.ACTIVITY_EVENTS.forEach(eventName => {
+      const listener = () => {
+        this.lastActivityTime = Date.now();
+      };
+      
+      this.activityListeners[eventName] = listener;
+      document.addEventListener(eventName, listener, { passive: true });
+    });
+    
+    logger.debug('Activity tracking started');
+  }
+  
+  /**
+   * Stop tracking user activity
+   */
+  private stopActivityTracking(): void {
+    // Remove all activity listeners
+    Object.entries(this.activityListeners).forEach(([eventName, listener]) => {
+      document.removeEventListener(eventName, listener);
+    });
+    
+    this.activityListeners = {};
+    logger.debug('Activity tracking stopped');
+  }
+  
+  /**
+   * Start the monitoring interval
+   */
+  private startMonitoringInterval(): void {
+    // Clear any existing interval
+    this.stopMonitoringInterval();
+    
+    // Set up new interval
+    this.monitoringInterval = window.setInterval(() => {
+      this.checkSessionActivity();
+    }, AUTH_CONSTANTS.SESSION.INACTIVITY_CHECK_INTERVAL);
+    
+    logger.debug('Session monitoring interval started');
+  }
+  
+  /**
+   * Stop the monitoring interval
+   */
+  private stopMonitoringInterval(): void {
+    if (this.monitoringInterval !== null) {
+      window.clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+      logger.debug('Session monitoring interval stopped');
+    }
+  }
+  
+  /**
+   * Check session activity and update if needed
+   */
+  private async checkSessionActivity(): Promise<void> {
+    if (!this.sessionId) {
+      logger.warn('No session ID available for activity check');
+      return;
+    }
+    
+    const now = Date.now();
+    const timeSinceLastActivity = now - this.lastActivityTime;
+    
+    // If user has been active recently, update the session
+    if (timeSinceLastActivity < AUTH_CONSTANTS.SESSION.INACTIVITY_CHECK_INTERVAL) {
+      try {
+        await this.updateSessionActivity();
+      } catch (error) {
+        logger.error('Failed to update session activity', { error });
+      }
+    }
+  }
+  
+  /**
+   * Update session activity on the server
+   */
+  private async updateSessionActivity(): Promise<void> {
+    if (!this.sessionId) {
+      logger.warn('No session ID available for activity update');
+      return;
+    }
+    
+    try {
+      await authApi.updateSessionActivity(this.sessionId);
+      logger.debug('Session activity updated');
+    } catch (error) {
+      logger.error('Failed to update session activity', { error });
+      throw error;
+    }
+  }
+  
+  /**
+   * Clean up session monitoring
+   */
+  public cleanup(): void {
+    this.stopActivityTracking();
+    this.stopMonitoringInterval();
+    this.sessionId = null;
+    logger.info('Session monitoring cleaned up');
   }
 }
 

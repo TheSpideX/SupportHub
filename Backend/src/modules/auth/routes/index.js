@@ -2,34 +2,36 @@
  * Auth Routes Index
  * 
  * This file serves as the entry point for all authentication-related routes.
- * It organizes and exports routes for authentication, user management, 
- * security, and session handling.
+ * It organizes and exports routes for authentication, token management, 
+ * session handling, security, and user management.
  */
 
 const express = require('express');
 const authRoutes = require('./auth.routes');
-const userRoutes = require('./user.routes');
+const tokenRoutes = require('./token.routes');
 const sessionRoutes = require('./session.routes');
 const securityRoutes = require('./security.routes');
+const userRoutes = require('./user.routes');
 
 const router = express.Router();
 
-// Auth routes
-router.use('/auth', authRoutes);
+// Auth routes (login, logout, register)
+router.use('/', authRoutes);
 
-// User routes
-router.use('/users', userRoutes);
+// Token routes (refresh, validate, revoke)
+router.use('/token', tokenRoutes);
 
-// Session routes
-router.use('/auth/session', sessionRoutes);
+// Session routes (validate, list, terminate)
+router.use('/session', sessionRoutes);
 
-// Security routes
+// Security routes (events, settings)
 router.use('/security', securityRoutes);
 
-// OPTIONS handler for endpoint checking
-// This supports the frontend's checkEndpointExists functionality
+// User routes (profile, password)
+router.use('/user', userRoutes);
+
+// OPTIONS handler for CORS preflight requests
 router.options('*', (req, res) => {
-  // Return 200 OK with allowed methods
   res.header('Allow', 'GET, POST, PUT, DELETE, OPTIONS');
   res.status(200).send();
 });

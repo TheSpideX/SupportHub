@@ -1,25 +1,86 @@
+/**
+ * Session Routes
+ * Handles all session-related operations
+ */
+
 const express = require('express');
-const { authenticate } = require('../middleware/authenticate');
-const sessionController = require('../controllers/session.controller');
-const { apiRateLimit } = require('../middleware/rateLimit.middleware');
-const csrfProtection = require('../middleware/csrf.middleware').protect;
-
 const router = express.Router();
+const sessionController = require('../controllers/session.controller');
+const { authenticateToken, csrfProtection } = require('../middleware');
+const { validateRequest } = require('../middleware/validate');
 
-// Apply authentication to all session routes
-router.use(authenticate);
+// Validate current session
+router.get(
+  '/validate',
+  authenticateToken,
+  sessionController.validateSession
+);
 
-// Get all active sessions for current user
-router.get('/', apiRateLimit(), sessionController.getUserSessions);
+// Session synchronization endpoint for cross-tab communication
+router.post('/sync', 
+  authenticateToken, 
+  csrfProtection,
+  validateRequest({
+    body: {
+      tabId: { type: 'string', optional: true },
+      screenSize: { type: 'object', optional: true },
+      lastUserActivity: { type: 'date', optional: true }
+    }
+  }),
+  sessionController.syncSession
+);
 
-// Terminate a specific session
-router.delete('/:sessionId', apiRateLimit(), csrfProtection, sessionController.terminateSession);
+// Endpoint to acknowledge session warnings
+router.post('/acknowledge-warning',
+  authenticateToken,
+  csrfProtection,
+  validateRequest({
+    body: {
+      warningType: { type: 'string', enum: ['IDLE', 'ABSOLUTE', 'SECURITY'] }
+    }
+  }),
+  sessionController.acknowledgeWarning
+);
+
+// Add the simplified test routes for debugging
+router.post('/sync-test', (req, res) => {
+  res.status(200).json({ message: 'Test route working' });
+});
+
+// Get active sessions for current user
+router.get('/active',
+  authenticateToken,
+  csrfProtection,
+  sessionController.getActiveSessions
+);
+
+// Terminate specific session
+router.delete('/:sessionId',
+  authenticateToken,
+  csrfProtection,
+  sessionController.terminateSession
+);
 
 // Terminate all sessions except current
-router.delete('/', apiRateLimit(), csrfProtection, sessionController.terminateAllSessions);
+router.post(
+  '/terminate-all',
+  authenticateToken,
+  csrfProtection,
+  sessionController.terminateAllSessions
+);
 
-// Sync session data (for cross-tab synchronization)
-router.post('/sync', apiRateLimit({ max: 60 }), csrfProtection, sessionController.syncSession);
+// Get session details
+router.get(
+  '/:sessionId',
+  authenticateToken,
+  sessionController.getSessionById
+);
 
-// Export router
+// Update session activity (heartbeat)
+router.post(
+  '/heartbeat',
+  authenticateToken,
+  sessionController.updateSessionActivity
+);
+
 module.exports = router;

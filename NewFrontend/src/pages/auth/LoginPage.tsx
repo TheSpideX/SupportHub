@@ -56,21 +56,59 @@ export const LoginPage = () => {
       from
     });
     
-    if (isAuthenticated) {
+    // Force check auth service state directly
+    const checkAuthServiceState = async () => {
+      try {
+        const authService = getAuthService();
+        const currentState = authService.getAuthState();
+        
+        logger.debug('Direct auth service state check', {
+          component: COMPONENT,
+          serviceIsAuthenticated: currentState.isAuthenticated,
+          serviceHasUser: !!currentState.user,
+          serviceUserRole: currentState.user?.role
+        });
+        
+        // If service shows authenticated but Redux doesn't, sync the state
+        if (currentState.isAuthenticated && currentState.user && !authState.isAuthenticated) {
+          logger.warn('Auth state mismatch detected - Service shows authenticated but Redux does not', {
+            component: COMPONENT
+          });
+          
+          // Update Redux state with service state
+          dispatch(setAuthState({
+            user: currentState.user,
+            isAuthenticated: true,
+            sessionExpiry: currentState.sessionExpiry != null
+              ? (typeof currentState.sessionExpiry === 'object' 
+                ? currentState.sessionExpiry.getTime() 
+                : currentState.sessionExpiry) 
+              : Date.now() + (30 * 60 * 1000)
+          }));
+          
+          // Navigate after state update
+          setTimeout(() => {
+            navigate(from, { replace: true });
+          }, 100);
+        }
+      } catch (error) {
+        logger.error('Error checking auth service state', {
+          component: COMPONENT,
+          error
+        });
+      }
+    };
+    
+    checkAuthServiceState();
+    
+    if (isAuthenticated || authState.isAuthenticated) {
       logger.info('User authenticated, redirecting from login page', {
         component: COMPONENT,
         redirectTo: from
       });
       navigate(from, { replace: true });
-    } else if (authState.isAuthenticated) {
-      // Check if there's a mismatch between hook and Redux state
-      logger.warn('Auth state mismatch detected - Redux shows authenticated but hook does not', {
-        component: COMPONENT
-      });
-      // Try forcing navigation based on Redux state
-      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, authState.isAuthenticated, navigate, from]);
+  }, [isAuthenticated, authState.isAuthenticated, navigate, from, dispatch]);
   
   // Add this effect to debug authentication state changes
   useEffect(() => {
@@ -152,13 +190,12 @@ export const LoginPage = () => {
       // Add security context to login request
       logger.debug('Preparing login request with security context', { component: COMPONENT });
       const loginRequest = {
-        ...values,
+        email: values.email,
+        password: values.password,
         deviceInfo: {
           fingerprint,
           userAgent: navigator.userAgent,
-          screenResolution: `${window.screen.width}x${window.screen.height}`,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          location: {} // Add empty location object to match schema
+          ip: window.location.hostname // Fallback, server will determine actual IP
         }
       };
       
@@ -167,16 +204,26 @@ export const LoginPage = () => {
       const result = await login(loginRequest);
       
       // Check if login was successful
-      if (result) {
+      if (result.success) {
         logger.info('Login successful, navigating to:', { component: COMPONENT, destination: from });
-        // Force navigation with a slight delay to ensure state updates are processed
-        setTimeout(() => {
-          navigate(from, { replace: true });
-        }, 100);
+        
+        // Start session heartbeat
+        startSessionHeartbeat();
+        
+        // Navigate to destination
+        navigate(from, { replace: true });
       } else {
-        // Handle case where login returns false but doesn't throw an error
-        logger.warn('Login returned null without throwing error', { component: COMPONENT });
-        setError('Login failed. Please check your credentials and try again.');
+        // Check if we're waiting for 2FA
+        if (result.data?.requiresTwoFactor) {
+          logger.info('2FA required, redirecting to verification page', { component: COMPONENT });
+          navigate('/auth/verify-2fa', { 
+            state: { tempToken: result.data.tempToken }
+          });
+        } else {
+          // Handle case where login returns false but doesn't throw an error
+          logger.warn('Login returned false without throwing error', { component: COMPONENT });
+          setError(result.message || 'Login failed. Please check your credentials and try again.');
+        }
       }
     } catch (error) {
       // Handle login error

@@ -25,6 +25,7 @@ import { initAuth } from '@/features/auth/init';
 import { getAuthService } from './features/auth/services';
 // Import the toast service
 import { ToastService } from './utils/toast.service';
+import AuthMonitorWidget from './features/auth/components/AuthMonitorWidget';
 
 // Component name for logging
 const COMPONENT = 'App';
@@ -34,6 +35,7 @@ const RootLayout = () => (
   <>
     <Outlet />
     <Toaster position="top-right" />
+    <AuthMonitorWidget />
   </>
 );
 

@@ -19,7 +19,8 @@ export const API_CONFIG = {
       KEY_PREFIX: 'auth_'
     },
     SESSION: {
-      EXPIRY_THRESHOLD: 15 * 60 * 1000, // 15 minutes
+      TIMEOUT: 30 * 60 * 1000, // 30 minutes - aligned with backend
+      EXPIRY_THRESHOLD: 5 * 60 * 1000, // 5 minutes - aligned with backend
       ALERT_THRESHOLD: 5 * 60 * 1000, // 5 minutes
       STORAGE_KEY: 'session_data'
     }

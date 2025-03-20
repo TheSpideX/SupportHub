@@ -1,190 +1,308 @@
-const { asyncHandler } = require('../../../utils/errorHandlers');
-const { AppError } = require('../../../utils/errors');
+/**
+ * Session Controller
+ * Handles all session-related operations
+ */
 const Session = require('../models/session.model');
-const User = require('../models/user.model');
-const logger = require('../../../utils/logger');
+const { AppError } = require('../../../utils/errors');
+const sessionService = require('../services/session.service');
 const sessionConfig = require('../config/session.config');
 
 /**
- * Get all active sessions for the current user
+ * Validate current session
+ * @route GET /api/auth/session/validate
  */
-exports.getUserSessions = asyncHandler(async (req, res) => {
-  const sessions = await Session.find({ 
-    userId: req.user._id,
-    isActive: true 
-  }).sort({ createdAt: -1 });
-  
-  res.status(200).json({
-    status: 'success',
-    data: {
-      sessions: sessions.map(session => ({
-        id: session._id,
-        deviceInfo: session.deviceInfo,
-        ipAddress: session.ipAddress,
-        createdAt: session.createdAt,
-        lastActiveAt: session.updatedAt,
-        current: session._id.toString() === req.session._id.toString()
-      }))
+exports.validateSession = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const sessionId = req.session.id;
+    
+    // Get session from database
+    const session = await Session.findOne({ _id: sessionId, userId });
+    
+    if (!session) {
+      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
     }
-  });
-});
+    
+    // Check if session is expired
+    if (session.isExpired()) {
+      return next(new AppError('Session expired', 401, 'SESSION_EXPIRED'));
+    }
+    
+    // Return session info
+    res.status(200).json({
+      status: 'success',
+      data: {
+        session: {
+          id: session._id,
+          createdAt: session.createdAt,
+          lastActivity: session.lastActivity,
+          expiresAt: session.expiresAt,
+          device: session.deviceInfo
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /**
- * Terminate a specific session
+ * Synchronize session across tabs
+ * @route POST /api/auth/session/sync
  */
-exports.terminateSession = asyncHandler(async (req, res) => {
-  const { sessionId } = req.params;
-  
-  // Verify session belongs to user
-  const session = await Session.findOne({ 
-    _id: sessionId,
-    userId: req.user._id 
-  });
-  
-  if (!session) {
-    throw new AppError('Session not found', 404, 'SESSION_NOT_FOUND');
+exports.syncSession = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const sessionId = req.session.id;
+    const { tabId, screenSize, lastUserActivity } = req.body;
+    
+    // Get session from database
+    const session = await Session.findOne({ _id: sessionId, userId });
+    
+    if (!session) {
+      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    }
+    
+    // Update session with tab information
+    if (tabId) {
+      // Add or update tab in session
+      const tabIndex = session.activeTabs.findIndex(tab => tab.id === tabId);
+      
+      if (tabIndex >= 0) {
+        // Update existing tab
+        session.activeTabs[tabIndex].lastActivity = new Date();
+        if (screenSize) session.activeTabs[tabIndex].screenSize = screenSize;
+      } else {
+        // Add new tab
+        session.activeTabs.push({
+          id: tabId,
+          createdAt: new Date(),
+          lastActivity: new Date(),
+          screenSize: screenSize || {}
+        });
+      }
+    }
+    
+    // Update session last activity
+    if (lastUserActivity) {
+      session.lastActivity = new Date(lastUserActivity);
+    } else {
+      session.lastActivity = new Date();
+    }
+    
+    await session.save();
+    
+    // Return updated session info
+    res.status(200).json({
+      status: 'success',
+      data: {
+        session: {
+          id: session._id,
+          createdAt: session.createdAt,
+          lastActivity: session.lastActivity,
+          expiresAt: session.expiresAt,
+          activeTabs: session.activeTabs,
+          device: session.deviceInfo,
+          timeouts: {
+            idle: sessionConfig.timeouts.idle,
+            absolute: sessionConfig.timeouts.absolute,
+            warning: sessionConfig.timeouts.warning
+          }
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
   }
-  
-  // Deactivate session
-  session.isActive = false;
-  await session.save();
-  
-  res.status(200).json({
-    status: 'success',
-    message: 'Session terminated successfully'
-  });
-});
+};
+
+/**
+ * Acknowledge session timeout warning
+ * @route POST /api/auth/session/acknowledge-warning
+ */
+exports.acknowledgeWarning = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const sessionId = req.session.id;
+    const { warningType } = req.body;
+    
+    if (!['IDLE', 'ABSOLUTE', 'SECURITY'].includes(warningType)) {
+      return next(new AppError('Invalid warning type', 400));
+    }
+    
+    // Update session with acknowledgment
+    const session = await Session.findOne({ _id: sessionId, userId });
+    
+    if (!session) {
+      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    }
+    
+    // Find the most recent warning of this type
+    const warningIndex = session.warningsSent.findIndex(
+      w => w.warningType === warningType && !w.acknowledged
+    );
+    
+    if (warningIndex >= 0) {
+      session.warningsSent[warningIndex].acknowledged = true;
+      session.lastWarningAcknowledged = new Date();
+      await session.save();
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Warning acknowledged'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get active sessions for current user
+ * @route GET /api/auth/session/active
+ */
+exports.getActiveSessions = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    
+    // Get all active sessions for user
+    const sessions = await Session.find({
+      userId,
+      expiresAt: { $gt: new Date() }
+    }).select('_id createdAt lastActivity deviceInfo ipAddress userAgent');
+    
+    res.status(200).json({
+      status: 'success',
+      results: sessions.length,
+      data: {
+        sessions
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Terminate specific session
+ * @route DELETE /api/auth/session/:sessionId
+ */
+exports.terminateSession = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { sessionId } = req.params;
+    const currentSessionId = req.session.id;
+    
+    // Prevent terminating current session through this endpoint
+    if (sessionId === currentSessionId) {
+      return next(new AppError(
+        'Cannot terminate current session. Use logout instead.',
+        400,
+        'INVALID_OPERATION'
+      ));
+    }
+    
+    // Find and terminate session
+    const session = await Session.findOne({ _id: sessionId, userId });
+    
+    if (!session) {
+      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    }
+    
+    // End session
+    await sessionService.endSession(sessionId, 'user_terminated');
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Session terminated'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /**
  * Terminate all sessions except current
+ * @route POST /api/auth/session/terminate-all
  */
-exports.terminateAllSessions = asyncHandler(async (req, res) => {
-  // Update all sessions except current one
-  await Session.updateMany(
-    { 
-      userId: req.user._id,
-      isActive: true,
-      _id: { $ne: req.session._id }
-    },
-    { isActive: false }
-  );
-  
-  // Increment token version to invalidate all refresh tokens
-  await User.findByIdAndUpdate(
-    req.user._id,
-    { $inc: { 'security.tokenVersion': 1 } }
-  );
-  
-  res.status(200).json({
-    status: 'success',
-    message: 'All other sessions terminated successfully'
-  });
-});
+exports.terminateAllSessions = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const currentSessionId = req.session.id;
+    
+    // Find all other active sessions
+    const sessions = await Session.find({
+      userId,
+      _id: { $ne: currentSessionId },
+      expiresAt: { $gt: new Date() }
+    });
+    
+    // Terminate each session
+    const terminationPromises = sessions.map(session => 
+      sessionService.endSession(session._id, 'user_terminated_all')
+    );
+    
+    await Promise.all(terminationPromises);
+    
+    res.status(200).json({
+      status: 'success',
+      message: `Terminated ${sessions.length} sessions`,
+      data: {
+        terminatedCount: sessions.length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /**
- * Sync session data from client
- * Supports cross-tab synchronization
+ * Get session by ID
+ * @route GET /api/auth/session/:sessionId
  */
-exports.syncSession = asyncHandler(async (req, res) => {
-  const { lastActivity, metrics, deviceInfo, sessionId } = req.body;
-  
-  // Ensure user is authenticated
-  if (!req.user) {
-    throw new AppError('Unauthorized', 401, 'UNAUTHORIZED');
-  }
-  
-  // Find the session
-  let session = null;
-  
-  if (sessionId) {
-    // Try to find by sessionId if it's a valid ObjectId
-    if (sessionId.match(/^[0-9a-fA-F]{24}$/)) {
-      session = await Session.findOne({ 
-        _id: sessionId,
-        userId: req.user._id,
-        isActive: true 
-      });
-    } else {
-      // If sessionId is not a valid ObjectId (like "session-timestamp"),
-      // we need to find by other means or create a new session
-      session = await Session.findOne({ 
-        userId: req.user._id,
-        isActive: true 
-      }).sort({ createdAt: -1 });
-    }
-  } else {
-    // If no sessionId provided, find the most recent active session
-    session = await Session.findOne({ 
-      userId: req.user._id,
-      isActive: true 
-    }).sort({ createdAt: -1 });
-  }
-  
-  // If no session found, create a new one
-  if (!session) {
-    session = await Session.create({
-      userId: req.user._id,
-      userAgent: req.headers['user-agent'],
-      ipAddress: req.ip,
-      deviceInfo: deviceInfo || {},
-      isActive: true,
-      lastActivity: new Date(),
-      expiresAt: new Date(Date.now() + (24 * 60 * 60 * 1000)) // 24 hours
-    });
-  }
-  
-  // Update session with latest activity data
-  session.lastActivity = new Date();
-  
-  // Update device info if provided and different
-  if (deviceInfo && JSON.stringify(session.deviceInfo || {}) !== JSON.stringify(deviceInfo)) {
-    session.deviceInfo = {
-      ...session.deviceInfo || {},
-      ...deviceInfo
-    };
+exports.getSessionById = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { sessionId } = req.params;
     
-    // Log device change for security monitoring
-    logger.info('Device info updated during session', {
-      userId: req.user._id,
-      deviceChange: {
-        previous: session.deviceInfo || {},
-        current: deviceInfo
+    // Get session from database
+    const session = await Session.findOne({ _id: sessionId, userId });
+    
+    if (!session) {
+      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    }
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        session
       }
     });
+  } catch (error) {
+    next(error);
   }
-  
-  // Store metrics if provided
-  if (metrics) {
-    session.metrics = {
-      ...session.metrics || {},
-      ...metrics
-    };
+};
+
+/**
+ * Update session activity (heartbeat)
+ * @route POST /api/auth/session/heartbeat
+ */
+exports.updateSessionActivity = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const sessionId = req.session.id;
+    
+    // Update session last activity
+    await Session.findOneAndUpdate(
+      { _id: sessionId, userId },
+      { lastActivity: new Date() }
+    );
+    
+    res.status(200).json({
+      status: 'success',
+      message: 'Session activity updated'
+    });
+  } catch (error) {
+    next(error);
   }
-  
-  await session.save();
-  
-  // Calculate remaining time for session
-  const sessionConfig = require('../config/session.config');
-  const idleTimeout = sessionConfig.idleTimeout;
-  const absoluteTimeout = sessionConfig.absoluteTimeout;
-  
-  const now = new Date();
-  const idleExpiresAt = new Date(now.getTime() + idleTimeout * 1000);
-  const absoluteExpiresAt = session.createdAt 
-    ? new Date(session.createdAt.getTime() + absoluteTimeout * 1000)
-    : new Date(now.getTime() + absoluteTimeout * 1000);
-  
-  // Return the MongoDB _id as sessionId to maintain consistency
-  res.status(200).json({
-    status: 'success',
-    data: {
-      session: {
-        sessionId: session._id.toString(),
-        lastActivity: session.lastActivity,
-        idleExpiresAt,
-        absoluteExpiresAt,
-        expiresAt: new Date(Math.min(idleExpiresAt.getTime(), absoluteExpiresAt.getTime()))
-      }
-    }
-  });
-});
+};

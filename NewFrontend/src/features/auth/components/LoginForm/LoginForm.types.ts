@@ -10,38 +10,24 @@ export interface LoginFormData {
   deviceInfo?: {
     fingerprint?: string;
     userAgent?: string;
-    screenResolution?: string;
-    timezone?: string;
-    location?: {
-      country?: string;
-      city?: string;
-      ip?: string;
-    };
-  };
-  securityContext?: {
-    fingerprint?: string;
-    userAgent?: string;
-    location?: {
-      country?: string;
-      city?: string;
-      ip?: string;
-    };
+    ip?: string;
   };
 }
 
 export interface LoginResponse {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-    name: string;
-    preferences?: Record<string, any>;
-  };
-  securityContext?: {
-    lastLogin: string;
-    deviceInfo: any;
-    sessionId: string;
-    sessionExpiresAt: string;
+  success: boolean;
+  message: string;
+  data: {
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+    },
+    session: {
+      id: string;
+      expiresAt: string;
+    }
   };
   requiresTwoFactor?: boolean;
   twoFactorToken?: string;

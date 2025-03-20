@@ -1,0 +1,8 @@
+34244:C 19 Mar 2025 23:16:12.918 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+34244:C 19 Mar 2025 23:16:12.918 * Redis version=7.2.7, bits=64, commit=00000000, modified=0, pid=34244, just started
+34244:C 19 Mar 2025 23:16:12.918 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+34244:M 19 Mar 2025 23:16:12.919 * monotonic clock: POSIX clock_gettime
+34244:M 19 Mar 2025 23:16:12.919 * Running mode=standalone, port=6379.
+34244:M 19 Mar 2025 23:16:12.919 # WARNING: The TCP backlog setting of 511 cannot be enforced because kern.ipc.somaxconn is set to the lower value of 128.
+34244:M 19 Mar 2025 23:16:12.919 * Server initialized
+34244:M 19 Mar 2025 23:16:12.919 * Ready to accept connections tcp

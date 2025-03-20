@@ -20,40 +20,42 @@ class AuthService {
    */
   async login(email, password, deviceInfo = {}) {
     try {
-      // Find user by email
-      const user = await User.findOne({ email });
+      // Find user by email - select the security.password field
+      const user = await User.findOne({ email }).select('+security.password');
       
       if (!user) {
         throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
       }
       
-      // Check if account is locked
-      if (user.isLocked) {
-        const lockUntil = new Date(user.lockUntil);
-        if (lockUntil > new Date()) {
-          throw new AuthError(
-            `Account locked until ${lockUntil.toISOString()}`,
-            'ACCOUNT_LOCKED'
-          );
-        }
-        // If lock has expired, unlock the account
-        user.isLocked = false;
-        user.lockUntil = null;
-        user.failedLoginAttempts = 0;
-        await user.save();
+      // Check if user has a password in the security object
+      if (!user.security || !user.security.password) {
+        logger.error(`User ${user._id} has no password set`);
+        throw new AuthError('Account configuration error', 'ACCOUNT_ERROR');
       }
       
-      // Verify password
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+      // Verify password - ensure both arguments are defined
+      if (!password) {
+        throw new AuthError('Password is required', 'INVALID_CREDENTIALS');
+      }
+      
+      // Check if account is locked
+      if (user.security.lockUntil && user.security.lockUntil > new Date()) {
+        throw new AuthError(
+          `Account locked until ${user.security.lockUntil.toISOString()}`,
+          'ACCOUNT_LOCKED'
+        );
+      }
+      
+      // Verify password using the security.password field
+      const isPasswordValid = await bcrypt.compare(password, user.security.password);
       
       if (!isPasswordValid) {
         // Increment failed login attempts
-        user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+        user.security.loginAttempts = (user.security.loginAttempts || 0) + 1;
         
         // Check if account should be locked
-        if (user.failedLoginAttempts >= securityConfig.lockout.maxAttempts) {
-          user.isLocked = true;
-          user.lockUntil = new Date(Date.now() + securityConfig.lockout.durationMinutes * 60 * 1000);
+        if (user.security.loginAttempts >= securityConfig.lockout.maxAttempts) {
+          user.security.lockUntil = new Date(Date.now() + securityConfig.lockout.durationMinutes * 60 * 1000);
           await user.save();
           
           throw new AuthError(
@@ -66,17 +68,23 @@ class AuthService {
         throw new AuthError('Invalid email or password', 'INVALID_CREDENTIALS');
       }
       
-      // Reset failed login attempts
-      if (user.failedLoginAttempts > 0) {
-        user.failedLoginAttempts = 0;
-        await user.save();
+      // Reset login attempts on successful login
+      user.security.loginAttempts = 0;
+      if (user.security.lockUntil) {
+        user.security.lockUntil = null;
       }
+      await user.save();
       
       // Generate tokens
       const tokens = await tokenService.generateAuthTokens(user);
       
       // Create session
-      const session = await sessionService.createSession(user, deviceInfo);
+      const session = await sessionService.createSession({
+        userId: user._id, // Ensure this is passed correctly
+        userAgent: deviceInfo.userAgent || 'unknown',
+        ipAddress: deviceInfo.ip || 'unknown',
+        deviceInfo: deviceInfo
+      });
       
       // Return user data and tokens
       return {

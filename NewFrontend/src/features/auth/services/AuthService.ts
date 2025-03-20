@@ -53,7 +53,7 @@ const defaultConfig: AuthServiceConfig = {
   registerEndpoint: '/auth/register',
   passwordResetEndpoint: '/auth/password-reset',
   passwordResetConfirmEndpoint: '/auth/password-reset-confirm',
-  userEndpoint: '/auth/user',
+  userEndpoint: '/auth/status',
   enableOptimisticUpdates: true,
   enableOfflineSupport: true
 };
@@ -108,6 +108,9 @@ export class AuthService {
     private store?: any // Redux store
   ) {
     this.config = { ...defaultConfig, ...config };
+    // Update default config to use correct endpoints
+    this.config.userEndpoint = AUTH_CONSTANTS.ENDPOINTS.USER_INFO;
+    
     this.tokenService = tokenService;
     this.sessionService = sessionService;
     this.securityService = securityService;
@@ -312,20 +315,11 @@ export class AuthService {
   }
 
   /**
-   * Get current auth state
+   * Get current authentication state
    */
   public getAuthState(): AuthState {
-    return {
-      isAuthenticated: this.authState.isAuthenticated,
-      isLoading: this.authState.isLoading,
-      isInitialized: this.authState.isInitialized,
-      user: this.authState.user,
-      error: this.authState.error,
-      sessionExpiry: this.authState.sessionExpiry,
-      twoFactorRequired: this.authState.twoFactorRequired,
-      emailVerificationRequired: this.authState.emailVerificationRequired,
-      lastVerified: this.authState.lastVerified
-    };
+    // Return a copy of the current auth state
+    return { ...this.authState };
   }
 
   /**
@@ -347,9 +341,7 @@ export class AuthService {
       const deviceInfo = {
         fingerprint,
         userAgent: navigator.userAgent,
-        screenResolution: `${window.screen.width}x${window.screen.height}`,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        location: {}
+        ip: window.location.hostname // Fallback, server will determine actual IP
       };
       
       // Make login request with credentials and device info
@@ -358,27 +350,27 @@ export class AuthService {
         deviceInfo
       });
       
-      // Log response details (sanitized)
-      logger.debug('Login response received', {
-        success: response.success,
-        hasUser: !!response.user,
-        hasSession: !!response.securityContext
-      });
-      
       // Check if login was successful
-      if (response && response.status === 'success' && response.data && response.data.user) {
-        // Update auth state with user info
+      if (response && response.success) {
+        // Update auth state with user data
         this.updateAuthState({
           isAuthenticated: true,
-          isLoading: false,
-          isInitialized: true,
           user: response.data.user,
-          error: null,
-          sessionExpiry: this.calculateDefaultExpiry(credentials.rememberMe) // Make sure this returns a timestamp
+          isLoading: false,
+          error: null
         });
         
-        // Validate session immediately after login
-        await this.validateSession();
+        // Store session metadata for frontend tracking
+        if (response.data.session) {
+          // Store session metadata in a secure way
+          this.storeSessionMetadata(response.data.session);
+          
+          // Start session tracking with the session ID from the response
+          this.sessionService.startSessionTracking();
+          logger.info('Session tracking started for session ID:', response.data.session.id);
+        } else {
+          logger.warn('No session ID in login response, session tracking not started');
+        }
         
         logger.info('Login successful');
         return true;
@@ -397,36 +389,46 @@ export class AuthService {
           error
         });
         
-        throw error; // Throw error to be caught by useAuth
+        throw error;
       }
     } catch (error) {
-      // Handle login error
-      let errorMessage = 'Unknown error during login';
-      let errorCode = AUTH_ERROR_CODES.LOGIN_FAILED; // Use LOGIN_FAILED instead of AUTHENTICATION_FAILED
+      // Log and handle login error
+      logger.error('Login failed', { error });
       
-      // Extract error details if available
-      if (error) {
-        if (error.message) {
-          errorMessage = error.message;
-        }
-        if (error.code) {
-          errorCode = error.code;
-        }
-      }
-      
-      logger.error('Login failed', error);
-      
-      const authError = createAuthError(errorCode, errorMessage);
+      // Create and throw auth error
+      const authError = createAuthError(
+        AUTH_ERROR_CODES.LOGIN_FAILED,
+        error instanceof Error ? error.message : 'Login failed'
+      );
       
       this.updateAuthState({
         isAuthenticated: false,
-        isLoading: false,
-        isInitialized: true,
         user: null,
+        isLoading: false,
         error: authError
       });
       
-      throw authError; // Rethrow with proper formatting
+      throw authError;
+    }
+  }
+
+  /**
+   * Store session metadata for frontend tracking
+   */
+  private storeSessionMetadata(sessionData: any): void {
+    try {
+      // Store only non-sensitive session metadata
+      const sessionMetadata = {
+        id: sessionData.id,
+        expiresAt: sessionData.expiresAt,
+        lastActivity: sessionData.lastActivity || new Date().toISOString()
+      };
+      
+      // Use sessionStorage for session data
+      sessionStorage.setItem('session_metadata', JSON.stringify(sessionMetadata));
+      logger.debug('Session metadata stored');
+    } catch (error) {
+      logger.error('Failed to store session metadata', { error });
     }
   }
 
@@ -701,9 +703,7 @@ export class AuthService {
       logger.debug('Fetching user data');
       
       // Use apiClient directly instead of authApi
-      const response = await apiClient.get(
-        `${this.config.apiBaseUrl}${this.config.userEndpoint}`
-      );
+      const response = await apiClient.get(this.config.userEndpoint);
       
       this.lastFetchTimestamp = Date.now();
       
@@ -999,95 +999,33 @@ export class AuthService {
   }
 
   /**
-   * Validate current session with backend
+   * Validate current session
    */
   public async validateSession(): Promise<boolean> {
     try {
-      logger.info('Validating session');
+      // Call validate session API using the correct endpoint
+      const response = await this.authApi.validateSession();
       
-      const response = await authApi.validateSession();
-      logger.info('Session validation response:', response);
-      
-      // Extract data from response based on the actual structure
-      const responseData = response?.data?.data || {};
-      
-      // Check for valid session based on the actual response structure
-      const isValid = responseData?.isValid === true;
-      
-      // Log detailed validation info for debugging
-      logger.info('Session validation details:', {
-        isValid,
-        hasSessionData: !!responseData?.session,
-        hasUserData: !!responseData?.user,
-        responseFormat: JSON.stringify(response).substring(0, 100) + '...'
-      });
-      
-      if (isValid && responseData.user) {
-        const userData = responseData.user;
-        const sessionData = responseData.session || {};
-        
-        logger.info('Valid session found, updating auth state with user data', { 
-          userId: userData.id,
-          role: userData.role,
-          sessionExpiry: sessionData.expiresAt
-        });
-        
-        // Convert string role to UserRole enum
-        const userWithCorrectRole = {
-          ...userData,
-          role: this.mapStringToUserRole(userData.role),
-          // Ensure other required properties exist
-          name: userData.name || userData.email?.split('@')[0] || '',
-          twoFactorEnabled: userData.twoFactorEnabled || false,
-          emailVerified: userData.emailVerified || false,
-          permissions: userData.permissions || [],
-          createdAt: userData.createdAt || new Date().toISOString(),
-          updatedAt: userData.updatedAt || new Date().toISOString()
-        };
-        
-        // Session is valid - update auth state with user data
+      // If session is valid, update auth state
+      if (response && response.success && response.data) {
+        // Update auth state with user data
         this.updateAuthState({
           isAuthenticated: true,
-          isLoading: false,
-          isInitialized: true,
-          user: userWithCorrectRole,
-          sessionExpiry: sessionData.expiresAt ? new Date(sessionData.expiresAt).getTime() : this.calculateDefaultExpiry(false),
-          error: null,
-          lastVerified: Date.now()
+          user: response.data.user,
+          sessionExpiry: response.data.session?.expiresAt
+            ? new Date(response.data.session.expiresAt).getTime()
+            : Date.now() + (30 * 60 * 1000)
         });
         
-        // Start session tracking if not already started
-        this.sessionService.startSessionTracking();
-        
-        // Update Redux store if available
-        this.updateReduxStore(userWithCorrectRole);
+        // Update Redux store
+        this.updateReduxStore(response.data.user);
         
         return true;
       }
       
-      // Session is invalid or response format is unexpected
-      logger.info('No valid session found or unexpected response format');
-      this.updateAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        isInitialized: true,
-        user: null,
-        error: null
-      });
-      
       return false;
     } catch (error) {
-      logger.error('Session validation failed:', error);
-      
-      // Update auth state
-      this.updateAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        isInitialized: true,
-        user: null,
-        error: createAuthError('SESSION_VALIDATION_FAILED', 'Failed to validate session')
-      });
-      
+      logger.error('Error validating session', { error });
       return false;
     }
   }
@@ -1098,23 +1036,22 @@ export class AuthService {
   private updateReduxStore(userData: any): void {
     try {
       if (this.store && this.store.dispatch) {
-        // Import actions dynamically to avoid circular dependencies
-        import('../store/authSlice').then(module => {
-          const { setAuthState } = module;
-          
-          // Calculate session expiry time
-          const expiryTime = this.authState.sessionExpiry || this.calculateDefaultExpiry(false);
-          
-          // Dispatch action to update Redux state
-          this.store.dispatch(setAuthState({
-            user: userData,
-            isAuthenticated: true,
-            sessionExpiry: expiryTime
-          }));
-          
-          logger.debug('Redux store updated with auth state');
-        }).catch(err => {
-          logger.error('Failed to update Redux store:', err);
+        // Calculate session expiry time
+        const expiryTime = this.authState.sessionExpiry || this.calculateDefaultExpiry(false);
+        
+        // Import actions directly to avoid circular dependencies
+        const { setAuthState } = require('../store/authSlice');
+        
+        // Dispatch action to update Redux state
+        this.store.dispatch(setAuthState({
+          user: userData,
+          isAuthenticated: true,
+          sessionExpiry: expiryTime
+        }));
+        
+        logger.debug('Redux store updated with auth state', {
+          component: 'AuthService',
+          hasUser: !!userData
         });
       }
     } catch (error) {

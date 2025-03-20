@@ -281,11 +281,8 @@ export class AuthMonitor {
   /**
    * Get current health status
    */
-  public getHealthStatus(): any {
-    return {
-      ...this.healthStatus,
-      lastCheckTime: this.lastCheckTime
-    };
+  public getHealthStatus(): HealthStatus {
+    return { ...this.healthStatus };
   }
 }
 

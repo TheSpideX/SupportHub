@@ -1,14 +1,15 @@
 import axios from 'axios';
 import { getTokenService } from '@/features/auth/services';
 
-// Create API client instance
-export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+// Configure base URL to avoid duplication
+const apiClient = axios.create({
+  baseURL: '', // Remove any base URL here to prevent duplication
   timeout: 30000,
-  withCredentials: true, // This is crucial for sending cookies with requests
+  withCredentials: true, // Important for cookies
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
   }
 });
 
@@ -44,3 +45,5 @@ apiClient.interceptors.response.use(
   },
   (error) => Promise.reject(error)
 );
+
+export { apiClient };

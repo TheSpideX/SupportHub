@@ -71,37 +71,32 @@ export const useAuth = () => {
       const authServiceInstance = authService || getAuthService();
       
       // Make login request through auth service
-      const userData = await authServiceInstance.login(credentials);
+      const result = await authServiceInstance.login(credentials);
       
-      if (userData) {
+      if (result) {
         logger.info('Login successful', { component: 'useAuth' });
         
-        // Calculate session expiry time (30 minutes from now)
-        const expiryTime = Date.now() + 30 * 60 * 1000;
+        // Get the redirect path from state or default to dashboard
+        const from = location.state?.from?.pathname || '/dashboard';
         
-        // Update Redux state with user info
-        dispatch(setAuthState({
-          user: userData,
-          isAuthenticated: true,
-          sessionExpiry: expiryTime
-        }));
+        // Redirect to the intended destination
+        navigate(from, { replace: true });
         
         return true;
       }
       
+      // If result is false but no error was thrown, it might be due to 2FA requirement
+      const authState = getState().auth;
+      if (authState.pendingTwoFactor) {
+        // Redirect to 2FA verification page
+        navigate('/auth/verify-2fa');
+        return false;
+      }
+      
       return false;
     } catch (error) {
-      // Handle login error
-      logger.error('Login failed', { 
-        component: 'useAuth',
-        error: error instanceof Error ? {
-          code: 'LOGIN_FAILED',
-          message: error.message
-        } : error
-      });
-      
-      handleAuthError(error);
-      return false;
+      // Handle authentication error
+      return handleAuthError(error);
     } finally {
       dispatch(setLoading(false));
     }

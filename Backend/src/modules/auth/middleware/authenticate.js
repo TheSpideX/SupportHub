@@ -1,161 +1,107 @@
-const jwt = require('jsonwebtoken');
-const { AppError } = require('../../../utils/errors');
+const tokenService = require('../services/token.service');
 const User = require('../models/user.model');
-const Session = require('../models/session.model');
-const TokenBlacklist = require('../models/token-blacklist.model');
-const config = require('../config');
-const { token: tokenConfig, cookie: cookieConfig } = config;
+const { AppError } = require('../../../utils/errors');
+const cookieConfig = require('../config/cookie.config');
 
 /**
- * Middleware to authenticate requests using HTTP-only cookies
+ * Authentication middleware
  */
 exports.authenticateToken = async (req, res, next) => {
   try {
-    // Get token from HTTP-only cookie
-    const token = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+    // Get token from cookies
+    const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
     
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'AUTH_REQUIRED',
-          message: 'Authentication required'
-        }
-      });
+    if (!accessToken) {
+      return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
     }
     
+    // Verify token
+    let decoded;
     try {
-      // Verify the token
-      const decoded = jwt.verify(token, tokenConfig.ACCESS_TOKEN_SECRET);
-      
-      // Check if token is blacklisted
-      const blacklisted = await TokenBlacklist.findOne({ tokenId: decoded.jti });
-      if (blacklisted) {
-        return res.status(401).json({
-          success: false,
-          error: {
-            code: 'TOKEN_REVOKED',
-            message: 'Token has been revoked'
-          }
-        });
+      decoded = await tokenService.verifyAccessToken(accessToken);
+    } catch (error) {
+      console.log('Token verification error:', error.message);
+      if (error.name === 'TokenExpiredError') {
+        return next(new AppError('Token expired', 401, 'TOKEN_EXPIRED'));
       }
-      
-      // Find the user
-      const user = await User.findById(decoded.sub);
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          error: {
-            code: 'USER_NOT_FOUND',
-            message: 'User not found'
-          }
-        });
-      }
-      
-      // Set user in request
-      req.user = user;
-      next();
-    } catch (tokenError) {
-      // Handle token verification errors
-      if (tokenError.name === 'TokenExpiredError') {
-        return res.status(401).json({
-          success: false,
-          error: {
-            code: 'TOKEN_EXPIRED',
-            message: 'Token expired'
-          }
-        });
-      }
-      
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'INVALID_TOKEN',
-          message: 'Invalid token'
-        }
-      });
+      return next(new AppError('Invalid token', 401, 'INVALID_TOKEN'));
     }
+    
+    // Check if user exists
+    const user = await User.findById(decoded.userId || decoded.sub);
+    
+    if (!user) {
+      return next(new AppError('User not found', 401, 'USER_NOT_FOUND'));
+    }
+    
+    // Check if token was issued before password change
+    if (user.passwordChangedAt && decoded.iat < user.passwordChangedAt.getTime() / 1000) {
+      return next(new AppError('Password changed, please login again', 401, 'PASSWORD_CHANGED'));
+    }
+    
+    // Add user to request
+    req.user = user;
+    req.session = {
+      id: decoded.sessionId
+    };
+    
+    next();
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * Optional authentication middleware
- * Attaches user to request if token is valid, but doesn't require authentication
+ * Middleware to check user role
+ * @param {string[]} roles - Allowed roles
  */
-exports.optionalAuth = async (req, res, next) => {
-  try {
-    const token = req.cookies[cookieConfig.names.ACCESS_TOKEN];
-    
-    if (!token) {
-      return next();
+exports.restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return next(new AppError('Authentication required', 401, 'UNAUTHORIZED'));
     }
     
-    const decoded = jwt.verify(token, tokenConfig.ACCESS_TOKEN_SECRET);
-    const user = await User.findById(decoded.sub);
-    
-    if (user) {
-      req.user = user;
+    if (!roles.includes(req.user.role)) {
+      return next(new AppError('Permission denied', 403, 'FORBIDDEN'));
     }
     
     next();
-  } catch (error) {
-    // Continue without authentication
-    next();
-  }
+  };
 };
 
 /**
- * Refresh token middleware
- * Refreshes the access token using the refresh token
+ * Optional authentication middleware
+ * Attempts to authenticate but continues if token is missing or invalid
  */
-exports.refreshToken = async (req, res, next) => {
+exports.optionalAuth = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+    // Get token from cookies
+    const accessToken = req.cookies.accessToken;
     
-    if (!refreshToken) {
-      return next(new AppError('Refresh token required', 401, 'REFRESH_TOKEN_REQUIRED'));
+    if (!accessToken) {
+      return next(); // Continue without authentication
     }
     
-    const decoded = jwt.verify(refreshToken, tokenConfig.REFRESH_TOKEN_SECRET);
-    
-    // Check if token is blacklisted
-    const blacklisted = await TokenBlacklist.findOne({ tokenId: decoded.jti });
-    if (blacklisted) {
-      return next(new AppError('Refresh token has been revoked', 401, 'TOKEN_REVOKED'));
+    // Verify token
+    try {
+      const decoded = jwt.verify(accessToken, tokenConfig.secrets.access);
+      
+      // Check if user exists
+      const user = await User.findById(decoded.userId);
+      
+      if (user) {
+        // Add user to request
+        req.user = user;
+        req.session = {
+          id: decoded.sessionId
+        };
+      }
+    } catch (error) {
+      // Continue without authentication if token is invalid
     }
     
-    // Find the user
-    const user = await User.findById(decoded.sub);
-    if (!user) {
-      return next(new AppError('User not found', 401, 'USER_NOT_FOUND'));
-    }
-    
-    // Find the session
-    const session = await Session.findOne({ 
-      userId: user._id,
-      refreshToken: { $exists: true }
-    });
-    
-    if (!session) {
-      return next(new AppError('Session not found', 401, 'SESSION_NOT_FOUND'));
-    }
-    
-    // Generate new tokens
-    const tokenService = require('../services/token.service');
-    const { accessToken, refreshToken: newRefreshToken } = await tokenService.generateTokens(user, session);
-    
-    // Set cookies
-    tokenService.setTokenCookies(res, accessToken, newRefreshToken);
-    
-    // Attach user to request
-    req.user = user;
     next();
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return next(new AppError('Refresh token expired', 401, 'REFRESH_TOKEN_EXPIRED'));
-    }
-    return next(new AppError('Invalid refresh token', 401, 'INVALID_REFRESH_TOKEN'));
+    next();
   }
 };

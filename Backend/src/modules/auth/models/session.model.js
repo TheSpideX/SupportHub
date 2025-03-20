@@ -19,8 +19,7 @@ const SessionSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
-      required: true,
-      index: true
+      required: true
     },
     ipAddress: String,
     deviceInfo: {
@@ -34,7 +33,27 @@ const SessionSchema = new mongoose.Schema(
         default: 'unknown'
       }
     },
-    lastActivity: Date
+    lastActivity: Date,
+    // Fields for timeout warnings
+    warningsSent: [{
+      timestamp: {
+        type: Date,
+        required: true
+      },
+      warningType: {
+        type: String,
+        enum: ['IDLE', 'ABSOLUTE', 'SECURITY'],
+        required: true
+      },
+      acknowledged: {
+        type: Boolean,
+        default: false
+      }
+    }],
+    // Track when user acknowledged warnings
+    lastWarningAcknowledged: {
+      type: Date
+    }
   },
   {
     timestamps: true
@@ -42,7 +61,10 @@ const SessionSchema = new mongoose.Schema(
 );
 
 // Index for cleanup of expired sessions
-SessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+SessionSchema.index({ expiresAt: 1 }, { 
+  expireAfterSeconds: 0,
+  name: 'session_expiry_ttl_index'
+});
 
 // Add method to check if session is expired
 SessionSchema.methods.isExpired = function() {

@@ -47,7 +47,10 @@ const TokenSchema = new mongoose.Schema(
 );
 
 // Add index for token expiration and revocation status
-TokenSchema.index({ expiresAt: 1, isRevoked: 1 });
+TokenSchema.index({ expiresAt: 1, isRevoked: 1 }, { 
+  expireAfterSeconds: 0,  // This adds TTL functionality
+  name: 'token_expiry_ttl_index'
+});
 
 // Add compound index for token lookup
 TokenSchema.index({ token: 1, type: 1, isRevoked: 1 });
@@ -55,11 +58,8 @@ TokenSchema.index({ token: 1, type: 1, isRevoked: 1 });
 // Add compound index for user's tokens
 TokenSchema.index({ user: 1, type: 1, isRevoked: 1 });
 
-// Add TTL index to automatically remove expired tokens
-TokenSchema.index({ expiresAt: 1 }, { 
-  expireAfterSeconds: 0,
-  name: 'expiresAt_ttl_index'
-});
+// This compound index includes expiresAt
+// TokenSchema.index({ expiresAt: 1, isRevoked: 1 });
 
 // Static method to clean up expired tokens
 TokenSchema.statics.cleanupExpiredTokens = async function() {

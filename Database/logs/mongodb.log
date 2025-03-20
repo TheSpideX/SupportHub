@@ -49,3 +49,14 @@ child process started successfully, parent exiting
 about to fork child process, waiting until server is ready for connections.
 forked process: 2374
 child process started successfully, parent exiting
+about to fork child process, waiting until server is ready for connections.
+forked process: 34235
+ERROR: child process failed, exited with 1
+To see additional information in this output, start without the "--fork" option.
+about to fork child process, waiting until server is ready for connections.
+forked process: 34383
+ERROR: child process failed, exited with 1
+To see additional information in this output, start without the "--fork" option.
+about to fork child process, waiting until server is ready for connections.
+forked process: 34438
+child process started successfully, parent exiting

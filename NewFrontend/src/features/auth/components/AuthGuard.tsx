@@ -71,17 +71,51 @@ export const AuthGuard = ({
       });
       
       try {
+        // Get auth service to check current state
+        const authService = getAuthService();
+        const serviceAuthState = authService.getAuthState();
+        
+        logger.info('Auth service state check', {
+          component: 'AuthGuard',
+          serviceIsAuthenticated: serviceAuthState.isAuthenticated,
+          serviceHasUser: !!serviceAuthState.user,
+          reduxIsAuthenticated: isAuthenticated
+        });
+        
+        // If service shows authenticated but Redux doesn't, sync the state
+        if (serviceAuthState.isAuthenticated && serviceAuthState.user && !isAuthenticated) {
+          logger.info('Auth state mismatch detected - syncing Redux with service state', {
+            component: 'AuthGuard'
+          });
+          
+          // Update Redux state with service state
+          dispatch(setAuthState({
+            user: serviceAuthState.user,
+            isAuthenticated: true,
+            sessionExpiry: serviceAuthState.sessionExpiry != null
+              ? (typeof serviceAuthState.sessionExpiry === 'object' 
+                ? serviceAuthState.sessionExpiry.getTime() 
+                : serviceAuthState.sessionExpiry) 
+              : Date.now() + (30 * 60 * 1000)
+          }));
+          
+          // Skip further validation since we've updated the state
+          validationInProgress.current = false;
+          setIsLoading(false);
+          return;
+        }
+        
         // If not initialized, initialize auth
         if (!isInitialized) {
           logger.info('Auth not initialized, initializing now', { component: 'AuthGuard' });
           
           // Check if we have a valid session
           logger.info('Calling validateSession API', { component: 'AuthGuard' });
-          const isValid = await getAuthService().validateSession();
+          const isValid = await authService.validateSession();
           
           // If session is valid but Redux state doesn't reflect it, force update
           if (isValid) {
-            const authState = getAuthService().getAuthState();
+            const authState = authService.getAuthState();
             
             if (authState.isAuthenticated && authState.user) {
               logger.info('Session is valid, updating Redux state', { 

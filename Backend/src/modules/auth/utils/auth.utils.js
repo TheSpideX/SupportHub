@@ -261,6 +261,58 @@ const updateLastActivity = (sessionData, timestamp = Date.now()) => {
   };
 };
 
+/**
+ * Get client information from request
+ * @param {Object} req - Express request object
+ * @returns {Object} Client information
+ */
+const getClientInfo = (req) => {
+  const userAgent = req.headers['user-agent'] || '';
+  
+  // Extract basic device info from user agent
+  const isMobile = /mobile|android|iphone|ipad|ipod/i.test(userAgent);
+  const isTablet = /tablet|ipad/i.test(userAgent);
+  const isDesktop = !isMobile && !isTablet;
+  
+  // Extract browser info
+  const browserInfo = {};
+  if (userAgent.includes('Chrome')) browserInfo.browser = 'Chrome';
+  else if (userAgent.includes('Firefox')) browserInfo.browser = 'Firefox';
+  else if (userAgent.includes('Safari')) browserInfo.browser = 'Safari';
+  else if (userAgent.includes('Edge')) browserInfo.browser = 'Edge';
+  else if (userAgent.includes('MSIE') || userAgent.includes('Trident/')) browserInfo.browser = 'Internet Explorer';
+  else browserInfo.browser = 'Unknown';
+  
+  // Extract OS info
+  const osInfo = {};
+  if (userAgent.includes('Windows')) osInfo.os = 'Windows';
+  else if (userAgent.includes('Mac OS')) osInfo.os = 'MacOS';
+  else if (userAgent.includes('Linux')) osInfo.os = 'Linux';
+  else if (userAgent.includes('Android')) osInfo.os = 'Android';
+  else if (userAgent.includes('iOS') || userAgent.includes('iPhone') || userAgent.includes('iPad')) osInfo.os = 'iOS';
+  else osInfo.os = 'Unknown';
+  
+  // Get IP address
+  const ip = req.headers['x-forwarded-for'] || 
+             req.headers['x-real-ip'] || 
+             req.connection.remoteAddress || 
+             req.ip || 
+             '0.0.0.0';
+  
+  // Create fingerprint from available data
+  const fingerprint = `${userAgent}|${ip}|${req.headers['accept-language'] || ''}`;
+  
+  return {
+    userAgent,
+    ip,
+    deviceType: isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop',
+    ...browserInfo,
+    ...osInfo,
+    fingerprint,
+    timestamp: Date.now()
+  };
+};
+
 module.exports = {
   extractUserData,
   calculateSessionExpiry,
@@ -271,5 +323,6 @@ module.exports = {
   extractSessionData,
   validateAuthState,
   createAuthError,
-  updateLastActivity
+  updateLastActivity,
+  getClientInfo
 };
