@@ -3,6 +3,7 @@ import { API_CONFIG } from '@/config/api';
 import { SecurityContext, SessionData, UserRole } from '../types/auth.types';
 import { apiClient } from '@/api/apiClient';
 import { tokenService } from '../services/TokenService';
+import { refreshQueueService } from '../services/RefreshQueueService';
 
 // Helper function to convert string role to UserRole enum
 const mapStringToUserRole = (role: string): UserRole => {
@@ -96,14 +97,37 @@ apiInstance.interceptors.response.use(
       
       originalRequest._retry = true;
       
+      // Check if a refresh is already in progress
+      if (refreshQueueService.isRefreshInProgress()) {
+        try {
+          // Wait for the ongoing refresh to complete
+          await refreshQueueService.enqueue();
+          // Retry the original request
+          return apiInstance(originalRequest);
+        } catch (queueError) {
+          // If refresh failed, redirect to login
+          window.location.href = '/auth/login'; // or use the correct route constant
+          return Promise.reject(queueError);
+        }
+      }
+      
+      // Set refreshing flag
+      refreshQueueService.setRefreshing(true);
+      
       try {
         // Try to refresh the token
         await authApi.refreshToken();
         
+        // Process queue with success
+        refreshQueueService.processQueue(true);
+        
         // Retry the original request
         return apiInstance(originalRequest);
       } catch (refreshError) {
-        // If refresh fails, redirect to login
+        // Process queue with failure
+        refreshQueueService.processQueue(false, refreshError);
+        
+        // If refresh fails, redirect to login - use direct path
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }
@@ -218,7 +242,7 @@ export const authApi = {
   // Update the refreshToken method to properly handle HTTP-only cookies
   refreshToken: async () => {
     try {
-      const response = await apiInstance.post('/api/auth/token/refresh', {}, {
+      const response = await apiInstance.post('/auth/token/refresh', {}, {
         withCredentials: true,
         headers: {
           'X-Requested-With': 'XMLHttpRequest'

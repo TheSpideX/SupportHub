@@ -166,7 +166,8 @@ export const AuthGuard = ({
       component: 'AuthGuard',
       from: location.pathname
     });
-    return <Navigate to={`/auth/login?from=${encodeURIComponent(location.pathname)}`} replace />;
+    // Use direct path
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
   // Check permissions if required

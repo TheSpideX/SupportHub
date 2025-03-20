@@ -72,4 +72,27 @@ router.get(
   asyncHandler(authController.getAuthStatus)
 );
 
+// Add a lightweight endpoint to check token status
+router.get('/token-status', authMiddleware.authenticateToken, (req, res) => {
+  // Calculate token expiration time
+  const expiresIn = req.tokenExpiry ? req.tokenExpiry - Math.floor(Date.now() / 1000) : null;
+  
+  res.json({
+    valid: true,
+    expiresIn: expiresIn,
+    // Don't include sensitive information
+    user: {
+      id: req.user.id,
+      role: req.user.role
+    }
+  });
+});
+
+// Token refresh endpoint
+router.post(
+  '/token/refresh',
+  rateLimitMiddleware.apiRateLimit(),
+  asyncHandler(authController.refreshToken)
+);
+
 module.exports = router;

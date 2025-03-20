@@ -33,7 +33,39 @@ apiClient.interceptors.request.use(
 
 // Add response interceptor to handle token refresh
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Check for token expiration header
+    const tokenExpiresIn = response.headers['x-token-expires-in'];
+    if (tokenExpiresIn) {
+      const expiresInMs = parseInt(tokenExpiresIn, 10) * 1000;
+      if (!isNaN(expiresInMs) && expiresInMs > 0) {
+        // Schedule refresh based on server-provided expiration time
+        const refreshThreshold = API_CONFIG.AUTH.REFRESH_THRESHOLD || 5 * 60 * 1000;
+        const refreshIn = Math.max(expiresInMs - refreshThreshold, 1000); // At least 1 second
+        
+        logger.debug(`Scheduling token refresh in ${Math.round(refreshIn/1000)} seconds`);
+        
+        // Clear any existing refresh timeout
+        if (window.tokenRefreshTimeout) {
+          clearTimeout(window.tokenRefreshTimeout);
+        }
+        
+        // Set new refresh timeout
+        window.tokenRefreshTimeout = setTimeout(() => {
+          logger.debug('Executing scheduled token refresh');
+          apiClient.post('/auth/refresh-token', {}, { 
+            withCredentials: true,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          })
+          .then(() => logger.debug('Token refresh successful'))
+          .catch(err => logger.error('Token refresh failed:', err));
+        }, refreshIn);
+      }
+    }
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
     
@@ -44,10 +76,9 @@ apiClient.interceptors.response.use(
       try {
         logger.debug('Token expired, attempting refresh');
         
-        // Attempt to refresh the token
-        const refreshResponse = await apiClient.post('/api/auth/refresh-token', {}, { 
+        // Remove the /api prefix since apiClient likely already has it
+        const refreshResponse = await apiClient.post('/auth/refresh-token', {}, { 
           withCredentials: true,
-          // Add headers to help with CSRF protection
           headers: {
             'X-Requested-With': 'XMLHttpRequest'
           }

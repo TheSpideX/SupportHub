@@ -4,9 +4,10 @@ const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../../../utils/errors');
 const tokenConfig = require('../config/token.config');
 const { cookie: cookieConfig } = require('../config');
-const redisClient = require('../../../config/redis');
+const { redisClient } = require('../../../config/redis');
 const logger = require('../../../utils/logger');
 const sessionService = require('./session.service');
+const Token = require('../models/token.model');
 
 // Store cleanup intervals for proper shutdown
 const cleanupIntervals = [];
@@ -48,9 +49,15 @@ const generateToken = (payload, type = 'access') => {
  */
 const verifyToken = (token, type = 'access') => {
   try {
+    // Fix: Use the correct property path based on token config structure
     const secret = type === 'access' 
-      ? tokenConfig.accessToken.secret 
-      : tokenConfig.refreshToken.secret;
+      ? tokenConfig.access.secret 
+      : tokenConfig.refresh.secret;
+    
+    if (!secret) {
+      logger.error(`Secret for ${type} token is missing`);
+      throw new AppError(`Secret for ${type} token is missing`, 500, 'TOKEN_CONFIG_ERROR');
+    }
     
     return jwt.verify(token, secret);
   } catch (error) {

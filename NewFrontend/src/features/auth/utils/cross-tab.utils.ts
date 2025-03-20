@@ -115,7 +115,7 @@ function fallbackToLocalStorage(message: CrossTabMessage): void {
 export function registerCrossTabHandler(handler: (message: CrossTabMessage) => void): () => void {
   const debouncedHandler = debounce((message: CrossTabMessage) => {
     // Skip messages from this tab
-    if (message.tabId === TAB_ID) return;
+    if (message.sourceTabId === TAB_ID) return;
     
     // Skip old messages (older than 5 seconds)
     if (Date.now() - message.timestamp > 5000) return;

@@ -13,7 +13,7 @@ const { asyncHandler } = require('../../../utils/errorHandlers');
 
 // Refresh tokens
 router.post(
-  '/refresh',
+  '/refresh-token', // Match the frontend endpoint
   rateLimitMiddleware.refreshTokenRateLimit(),
   asyncHandler(tokenController.refreshTokens)
 );

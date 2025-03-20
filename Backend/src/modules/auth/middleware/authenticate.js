@@ -19,6 +19,15 @@ exports.authenticateToken = async (req, res, next) => {
     let decoded;
     try {
       decoded = await tokenService.verifyAccessToken(accessToken);
+      
+      // Add token expiration info to response headers and request object
+      if (decoded.exp) {
+        const now = Math.floor(Date.now() / 1000);
+        const expiresIn = decoded.exp - now;
+        res.set('X-Token-Expires-In', expiresIn.toString());
+        req.tokenExpiry = decoded.exp; // Add expiry to request object
+      }
+      
     } catch (error) {
       console.log('Token verification error:', error.message);
       if (error.name === 'TokenExpiredError') {

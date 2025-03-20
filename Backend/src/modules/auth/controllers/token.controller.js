@@ -5,9 +5,10 @@ const { asyncHandler } = require('../../../utils/errorHandlers');
 const authConfig = require('../config');
 const { token: tokenConfig, cookie: cookieConfig } = authConfig;
 const logger = require('../../../utils/logger');
+const jwt = require('jsonwebtoken');
 
 /**
- * Refresh access and refresh tokens
+ * Refresh tokens
  * @route POST /api/auth/token/refresh
  */
 exports.refreshTokens = asyncHandler(async (req, res) => {
@@ -15,28 +16,63 @@ exports.refreshTokens = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
   
   if (!refreshToken) {
-    throw new AppError('Refresh token not found', 401, 'REFRESH_TOKEN_MISSING');
+    return res.status(401).json({
+      success: false,
+      code: 'REFRESH_TOKEN_MISSING',
+      message: 'Refresh token is missing'
+    });
   }
   
-  // Refresh tokens and update session
-  const { tokens, session } = await tokenService.refreshTokens(refreshToken);
-  
-  // Set cookies
-  tokenService.setTokenCookies(res, tokens);
-  
-  // Return session metadata for frontend session monitoring
-  return res.status(200).json({
-    success: true,
-    message: 'Tokens refreshed successfully',
-    data: {
-      session: {
-        id: session._id,
-        expiresAt: session.expiresAt,
-        lastActivity: session.lastActiveAt,
-        idleTimeout: session.idleTimeout
+  try {
+    // Refresh tokens and update session
+    const { tokens, session } = await tokenService.refreshTokens(refreshToken);
+    
+    // Set cookies
+    tokenService.setTokenCookies(res, tokens);
+    
+    // Return session metadata for frontend session monitoring
+    return res.status(200).json({
+      success: true,
+      message: 'Tokens refreshed successfully',
+      data: {
+        session: {
+          id: session._id,
+          expiresAt: session.expiresAt,
+          lastActivity: session.lastActiveAt,
+          idleTimeout: session.idleTimeout
+        }
       }
+    });
+  } catch (error) {
+    // Handle specific token errors with proper error codes
+    if (error.code === 'TOKEN_EXPIRED' || error.code === 'REFRESH_TOKEN_EXPIRED') {
+      return res.status(401).json({
+        success: false,
+        code: 'REFRESH_TOKEN_EXPIRED',
+        message: 'Refresh token has expired, please login again'
+      });
+    } else if (error.code === 'INVALID_TOKEN' || error.code === 'REFRESH_TOKEN_INVALID') {
+      return res.status(401).json({
+        success: false,
+        code: 'REFRESH_TOKEN_INVALID',
+        message: 'Invalid refresh token'
+      });
+    } else if (error.code === 'SESSION_EXPIRED') {
+      return res.status(401).json({
+        success: false,
+        code: 'SESSION_EXPIRED',
+        message: 'Your session has expired, please login again'
+      });
     }
-  });
+    
+    // For other errors
+    logger.error('Token refresh error:', error);
+    return res.status(500).json({
+      success: false,
+      code: 'TOKEN_REFRESH_ERROR',
+      message: 'Failed to refresh token'
+    });
+  }
 });
 
 /**
@@ -153,3 +189,50 @@ exports.revokeToken = asyncHandler(async (req, res) => {
     message: `${type} token(s) revoked successfully`
   });
 });
+
+/**
+ * Get token status
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+exports.getTokenStatus = async (req, res) => {
+  try {
+    // Get the access token from the cookie
+    const accessToken = req.cookies.access_token;
+    
+    if (!accessToken) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'No access token found'
+      });
+    }
+    
+    // Verify the token without throwing an error
+    try {
+      const decoded = jwt.verify(accessToken, tokenConfig.access.secret);
+      
+      // Calculate time until expiry in seconds
+      const expiresIn = Math.floor((decoded.exp * 1000 - Date.now()) / 1000);
+      
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          expiresIn,
+          isValid: expiresIn > 0
+        }
+      });
+    } catch (error) {
+      // If token verification fails, return 401
+      return res.status(401).json({
+        status: 'error',
+        message: 'Invalid or expired token'
+      });
+    }
+  } catch (error) {
+    logger.error('Error checking token status:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error'
+    });
+  }
+};

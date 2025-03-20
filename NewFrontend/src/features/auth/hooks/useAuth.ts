@@ -190,3 +190,9 @@ export const useAuth = () => {
     refreshUserData
   };
 }
+
+// Example of how to use the TokenService in other files
+import { TokenService } from '../services/TokenService';
+
+// Get the singleton instance instead of creating a new one
+const tokenService = TokenService.getInstance();

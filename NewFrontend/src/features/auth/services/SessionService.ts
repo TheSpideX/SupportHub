@@ -1086,6 +1086,17 @@ export class SessionService {
     this.sessionId = null;
     logger.info('Session monitoring cleaned up');
   }
+
+  // Handle session timeout
+  public handleSessionTimeout(): void {
+    logger.warn('Session timed out due to inactivity');
+    
+    // Clear tokens and auth state
+    this.tokenService.clearTokens();
+    
+    // Redirect to login with reason
+    window.location.href = '/login?reason=session_timeout';
+  }
 }
 
 // Export a singleton instance

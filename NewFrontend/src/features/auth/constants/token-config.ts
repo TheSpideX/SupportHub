@@ -2,7 +2,7 @@
 import { API_CONFIG } from '../../../config/api';
 
 // Default value (for backward compatibility)
-const DEFAULT_REFRESH_THRESHOLD_SECONDS = 300; // 5 minutes
+const DEFAULT_REFRESH_THRESHOLD_SECONDS = 300; // Update to 5 minutes
 
 // Get value from API config or use default
 // Convert from milliseconds to seconds if using the existing REFRESH_THRESHOLD property
