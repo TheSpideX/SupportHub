@@ -1094,8 +1094,15 @@ export class SessionService {
     // Clear tokens and auth state
     this.tokenService.clearTokens();
     
+    // Show toast notification
+    toast({
+      title: 'Session Expired',
+      description: 'Your session has timed out due to inactivity',
+      variant: 'destructive'
+    });
+    
     // Redirect to login with reason
-    window.location.href = '/login?reason=session_timeout';
+    navigate('/login?reason=session_timeout');
   }
 }
 

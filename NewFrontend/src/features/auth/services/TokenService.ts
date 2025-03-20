@@ -33,6 +33,8 @@ import {
 } from '../types/auth.types';
 import { apiClient } from '@/api/apiClient';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
+// import { toast } from '@/components/ui/toast';
+// import { navigate } from '@/utils/navigation';
 
 // Constants
 const ACCESS_TOKEN_COOKIE = 'auth_access_token';
@@ -41,6 +43,8 @@ const TOKEN_EXISTS_FLAG = 'auth_token_exists';
 const CSRF_TOKEN_COOKIE = 'csrf_token';
 const TOKEN_VERSION_KEY = 'token_version';
 const FINGERPRINT_KEY = 'device_fingerprint';
+const USER_ACTIVITY_KEY = 'last_user_activity';
+const INACTIVITY_THRESHOLD = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 export interface TokenServiceConfig {
   apiBaseUrl: string;
@@ -103,6 +107,9 @@ export class TokenService {
   private refreshing = false;
   private authChannel: BroadcastChannel | null = null;
   private readonly heartbeatInterval = 30 * 1000; // 1 minute
+  private isInitialized: boolean = false;
+  private activityListeners: boolean = false;
+  private inactivityCheckerId: number | null = null;
 
   // Strengthen the singleton pattern
   public static instance: TokenService | null = null;
@@ -143,30 +150,36 @@ export class TokenService {
   
   // Move initialization logic to a separate method
   private initializeServices(): void {
-    // Start token heartbeat when service is initialized
-    this.startTokenHeartbeat();
-    
-    // Initialize cross-tab communication if enabled
-    if (this.config.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
-      this.initCrossTabCommunication();
-    }
-    
-    // Generate device fingerprint if enabled
-    if (this.config.enableFingerprinting) {
-      this.generateDeviceFingerprint();
-    }
-    
-    // Initialize token version
-    this.initTokenVersion();
-    
-    // Schedule token refresh if tokens exist
+    // Only start token heartbeat if user is authenticated
     if (this.hasTokens()) {
+      this.startTokenHeartbeat();
+      this.setupActivityTracking();
+      
+      // Initialize cross-tab communication if enabled
+      if (this.config.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
+        this.initCrossTabCommunication();
+      }
+      
+      // Generate device fingerprint if enabled
+      if (this.config.enableFingerprinting) {
+        this.generateDeviceFingerprint();
+      }
+      
+      // Initialize token version
+      this.initTokenVersion();
+      
+      // Schedule token refresh if tokens exist
       this.scheduleTokenRefresh();
-    }
-    
-    // Listen for online/offline events
-    if (this.config.enableOfflineSupport) {
-      this.setupOfflineSupport();
+      
+      // Listen for online/offline events
+      if (this.config.enableOfflineSupport) {
+        this.setupOfflineSupport();
+      }
+      
+      this.isInitialized = true;
+      logger.info('TokenService fully initialized for authenticated user');
+    } else {
+      logger.info('TokenService initialized in standby mode (no authenticated user)');
     }
   }
 
@@ -475,27 +488,6 @@ export class TokenService {
       return false;
     }
   }
-
-  /**
-   * Clears all authentication tokens
-   */
-  public clearTokens(): boolean {
-    try {
-      this.clearTokensLocally();
-      
-      // Notify other tabs if cross-tab is enabled
-      if (this.broadcastChannel) {
-        this.broadcastChannel.postMessage({
-          type: 'TOKEN_CLEARED'
-        });
-      }
-      
-      return true;
-    } catch (error) {
-      logger.error('Failed to clear tokens:', error);
-      return false;
-    }
-  }
   
   /**
    * Clear tokens locally (without broadcasting)
@@ -621,16 +613,23 @@ export class TokenService {
    * Refreshes the access token using the refresh token
    */
   public async refreshToken(): Promise<boolean> {
-    // If already refreshing, return the existing promise
-    if (this.refreshPromise) {
-      return this.refreshPromise;
+    // Check for user inactivity before attempting refresh
+    if (this.isUserInactive()) {
+      logger.warn('User inactive, logging out instead of refreshing token');
+      this.logoutDueToInactivity();
+      return false;
     }
     
-    // Set refreshing flag
+    // If already refreshing, return the existing promise
+    if (this.refreshing) {
+      logger.debug('Token refresh already in progress');
+      return this.refreshQueue || Promise.resolve(false);
+    }
+    
     this.refreshing = true;
     
     // Create a new promise for this refresh operation
-    this.refreshPromise = new Promise<boolean>(async (resolve) => {
+    this.refreshQueue = new Promise<boolean>(async (resolve) => {
       try {
         logger.debug('Refreshing tokens');
         
@@ -762,7 +761,7 @@ export class TokenService {
       }
     });
     
-    return this.refreshPromise;
+    return this.refreshQueue;
   }
 
   /**
@@ -1503,6 +1502,161 @@ export class TokenService {
           tokenVersion: this.tokenVersion
         }
       });
+    }
+  }
+
+  /**
+   * Set up activity tracking to detect user inactivity
+   */
+  private setupActivityTracking(): void {
+    if (this.activityListeners) return;
+    
+    // Record initial activity timestamp
+    this.recordUserActivity();
+    
+    // Set up event listeners for user activity
+    if (typeof window !== 'undefined') {
+      const activityEvents = ['mousedown', 'keypress', 'scroll', 'touchstart', 'click'];
+      
+      activityEvents.forEach(eventType => {
+        window.addEventListener(eventType, this.handleUserActivity);
+      });
+      
+      this.activityListeners = true;
+      logger.debug('User activity tracking initialized');
+    }
+  }
+  
+  /**
+   * Handle user activity event
+   */
+  private handleUserActivity = (): void => {
+    this.recordUserActivity();
+  }
+  
+  /**
+   * Record current user activity timestamp
+   */
+  private recordUserActivity(): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(USER_ACTIVITY_KEY, Date.now().toString());
+    }
+  }
+  
+  /**
+   * Check if user has been inactive beyond the threshold
+   */
+  private isUserInactive(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    
+    const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
+    if (!lastActivity) return false;
+    
+    const inactiveTime = Date.now() - parseInt(lastActivity, 10);
+    return inactiveTime > INACTIVITY_THRESHOLD;
+  }
+
+  /**
+   * Initialize token service after successful authentication
+   */
+  public initializeAfterAuthentication(): void {
+    if (this.isInitialized) {
+      logger.debug('TokenService already initialized');
+      return;
+    }
+    
+    logger.info('Initializing TokenService after authentication');
+    this.setupActivityTracking();
+    this.startTokenHeartbeat();
+    this.scheduleTokenRefresh();
+    
+    if (this.config.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
+      this.initCrossTabCommunication();
+    }
+    
+    if (this.config.enableFingerprinting) {
+      this.generateDeviceFingerprint();
+    }
+    
+    this.initTokenVersion();
+    
+    if (this.config.enableOfflineSupport) {
+      this.setupOfflineSupport();
+    }
+    
+    this.isInitialized = true;
+  }
+
+  /**
+   * Handle logout due to inactivity
+   */
+  private logoutDueToInactivity(): void {
+    logger.warn('Logging out due to user inactivity');
+    
+    // Clear tokens and auth state
+    this.clearTokens();
+    
+    // Notify other tabs if cross-tab is enabled
+    if (this.authChannel) {
+      this.authChannel.postMessage({
+        type: 'LOGOUT',
+        payload: { reason: 'inactivity' }
+      });
+    }
+    
+    // Emit auth error event with inactivity reason
+    this.emitAuthErrorEvent({
+      code: 'SESSION_INACTIVITY',
+      message: 'You have been logged out due to inactivity'
+    });
+    
+    // Force logout with inactivity reason
+    this.forceLogout('SESSION_INACTIVITY');
+  }
+  
+  /**
+   * Clean up activity tracking on logout
+   */
+  private cleanupActivityTracking(): void {
+    if (!this.activityListeners) return;
+    
+    if (typeof window !== 'undefined') {
+      const activityEvents = ['mousedown', 'keypress', 'scroll', 'touchstart', 'click'];
+      
+      activityEvents.forEach(eventType => {
+        window.removeEventListener(eventType, this.handleUserActivity);
+      });
+      
+      this.activityListeners = false;
+    }
+    
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(USER_ACTIVITY_KEY);
+    }
+    
+    logger.debug('User activity tracking cleaned up');
+  }
+  
+  // Modify clearTokens to also clean up activity tracking
+  public clearTokens(): boolean {
+    try {
+      this.clearTokensLocally();
+      
+      // Clean up activity tracking
+      this.cleanupActivityTracking();
+      this.isInitialized = false;
+      
+      // Notify other tabs if cross-tab is enabled
+      if (this.broadcastChannel) {
+        this.broadcastChannel.postMessage({
+          type: 'TOKEN_CLEARED'
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      logger.error('Failed to clear tokens:', error);
+      return false;
     }
   }
 }

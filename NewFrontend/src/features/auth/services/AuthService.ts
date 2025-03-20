@@ -324,35 +324,24 @@ export class AuthService {
   }
 
   /**
-   * Login user with credentials
+   * Login with email and password
    */
-  public async login(credentials: LoginCredentials): Promise<boolean> {
+  public async login(credentials: LoginCredentials, deviceInfo?: any): Promise<boolean> {
     try {
+      // Set loading state
       this.updateAuthState({
         isLoading: true,
         error: null
       });
       
-      logger.info('Attempting login');
-      
-      // Get device fingerprint for security
-      const fingerprint = await this.securityService.getDeviceFingerprint();
-      
-      // Create device info object
-      const deviceInfo = {
-        fingerprint,
-        userAgent: navigator.userAgent,
-        ip: window.location.hostname // Fallback, server will determine actual IP
-      };
-      
-      // Make login request with credentials and device info
-      const response = await authApi.login({
-        ...credentials,
-        deviceInfo
-      });
+      // Call login API
+      const response = await this.authApi.login(credentials, deviceInfo);
       
       // Check if login was successful
       if (response && response.success) {
+        // Initialize token service after successful authentication
+        TokenService.getInstance().initializeAfterAuthentication();
+        
         // Update auth state with user data
         this.updateAuthState({
           isAuthenticated: true,
