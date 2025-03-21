@@ -35,6 +35,7 @@ import { apiClient } from '@/api/apiClient';
 import { AUTH_CONSTANTS } from '../constants/auth.constants';
 // import { toast } from '@/components/ui/toast';
 // import { navigate } from '@/utils/navigation';
+import { AuthService } from '@/features/auth/services/AuthService';
 
 // Constants
 const ACCESS_TOKEN_COOKIE = 'auth_access_token';
@@ -44,7 +45,11 @@ const CSRF_TOKEN_COOKIE = 'csrf_token';
 const TOKEN_VERSION_KEY = 'token_version';
 const FINGERPRINT_KEY = 'device_fingerprint';
 const USER_ACTIVITY_KEY = 'last_user_activity';
-const INACTIVITY_THRESHOLD = 15 * 60 * 1000; // 15 minutes in milliseconds
+const INACTIVITY_THRESHOLD = 30 * 60 * 1000; // 30 minutes
+const INACTIVITY_CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
+const TOKEN_STATUS_CHECK_INTERVAL = 60 * 1000; // Check token status every minute
+const TOKEN_REFRESH_THRESHOLD = 7 * 60 * 1000; // Refresh when 7 minutes remaining
+const EXTENDED_INACTIVITY_THRESHOLD = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export interface TokenServiceConfig {
   apiBaseUrl: string;
@@ -110,6 +115,8 @@ export class TokenService {
   private isInitialized: boolean = false;
   private activityListeners: boolean = false;
   private inactivityCheckerId: number | null = null;
+  private inactivityMonitorId: number | null = null;
+  private lastInactivityCheck: number | null = null;
 
   // Strengthen the singleton pattern
   public static instance: TokenService | null = null;
@@ -135,7 +142,7 @@ export class TokenService {
     
     // Set heartbeat interval
     this.heartbeatInterval = Math.min(
-      10 * 1000, // 30 seconds default
+      30 * 1000, // 30 seconds default
       (this.config.refreshThreshold * 1000) / 3 // Or 1/3 of refresh threshold
     );
     
@@ -1303,57 +1310,60 @@ export class TokenService {
       this.heartbeatIntervalId = null;
     }
     
-    // Add a unique identifier to this instance for debugging
-    const instanceId = Date.now();
+    // Use local variable instead of modifying readonly property
+    const heartbeatInterval = TOKEN_STATUS_CHECK_INTERVAL;
     
     this.heartbeatIntervalId = window.setInterval(() => {
-      logger.debug(`Token heartbeat check started (instance: ${instanceId})`);
-      
-      // Only check if we have cookies (HTTP-only cookies)
-      if (document.cookie) {
-        fetch(`${this.config.apiBaseUrl}/auth/token-status`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'X-CSRF-Token': this.getCsrfToken() || '',
-            'X-Requested-With': 'XMLHttpRequest'
-          }
-        })
-        .then(response => {
-          if (response.status === 401) {
-            // Token is expired, try to refresh
-            logger.debug('Token expired according to backend, refreshing');
+      fetch(`${this.config.apiBaseUrl}/auth/token-status`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'X-CSRF-Token': this.getCsrfToken() || '',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => {
+        if (response.status === 401) {
+          // Token is expired, check for activity before refreshing
+          if (!this.isUserInactive()) {
+            logger.debug('Token expired according to backend, refreshing due to recent activity');
             this.refreshToken();
-            return null;
-          } else if (response.ok) {
-            return response.json();
+          } else {
+            logger.debug('Token expired and user inactive, logging out');
+            this.logoutDueToInactivity();
           }
           return null;
-        })
-        .then(data => {
-          if (data && typeof data.expiresIn === 'number') {
-            logger.debug(`Token expires in ${data.expiresIn} seconds (instance: ${instanceId})`);
-            
-            // Refresh if token expires within refresh threshold OR
-            // if it will expire before next heartbeat check
-            const refreshNeeded = 
-              data.expiresIn < this.config.refreshThreshold || 
-              data.expiresIn < (this.heartbeatInterval / 1000) + 5
-              || data.expiresIn < 890; // Add 5s buffer
-            
-            if (refreshNeeded) {
-              logger.debug(`Token expiring soon (${data.expiresIn}s), initiating refresh`);
+        } else if (response.ok) {
+          return response.json();
+        }
+        return null;
+      })
+      .then(data => {
+        if (data && typeof data.expiresIn === 'number') {
+          logger.debug(`Token expires in ${data.expiresIn} seconds`);
+          
+          // Convert to milliseconds for comparison
+          const expiresInMs = data.expiresIn * 1000;
+          
+          if (expiresInMs < TOKEN_REFRESH_THRESHOLD) {
+            // Token expiring soon, check for activity
+            if (!this.isUserInactive()) {
+              logger.debug(`Token expiring soon (${data.expiresIn}s), refreshing due to recent activity`);
               this.refreshToken();
+            } else {
+              // Start monitoring for activity more frequently as token approaches expiry
+              this.startInactivityMonitoring();
+              logger.debug(`Token expiring soon (${data.expiresIn}s), but user inactive. Monitoring for activity.`);
             }
           }
-        })
-        .catch(error => {
-          logger.error('Token heartbeat check failed:', error);
-        });
-      }
-    }, this.heartbeatInterval);
+        }
+      })
+      .catch(error => {
+        logger.error('Token heartbeat check failed:', error);
+      });
+    }, heartbeatInterval);
     
-    logger.debug(`Token heartbeat started with interval of ${this.heartbeatInterval}ms (refresh threshold: ${this.config.refreshThreshold * 1000}ms, instance: ${instanceId})`);
+    logger.debug(`Token heartbeat started with interval of ${heartbeatInterval}ms`);
   }
 
   /**
@@ -1400,21 +1410,35 @@ export class TokenService {
       method: 'GET',
       credentials: 'include',
       headers: {
-        'X-Requested-With': 'XMLHttpRequest'
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': this.getCsrfToken() || ''
       }
     })
     .then(response => {
       if (response.status === 401) {
-        // Token is expired, try to refresh
-        this.refreshToken();
+        // Token is expired, try to refresh if user is active
+        if (!this.isUserInactive()) {
+          this.refreshToken();
+        } else {
+          this.logoutDueToInactivity();
+        }
       } else if (response.ok) {
         return response.json();
       }
     })
     .then(data => {
-      if (data && data.expiresIn && data.expiresIn < this.config.refreshThreshold) {
-        // Token will expire soon, refresh it
-        this.refreshToken();
+      if (data && data.expiresIn) {
+        const expiresInMs = data.expiresIn * 1000;
+        
+        if (expiresInMs < TOKEN_REFRESH_THRESHOLD) {
+          // Token will expire soon, refresh it if user is active
+          if (!this.isUserInactive()) {
+            this.refreshToken();
+          } else {
+            // Start intensive monitoring
+            this.startInactivityMonitoring();
+          }
+        }
       }
     })
     .catch(error => {
@@ -1428,6 +1452,10 @@ export class TokenService {
   private forceLogout(reason: string): void {
     // Clear tokens
     this.clearTokens();
+    
+    // Clear auth state in localStorage
+    localStorage.removeItem('auth_session_active');
+    localStorage.removeItem('session_metadata');
     
     // Broadcast logout to other tabs
     if (this.authChannel) {
@@ -1525,13 +1553,46 @@ export class TokenService {
       this.activityListeners = true;
       logger.debug('User activity tracking initialized');
     }
+    
+    // Set up periodic inactivity check
+    this.setupInactivityCheck();
+  }
+  
+  /**
+   * Set up periodic check for inactivity
+   */
+  private setupInactivityCheck(): void {
+    if (this.inactivityCheckerId) {
+      clearInterval(this.inactivityCheckerId);
+    }
+    
+    this.inactivityCheckerId = window.setInterval(() => {
+      if (this.isUserInactive() && this.hasTokens()) {
+        logger.warn('User inactive beyond threshold during periodic check, logging out');
+        this.logoutDueToInactivity();
+      }
+    }, INACTIVITY_CHECK_INTERVAL) as unknown as number;
+    
+    logger.debug(`Inactivity check scheduled every ${INACTIVITY_CHECK_INTERVAL/1000} seconds`);
   }
   
   /**
    * Handle user activity event
    */
   private handleUserActivity = (): void => {
-    this.recordUserActivity();
+    const now = Date.now();
+    const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
+    
+    // Only update if significant time has passed (prevent excessive updates)
+    if (!lastActivity || now - parseInt(lastActivity, 10) > 10000) { // 10 seconds
+      this.recordUserActivity();
+      
+      // If we're in intensive monitoring mode, check if token needs refresh
+      if (this.inactivityMonitorId) {
+        // Get token status to see if refresh is needed
+        this.checkTokenStatus();
+      }
+    }
   }
   
   /**
@@ -1540,6 +1601,7 @@ export class TokenService {
   private recordUserActivity(): void {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(USER_ACTIVITY_KEY, Date.now().toString());
+      this.lastInactivityCheck = Date.now(); // Reset the check time
     }
   }
   
@@ -1547,13 +1609,49 @@ export class TokenService {
    * Check if user has been inactive beyond the threshold
    */
   private isUserInactive(): boolean {
-    if (typeof localStorage === 'undefined') return false;
+    const lastActivity = this.getLastActivity();
+    const now = Date.now();
+    const threshold = this.getInactivityThreshold();
     
-    const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
-    if (!lastActivity) return false;
+    return (now - lastActivity) > threshold;
+  }
+
+  /**
+   * Start monitoring for user activity when token is close to expiry
+   */
+  private startInactivityMonitoring(): void {
+    // Clear any existing monitoring
+    if (this.inactivityMonitorId) {
+      clearInterval(this.inactivityMonitorId);
+    }
     
-    const inactiveTime = Date.now() - parseInt(lastActivity, 10);
-    return inactiveTime > INACTIVITY_THRESHOLD;
+    // Start monitoring for activity more frequently
+    this.inactivityMonitorId = window.setInterval(() => {
+      // Check if user has been active since last check
+      const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
+      if (lastActivity) {
+        const lastActivityTime = parseInt(lastActivity, 10);
+        const timeSinceLastCheck = this.lastInactivityCheck ? 
+          lastActivityTime - this.lastInactivityCheck : 0;
+        
+        // If there was activity since last check, refresh the token
+        if (timeSinceLastCheck > 0) {
+          logger.debug('Activity detected during inactivity monitoring, refreshing token');
+          this.refreshToken();
+          
+          // Stop intensive monitoring after successful refresh
+          if (this.inactivityMonitorId) {
+            clearInterval(this.inactivityMonitorId);
+            this.inactivityMonitorId = null;
+          }
+        }
+      }
+      
+      // Update last check time
+      this.lastInactivityCheck = Date.now();
+    }, INACTIVITY_CHECK_INTERVAL);
+    
+    logger.debug('Started intensive inactivity monitoring');
   }
 
   /**
@@ -1593,25 +1691,33 @@ export class TokenService {
   private logoutDueToInactivity(): void {
     logger.warn('Logging out due to user inactivity');
     
-    // Clear tokens and auth state
-    this.clearTokens();
-    
-    // Notify other tabs if cross-tab is enabled
-    if (this.authChannel) {
-      this.authChannel.postMessage({
-        type: 'LOGOUT',
-        payload: { reason: 'inactivity' }
+    // Import and use the auth service from the services index
+    import('@/features/auth/services').then(({ getAuthServices }) => {
+      const { authService } = getAuthServices();
+      
+      // Call logout with correct parameter structure
+      authService.logout().catch(error => {
+        logger.error('Failed to logout due to inactivity:', error);
+        
+        // Fallback: clear tokens directly if logout fails
+        this.clearTokens();
+        
+        // Redirect to login page with inactivity reason
+        if (typeof window !== 'undefined') {
+          window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
+        }
       });
-    }
-    
-    // Emit auth error event with inactivity reason
-    this.emitAuthErrorEvent({
-      code: 'SESSION_INACTIVITY',
-      message: 'You have been logged out due to inactivity'
+      
+      // Dispatch a custom event to notify about inactivity logout
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(new CustomEvent(AUTH_CONSTANTS.EVENTS.LOGOUT, {
+          detail: { timestamp: Date.now() }
+        }));
+      }
+    }).catch(error => {
+      logger.error('Failed to import auth services:', error);
+      this.forceLogout('inactivity');
     });
-    
-    // Force logout with inactivity reason
-    this.forceLogout('SESSION_INACTIVITY');
   }
   
   /**
@@ -1658,6 +1764,16 @@ export class TokenService {
       logger.error('Failed to clear tokens:', error);
       return false;
     }
+  }
+
+  private getInactivityThreshold(): number {
+    // Check if "Remember me" was selected during login
+    const rememberMe = localStorage.getItem('auth_remember_me') === 'true';
+    
+    // Use a longer threshold if "Remember me" is enabled
+    return rememberMe 
+      ? EXTENDED_INACTIVITY_THRESHOLD // e.g., 7 days in milliseconds
+      : INACTIVITY_THRESHOLD; // Regular 30 minutes
   }
 }
 

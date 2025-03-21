@@ -83,7 +83,8 @@ export const AUTH_CONSTANTS = {
     USER_UPDATED: 'auth:user:updated',
     CROSS_TAB_SYNC: 'auth:cross-tab:sync',
     FORCED_LOGOUT: 'auth:forced:logout',
-    AUTH_ERROR: 'auth:error'
+    AUTH_ERROR: 'auth:error',
+    INACTIVITY_LOGOUT: 'auth:inactivity:logout' 
   },
   
   // CSRF protection settings

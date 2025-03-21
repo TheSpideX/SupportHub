@@ -1094,15 +1094,44 @@ export class SessionService {
     // Clear tokens and auth state
     this.tokenService.clearTokens();
     
-    // Show toast notification
-    toast({
+    // Show toast notification (implemented inline)
+    this.showToast({
       title: 'Session Expired',
       description: 'Your session has timed out due to inactivity',
       variant: 'destructive'
     });
     
-    // Redirect to login with reason
-    navigate('/login?reason=session_timeout');
+    // Redirect to login with reason (implemented inline)
+    this.navigateTo('/login?reason=session_timeout');
+  }
+
+  /**
+   * Show toast notification
+   * @param options Toast options
+   */
+  private showToast(options: { title: string; description: string; variant?: string }): void {
+    // Create and dispatch custom event for toast
+    const event = new CustomEvent('toast', {
+      detail: options,
+      bubbles: true
+    });
+    
+    document.dispatchEvent(event);
+    
+    // Log toast for debugging
+    logger.info(`Toast notification: ${options.title}`, options);
+  }
+
+  /**
+   * Navigate to a new route
+   * @param path The path to navigate to
+   */
+  private navigateTo(path: string): void {
+    // Use window.location for navigation
+    window.location.href = path;
+    
+    // Log navigation for debugging
+    logger.info(`Navigating to: ${path}`);
   }
 }
 
