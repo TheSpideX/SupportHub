@@ -8,7 +8,6 @@ import { AuthState } from '../types/auth.types';
 import { getAuthServices } from '../services';
 import { authMonitor } from '../services/AuthMonitor';
 import { logger } from '@/utils/logger';
-import { toast } from '@/components/ui/toast';
 
 // Create auth context
 interface AuthContextType {

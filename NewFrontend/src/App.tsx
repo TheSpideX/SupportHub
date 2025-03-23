@@ -31,6 +31,8 @@ import { getAuthService } from "./features/auth/services";
 // Import the toast service
 import { ToastService } from "./utils/toast.service";
 import AuthMonitorWidget from "./features/auth/components/AuthMonitorWidget";
+// In your main App component or initialization code
+import { getCrossTabService } from "@/features/auth/services/CrossTabService";
 
 // Component name for logging
 const COMPONENT = "App";
@@ -47,7 +49,7 @@ const RootLayout = () => (
 // Application routes configuration
 const routes = [
   {
-    path: '/',
+    path: "/",
     element: <RootLayout />,
     children: [
       {
@@ -55,15 +57,15 @@ const routes = [
         element: <Navigate to="/login" replace />,
       },
       {
-        path: 'login',
+        path: "login",
         element: <LoginPage />,
       },
       {
-        path: 'register',
+        path: "register",
         element: <RegisterPage />,
       },
       {
-        path: 'dashboard',
+        path: "dashboard",
         element: (
           <AuthGuard>
             <DashboardPage />
@@ -95,6 +97,17 @@ export function App() {
   const initRef = useRef(false);
   // Initialize the auth service
   const authService = getAuthService();
+
+  // Initialize cross-tab service early
+  useEffect(() => {
+    // Initialize once
+    const crossTabService = getCrossTabService();
+
+    // Clean up when component unmounts
+    return () => {
+      crossTabService.cleanup();
+    };
+  }, []);
 
   // Initialize auth on app load
   useEffect(() => {

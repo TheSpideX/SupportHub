@@ -23,6 +23,7 @@ import {
 import { AuthError, TokenRefreshQueueItem } from "../types/auth.types";
 import { apiClient } from "@/api/apiClient";
 import { AUTH_CONSTANTS } from "../constants/auth.constants";
+import { CrossTabService, MessageType } from "./CrossTabService";
 
 // Constants
 const ACCESS_TOKEN_COOKIE = "auth_access_token";
@@ -113,6 +114,9 @@ export class TokenService {
   private _instanceId: string = `inst_${Math.random()
     .toString(36)
     .substr(2, 9)}_${Date.now()}`; // Add this line
+  private crossTabService: CrossTabService;
+  private unsubscribeFunctions: (() => void)[] = [];
+  private forceNextRefresh: boolean = false;
 
   // Strengthen the singleton pattern
   public static instance: TokenService | null = null;
@@ -161,6 +165,24 @@ export class TokenService {
 
     // Store the instance
     TokenService.instance = this;
+
+    // Initialize cross-tab service
+    this.crossTabService = CrossTabService.getInstance();
+
+    // Subscribe to relevant events
+    this.unsubscribeFunctions.push(
+      this.crossTabService.subscribe(
+        MessageType.TOKENS_REFRESHED,
+        this.handleRemoteTokenRefresh.bind(this)
+      )
+    );
+
+    this.unsubscribeFunctions.push(
+      this.crossTabService.subscribe(
+        MessageType.LOGOUT,
+        this.handleRemoteLogout.bind(this)
+      )
+    );
 
     // Initialize other properties and start services
     this.initializeServices();
@@ -278,46 +300,12 @@ export class TokenService {
 
   // Update initCrossTabCommunication method to use validation
   private initCrossTabCommunication(): void {
-    if (typeof window !== "undefined" && window.BroadcastChannel) {
-      try {
-        this.authChannel = new BroadcastChannel("auth_channel");
+    // This is now handled by CrossTabService
+    logger.debug("Cross-tab communication initialized via unified service");
 
-        this.authChannel.addEventListener("message", (event) => {
-          // Validate message before processing
-          if (!this.validateCrossTabMessage(event.data)) {
-            return;
-          }
-
-          // Process the message by type
-          switch (event.data.type) {
-            case "SESSION_UPDATED":
-              this.handleSessionUpdate(event.data.payload);
-              break;
-            case "TOKEN_REFRESHED":
-              this.handleTokenRefreshed(event.data.payload);
-              break;
-            case "TOKEN_VERSION_UPDATED":
-              this.handleTokenVersionUpdated(event.data.payload);
-              break;
-            case "LOGOUT":
-              this.handleLogout();
-              break;
-            default:
-              logger.warn("Received unknown message type:", event.data.type);
-          }
-        });
-
-        // Announce this tab to other tabs
-        this.authChannel.postMessage({
-          type: "TAB_CONNECTED",
-          timestamp: Date.now(),
-          tabId: this._tabId,
-        });
-
-        logger.debug("Cross-tab communication initialized");
-      } catch (error) {
-        logger.error("Failed to initialize cross-tab communication:", error);
-      }
+    // For backward compatibility
+    if (this.crossTabService.isLeader()) {
+      logger.info("This tab is the leader, will handle token refreshes");
     }
   }
 
@@ -654,6 +642,19 @@ export class TokenService {
       return true; // Assume another instance is handling it
     }
 
+    // Only leader tab should refresh tokens unless forced
+    if (
+      this.crossTabService &&
+      !this.crossTabService.isLeader() &&
+      !this.forceNextRefresh
+    ) {
+      logger.debug("Skipping token refresh - not leader tab");
+      return true; // Assume success as leader will handle it
+    }
+
+    // Reset force flag
+    this.forceNextRefresh = false;
+
     try {
       // Existing refresh logic
       // If already refreshing, return existing promise
@@ -706,7 +707,8 @@ export class TokenService {
             });
 
             // Broadcast to other tabs
-            this.broadcastTokenRefreshed();
+            const currentSessionData = getSessionMetadata();
+            this.broadcastTokenRefreshed(currentSessionData || {});
           }
 
           resolve(result);
@@ -1609,16 +1611,11 @@ export class TokenService {
   /**
    * Broadcast token refreshed event to other tabs
    */
-  private broadcastTokenRefreshed(): void {
-    if (this.authChannel) {
-      this.authChannel.postMessage({
-        type: "TOKEN_REFRESHED",
-        payload: {
-          timestamp: Date.now(),
-          tokenVersion: this.tokenVersion,
-        },
-      });
-    }
+  private broadcastTokenRefreshed(sessionData: any): void {
+    this.crossTabService.broadcastMessage(MessageType.TOKENS_REFRESHED, {
+      sessionData,
+      refreshedAt: Date.now(),
+    });
   }
 
   /**
@@ -1993,6 +1990,12 @@ export class TokenService {
         this.broadcastChannel = null;
       }
 
+      // Clean up CrossTabService subscriptions
+      if (this.unsubscribeFunctions) {
+        this.unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
+        this.unsubscribeFunctions = [];
+      }
+
       // Reset state
       this.refreshState.isRefreshing = false;
       this.refreshState.promise = null;
@@ -2325,6 +2328,37 @@ export class TokenService {
     const w = typeof window !== "undefined" ? window : ({} as any);
     if (w.__tokenServiceRefreshingInstanceId === this._instanceId) {
       w.__tokenServiceRefreshLock = false;
+    }
+  }
+
+  // Handler for remote token refresh
+  private handleRemoteTokenRefresh(payload: any): void {
+    if (!payload || !payload.sessionData) return;
+
+    logger.debug("Received token refresh from another tab");
+
+    // Fix: Pass the session data from the payload to updateSessionData
+    this.updateSessionData(payload.sessionData);
+
+    // Update last refresh time
+    this.lastRefreshTime = payload.refreshedAt || Date.now();
+
+    // Schedule next refresh
+    this.scheduleTokenRefresh();
+  }
+
+  // Handler for remote logout
+  private handleRemoteLogout(payload: any): void {
+    logger.info("Received logout from another tab");
+
+    // Clear tokens
+    this.clearTokens();
+
+    // Redirect to login if needed
+    if (payload && payload.redirectPath && typeof window !== "undefined") {
+      window.location.href = `${payload.redirectPath}?reason=${
+        payload.reason || "remote_logout"
+      }&t=${Date.now()}`;
     }
   }
 }
