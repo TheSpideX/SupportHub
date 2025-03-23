@@ -688,3 +688,31 @@ exports.getAuthStatus = async (req, res) => {
     }
   });
 };
+
+/**
+ * Check session authentication status (lightweight endpoint for tab sync)
+ * @route GET /api/auth/session-check
+ */
+exports.checkSessionStatus = asyncHandler(async (req, res) => {
+  // If user is authenticated (req.user exists from auth middleware)
+  if (req.user) {
+    // Find the active session for this user for additional info
+    const session = req.session && await sessionService.getSessionById(req.session.id);
+    
+    return res.status(200).json({
+      isAuthenticated: true,
+      user: authService.sanitizeUser(req.user),
+      session: session ? {
+        id: session._id,
+        expiresAt: session.expiresAt,
+        createdAt: session.createdAt,
+        lastActivity: session.lastActiveAt
+      } : null
+    });
+  }
+  
+  // If not authenticated
+  return res.status(200).json({
+    isAuthenticated: false
+  });
+});

@@ -636,24 +636,30 @@ export class TokenService {
    * Refreshes the access token using the refresh token
    */
   public async refreshToken(): Promise<boolean> {
-    // Check global lock first
-    if (!this._getGlobalLock()) {
-      logger.debug("Global refresh lock active, skipping refresh");
-      return true; // Assume another instance is handling it
+    // Only allow one refresh operation at a time across all tabs
+    if (!this._canRefreshToken()) {
+      logger.debug("Another tab or process is refreshing the token");
+
+      // Wait for the leader tab to complete the refresh
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          // Check if the token has been refreshed by another tab
+          if (this.getLastRefreshTime() > Date.now() - 5000) {
+            clearInterval(checkInterval);
+            resolve(true);
+          }
+        }, 200);
+
+        // Set a timeout to avoid hanging indefinitely
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          resolve(false);
+        }, 5000);
+      });
     }
 
-    // Only leader tab should refresh tokens unless forced
-    if (
-      this.crossTabService &&
-      !this.crossTabService.isLeader() &&
-      !this.forceNextRefresh
-    ) {
-      logger.debug("Skipping token refresh - not leader tab");
-      return true; // Assume success as leader will handle it
-    }
-
-    // Reset force flag
-    this.forceNextRefresh = false;
+    // Set a global refresh lock
+    this._setGlobalRefreshLock();
 
     try {
       // Existing refresh logic
@@ -733,9 +739,18 @@ export class TokenService {
       this.refreshQueue = this.refreshState.promise;
       this.refreshPromise = this.refreshState.promise;
 
+      // Notify other tabs about the successful refresh
+      if (this.crossTabService) {
+        this.crossTabService.broadcastMessage(MessageType.TOKENS_REFRESHED, {
+          refreshedAt: Date.now(),
+          tokenVersion: this.tokenVersion,
+        });
+      }
+
       return this.refreshState.promise;
     } finally {
-      this._releaseGlobalLock();
+      // Release the global refresh lock
+      this._clearGlobalRefreshLock();
     }
   }
 
@@ -2359,6 +2374,65 @@ export class TokenService {
       window.location.href = `${payload.redirectPath}?reason=${
         payload.reason || "remote_logout"
       }&t=${Date.now()}`;
+    }
+  }
+
+  /**
+   * Check if this tab can refresh the token
+   */
+  private _canRefreshToken(): boolean {
+    // Only leader should refresh unless forced
+    if (
+      this.crossTabService &&
+      !this.crossTabService.isLeader() &&
+      !this.forceNextRefresh
+    ) {
+      return false;
+    }
+
+    // Check if another tab is already refreshing
+    try {
+      const lockData = localStorage.getItem("token_refresh_lock");
+      if (lockData) {
+        const lock = JSON.parse(lockData);
+
+        // Lock is valid if it's less than 10 seconds old
+        if (lock && lock.timestamp > Date.now() - 10000) {
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      // On error, assume we can refresh
+      return true;
+    }
+  }
+
+  /**
+   * Set global refresh lock
+   */
+  private _setGlobalRefreshLock(): void {
+    try {
+      localStorage.setItem(
+        "token_refresh_lock",
+        JSON.stringify({
+          timestamp: Date.now(),
+          tabId: this.crossTabService?.getTabId() || "unknown",
+        })
+      );
+    } catch (error) {
+      logger.error("Failed to set token refresh lock:", error);
+    }
+  }
+
+  /**
+   * Clear global refresh lock
+   */
+  private _clearGlobalRefreshLock(): void {
+    try {
+      localStorage.removeItem("token_refresh_lock");
+    } catch (error) {
+      logger.error("Failed to clear token refresh lock:", error);
     }
   }
 }

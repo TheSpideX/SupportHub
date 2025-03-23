@@ -32,7 +32,9 @@ import { getAuthService } from "./features/auth/services";
 import { ToastService } from "./utils/toast.service";
 import AuthMonitorWidget from "./features/auth/components/AuthMonitorWidget";
 // In your main App component or initialization code
-import { getCrossTabService } from "@/features/auth/services/CrossTabService";
+import { getCrossTabService , MessageType } from "@/features/auth/services/CrossTabService";
+// Add this import at the top if not already there
+import { CrossTabService } from "./features/auth/services/CrossTabService";
 
 // Component name for logging
 const COMPONENT = "App";
@@ -112,9 +114,55 @@ export function App() {
     // Register tab visibility change handler
     const visibilityHandler = () => {
       if (document.visibilityState === "visible") {
-        // Tab became active, check if we should become leader
-        if (!localStorage.getItem(crossTabService.getLeaderStorageKey())) {
-          crossTabService.electLeader();
+        try {
+          const crossTabService = getCrossTabService();
+          const isLeader = crossTabService.isLeader();
+          const tabId = crossTabService.getTabId();
+
+          logger.debug(
+            `Tab became visible, verifying auth state with server (tabId: ${tabId}, isLeader: ${isLeader})`
+          );
+
+          // Notify the worker that this tab is now visible
+          if (crossTabService.isUsingSharedWorker()) {
+            crossTabService.broadcastMessage(MessageType.TAB_VISIBLE, {
+              timestamp: Date.now(),
+              tabId,
+            });
+          }
+
+          // Always check auth status when tab becomes visible
+          const authService = getAuthService();
+
+          // Use the server verification method which will check HTTP-only cookies
+          authService.verifySessionFromServer().then((isAuthenticated) => {
+            const currentAuthState = authService.getAuthState();
+
+            // Handle authentication state mismatch
+            if (!isAuthenticated && currentAuthState.isAuthenticated) {
+              logger.warn(
+                "[App] Auth state mismatch detected - server says not authenticated but client thinks authenticated"
+              );
+
+              // Use public method for safe logout sync
+              authService.syncLogoutState({
+                redirectPath: "/login",
+                reason: "session_expired",
+                silent: false,
+              });
+            }
+            // If server says we're authenticated but client thinks we're not
+            else if (isAuthenticated && !currentAuthState.isAuthenticated) {
+              logger.info(
+                "[App] Server says authenticated but client doesn't know it yet"
+              );
+
+              // Force an auth state update and broadcast it
+              authService.syncAuthStateFromServer();
+            }
+          });
+        } catch (error) {
+          logger.error("Error handling visibility change:", error);
         }
       }
     };

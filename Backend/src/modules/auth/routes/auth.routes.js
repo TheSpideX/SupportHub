@@ -95,4 +95,11 @@ router.post(
   asyncHandler(authController.refreshToken)
 );
 
+// Check session status (lightweight version for tab sync)
+router.get(
+  "/session-check", 
+  authMiddleware.authenticateToken, // Use standard auth middleware
+  asyncHandler(authController.checkSessionStatus)
+);
+
 module.exports = router;

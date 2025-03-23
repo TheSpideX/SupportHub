@@ -34,7 +34,11 @@ import { apiClient } from "@/api/apiClient";
 import { authApi } from "../api/auth-api";
 import { debounce } from "lodash";
 import { setAuthState } from "../store/authSlice";
-import { CrossTabService, MessageType } from "./CrossTabService";
+import {
+  CrossTabService,
+  MessageType,
+  getCrossTabService,
+} from "./CrossTabService";
 
 export interface AuthServiceConfig {
   apiBaseUrl: string;
@@ -162,7 +166,7 @@ export class AuthService {
       sessionExpiry: undefined,
       twoFactorRequired: false,
       emailVerificationRequired: false,
-      lastVerified: null, // Add the missing property
+      lastVerified: null,
     };
 
     // Initialize cross-tab communication
@@ -173,46 +177,77 @@ export class AuthService {
     // Initialize auth state based on existing tokens
     this.initializeAuthState();
 
-    // Initialize in constructor
-    this.crossTabService = CrossTabService.getInstance();
+    // Initialize SharedWorker-based cross tab communication
     this.setupCrossTabs();
 
     logger.info("AuthService initialized");
   }
 
   /**
-   * Initialize cross-tab communication
+   * Initialize cross-tab communication with SharedWorker
    */
   public initCrossTabCommunication(): void {
-    // Prevent multiple initializations
-    if (this.initialized) {
-      logger.debug(
-        "Cross-tab communication already initialized for AuthService"
-      );
-      return;
-    }
-
     try {
-      this.broadcastChannel = new BroadcastChannel("auth_channel");
-
-      this.broadcastChannel.addEventListener("message", (event) => {
-        const { type, payload } = event.data;
-
-        switch (type) {
-          case "AUTH_STATE_CHANGE":
-            // Update local auth state from another tab
-            this.updateAuthState(payload.state, false);
-            break;
-
-          case "LOGOUT":
-            // Another tab logged out, update local state
-            this.handleLogoutSync();
-            break;
-        }
+      // Get instance from the class directly (no need for getCrossTabService)
+      this.crossTabService = CrossTabService.getInstance({
+        useSharedWorker: true,
+        workerPath: "/AuthSharedWorker.js", // Path relative to public folder
+        debug: process.env.NODE_ENV !== "production",
       });
 
+      // Subscribe to auth state changes
+      const unsubAuth = this.crossTabService.subscribe(
+        MessageType.AUTH_STATE_CHANGED,
+        (payload) => {
+          logger.info("[AuthService] Received auth state change from worker", {
+            isAuthenticated: !!payload?.isAuthenticated,
+          });
+
+          if (payload) {
+            // Use updateAuthState instead of setAuthState with broadcast=false
+            this.updateAuthState(payload, false);
+          }
+        }
+      );
+      this.unsubscribeFunctions.push(unsubAuth);
+
+      // Subscribe to logout events
+      const unsubLogout = this.crossTabService.subscribe(
+        MessageType.LOGOUT,
+        (payload) => {
+          logger.info("[AuthService] Received logout event from worker");
+          this.handleLogoutSync();
+
+          // Handle redirect if needed
+          if (
+            payload &&
+            payload.redirectPath &&
+            typeof window !== "undefined"
+          ) {
+            window.location.href = `${payload.redirectPath}?reason=${
+              payload.reason || "remote_logout"
+            }&t=${Date.now()}`;
+          }
+        }
+      );
+      this.unsubscribeFunctions.push(unsubLogout);
+
+      // Subscribe to session expired messages
+      const unsubExpired = this.crossTabService.subscribe(
+        MessageType.SESSION_EXPIRED,
+        () => {
+          logger.info(
+            "[AuthService] Received session expired event from worker"
+          );
+          this.handleSessionExpiration();
+        }
+      );
+      this.unsubscribeFunctions.push(unsubExpired);
+
       this.initialized = true;
-      logger.debug("Cross-tab communication initialized for AuthService");
+      logger.debug(
+        "Cross-tab communication initialized for AuthService with SharedWorker"
+      );
     } catch (error) {
       logger.error("Failed to initialize cross-tab communication:", error);
     }
@@ -408,12 +443,26 @@ export class AuthService {
         TokenService.getInstance().initializeAfterAuthentication();
 
         // Update auth state with user data
-        this.updateAuthState({
-          isAuthenticated: true,
-          user: response.data.user,
-          isLoading: false,
-          error: null,
-        });
+        this.updateAuthState(
+          {
+            isAuthenticated: true,
+            user: response.data.user,
+            isLoading: false,
+            error: null,
+          },
+          true
+        ); // Important: true to broadcast to other tabs
+
+        // Broadcast explicitly to ensure it works
+        if (this.crossTabService) {
+          this.crossTabService.broadcastMessage(
+            MessageType.AUTH_STATE_CHANGED,
+            {
+              isAuthenticated: true,
+              user: response.data.user,
+            }
+          );
+        }
 
         // Store session metadata for frontend tracking
         if (response.data.session) {
@@ -560,18 +609,28 @@ export class AuthService {
         error: null,
       });
 
-      // Broadcast logout to other tabs
+      // IMPORTANT: Explicitly broadcast logout to SharedWorker and all tabs
       if (this.crossTabService) {
-        this.crossTabService.broadcastMessage(MessageType.LOGOUT, {
-          redirectPath,
-          reason,
-          timestamp: Date.now(),
-        });
+        logger.info("Broadcasting logout to all tabs via SharedWorker");
+        try {
+          // Make sure this happens before the redirect
+          this.crossTabService.broadcastMessage(MessageType.LOGOUT, {
+            redirectPath,
+            reason,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          logger.error("Failed to broadcast logout message", error);
+        }
       }
 
-      // Add redirect to login page
+      // Add a small delay before redirect to ensure the message is sent
       if (!silent && typeof window !== "undefined") {
-        window.location.href = `${redirectPath}?reason=${reason}&t=${Date.now()}`;
+        // Short timeout to ensure broadcast completes before page unloads
+        setTimeout(() => {
+          window.location.href = `${redirectPath}?reason=${reason}&t=${Date.now()}`;
+        }, 50);
+        return true;
       }
 
       return true;
@@ -592,22 +651,38 @@ export class AuthService {
    * Handle logout sync from other tabs
    */
   private handleLogoutSync(): void {
-    // Clear tokens - use public method instead of private one
-    this.tokenService.clearTokens();
+    logger.info("[AuthService] Handling logout sync from another tab");
 
+    // Clear tokens first (important!)
+    this.tokenService.clearTokens();
+    
     // Stop session tracking
     this.sessionService.stopSessionTracking();
 
-    // Update auth state without broadcasting
+    // Update local state 
     this.updateAuthState(
       {
         isAuthenticated: false,
         isLoading: false,
         user: null,
         error: null,
+        sessionExpiry: undefined,
       },
-      false
+      false // Don't broadcast from here to prevent loops
     );
+    
+    // Update Redux store if available
+    if (this.store) {
+      this.store.dispatch(
+        setAuthState({
+          user: null,
+          isAuthenticated: false,
+          isInitialized: true,
+        })
+      );
+    }
+    
+    logger.info("[AuthService] Successfully synced logout from another tab");
   }
 
   /**
@@ -1386,13 +1461,27 @@ export class AuthService {
 
   // Modify initial setup to use CrossTabService
   private setupCrossTabs(): void {
-    this.crossTabService = CrossTabService.getInstance();
+    // Get the singleton instance of CrossTabService
+    this.crossTabService = getCrossTabService({
+      useSharedWorker: true,
+      workerPath: "/AuthSharedWorker.js", // Path relative to public folder
+      debug: process.env.NODE_ENV !== "production",
+    });
 
     // Subscribe to auth state changes from other tabs
     this.unsubscribeFunctions.push(
       this.crossTabService.subscribe(
         MessageType.AUTH_STATE_CHANGED,
-        this.handleRemoteAuthStateChange.bind(this)
+        (payload) => {
+          logger.info("[AuthService] Received auth state change from worker", {
+            isAuthenticated: payload?.isAuthenticated,
+          });
+
+          // Use our new method to update auth state from worker data
+          if (payload) {
+            this.setAuthStateFromWorker(payload);
+          }
+        }
       )
     );
 
@@ -1404,7 +1493,7 @@ export class AuthService {
       )
     );
 
-    logger.debug("Cross-tab communication initialized for AuthService");
+    logger.debug("Cross-tab communication initialized with SharedWorker");
   }
 
   // Handle auth state changes from other tabs
@@ -1465,6 +1554,121 @@ export class AuthService {
     if (this.unsubscribeFunctions) {
       this.unsubscribeFunctions.forEach((unsubscribe) => unsubscribe());
       this.unsubscribeFunctions = [];
+    }
+
+    // Clean up cross-tab service
+    if (this.crossTabService) {
+      this.crossTabService.cleanup();
+    }
+  }
+
+  // Add a new method to handle updating the auth state from the worker
+  private setAuthStateFromWorker(authState: any): void {
+    // Check if this is a valid auth state update
+    if (!authState || typeof authState !== "object") {
+      logger.warn("Received invalid auth state from worker", { authState });
+      return;
+    }
+
+    logger.info("Updating auth state from worker", {
+      isAuthenticated: !!authState.isAuthenticated,
+    });
+
+    // Use the existing updateAuthState method but don't broadcast back to the worker
+    this.updateAuthState(
+      {
+        ...(authState.user ? { user: authState.user } : {}),
+        ...(authState.isAuthenticated !== undefined
+          ? { isAuthenticated: authState.isAuthenticated }
+          : {}),
+        ...(authState.error ? { error: authState.error } : {}),
+      },
+      false
+    ); // false to prevent broadcasting back
+  }
+
+  // Add this method to your AuthService
+  async verifySessionFromServer(): Promise<boolean> {
+    try {
+      logger.debug("[AuthService] Verifying session from server");
+      const response = await apiClient.get("/api/auth/session-check", {
+        // Fix: Replace 'credentials' with 'withCredentials'
+        withCredentials: true, // Use withCredentials instead of credentials for Axios
+        headers: {
+          "Cache-Control": "no-cache", // Prevent caching
+          Pragma: "no-cache",
+        },
+      });
+
+      if (response.data && response.data.isAuthenticated) {
+        // Update auth state with server data
+        this.updateAuthState(
+          {
+            isAuthenticated: true,
+            user: response.data.user,
+            error: null,
+            // Fix: Convert Date to number (timestamp)
+            sessionExpiry: response.data.session?.expiresAt
+              ? new Date(response.data.session.expiresAt).getTime() // Convert to timestamp (number)
+              : undefined,
+          },
+          false // Don't broadcast this update to avoid loops
+        );
+
+        // Update Redux state
+        if (this.store) {
+          this.store.dispatch(
+            setAuthState({
+              user: response.data.user,
+              isAuthenticated: true,
+              isInitialized: true,
+            })
+          );
+        }
+
+        logger.info("[AuthService] Session verified from server");
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      logger.error("[AuthService] Error verifying session from server", error);
+      return false;
+    }
+  }
+
+  // In your handleWorkerMessage method or equivalent
+  private async handleAuthStateChangeFromWorker(payload: any): Promise<void> {
+    // If worker says we're authenticated, verify with the server
+    if (payload?.isAuthenticated) {
+      logger.debug(
+        "[AuthService] Worker says we're authenticated, verifying with server"
+      );
+
+      // Verify with server before accepting the worker's state
+      const isVerified = await this.verifySessionFromServer();
+
+      if (isVerified) {
+        logger.info(
+          "[AuthService] Authentication verified with server after worker message"
+        );
+        // Session verified, auth state already updated by verifySessionFromServer
+      } else {
+        logger.warn(
+          "[AuthService] Worker indicated authentication but server verification failed"
+        );
+        // Don't update state - server says we're not authenticated
+      }
+    } else {
+      // Worker says we're not authenticated, update state accordingly
+      this.updateAuthState(
+        {
+          isAuthenticated: false,
+          user: null,
+          error: null,
+        },
+        false
+      );
     }
   }
 }

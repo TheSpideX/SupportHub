@@ -1,6 +1,6 @@
 import { logger } from "@/utils/logger";
 
-// If you're having EventEmitter import issues, here's a simple implementation:
+// Simple EventEmitter implementation
 class SimpleEventEmitter {
   private events: Record<string, Array<(data: any) => void>> = {};
 
@@ -43,6 +43,8 @@ export enum MessageType {
   LOGOUT = "LOGOUT",
   LEADER_PING = "LEADER_PING",
   LEADER_ELECTION = "LEADER_ELECTION",
+  LOGIN_SUCCESS = "LOGIN_SUCCESS", // New message type
+  TAB_VISIBLE = "TAB_VISIBLE",     // New message type
 }
 
 // Cross-tab message interface
@@ -61,6 +63,8 @@ export interface CrossTabConfig {
   leaderCheckInterval: number;
   messageTimeout: number;
   debug: boolean;
+  workerPath: string; // Path to shared worker script
+  useSharedWorker: boolean; // Whether to use SharedWorker
 }
 
 // Default configuration
@@ -70,6 +74,8 @@ const DEFAULT_CONFIG: CrossTabConfig = {
   leaderCheckInterval: 5000, // 5 seconds
   messageTimeout: 5000, // Messages older than 5 seconds are ignored
   debug: false,
+  workerPath: "/src/features/auth/workers/AuthSharedWorker.js", // Default path
+  useSharedWorker: true, // Enable by default
 };
 
 export class CrossTabService {
@@ -78,13 +84,14 @@ export class CrossTabService {
   private eventEmitter: SimpleEventEmitter = new SimpleEventEmitter();
   private config: CrossTabConfig;
   private broadcastChannel: BroadcastChannel | null = null;
+  private sharedWorker: SharedWorker | null = null;
+  private workerPort: MessagePort | null = null;
   private tabId: string;
   private cleanupFunctions: Array<() => void> = [];
   private leaderCheckIntervalId: number | null = null;
   private isInitialized: boolean = false;
-  private messageHandler: (event: MessageEvent) => void; // Add message handler property
-
-  // Leader election properties
+  private workerHeartbeatId: number | null = null;
+  private workerAvailable: boolean = false;
   private isLeaderTab: boolean = false;
   private leaderStorageKey: string;
 
@@ -104,10 +111,6 @@ export class CrossTabService {
   }
 
   private constructor(configOptions: Partial<CrossTabConfig> = {}) {
-    // Store message handler as class property for reuse
-    this.messageHandler = (event: MessageEvent) =>
-      this.handleIncomingMessage(event.data);
-
     // Return existing instance if already created (for HMR safety)
     const w = typeof window !== "undefined" ? (window as any) : {};
     if (w.__crossTabServiceInstance) {
@@ -137,8 +140,11 @@ export class CrossTabService {
     // Setup communication channels
     this.setupCommunicationChannels();
 
-    // Start leader election process
-    this.startLeaderElection();
+    // If SharedWorker is not available, fall back to traditional methods
+    if (!this.workerAvailable) {
+      // Start leader election process
+      this.startLeaderElection();
+    }
 
     // Start health check process
     this.startHealthCheck();
@@ -147,35 +153,83 @@ export class CrossTabService {
     this.isInitialized = true;
   }
 
+  // Generate unique tab ID
+  private generateTabId(): string {
+    return `tab_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+  }
+
   // Set up communication channels
   private setupCommunicationChannels(): void {
     try {
-      // Try BroadcastChannel API first
-      if (typeof BroadcastChannel !== "undefined") {
-        this.broadcastChannel = new BroadcastChannel(this.config.channelName);
+      // Try SharedWorker first if enabled
+      if (this.config.useSharedWorker && typeof SharedWorker !== "undefined") {
+        try {
+          // Create SharedWorker instance
+          this.sharedWorker = new SharedWorker(this.config.workerPath);
+          this.workerPort = this.sharedWorker.port;
 
-        // Use the stored message handler
-        this.broadcastChannel.addEventListener("message", this.messageHandler);
+          // Set up message handler
+          this.workerPort.addEventListener("message", (event) => {
+            this.handleWorkerMessage(event.data);
+          });
+
+          // Start the port
+          this.workerPort.start();
+
+          // Send initial connection message with tabId
+          this.workerPort.postMessage({
+            type: "INIT",
+            payload: { tabId: this.tabId },
+            tabId: this.tabId,
+            timestamp: Date.now(),
+          });
+
+          // Add cleanup function
+          this.cleanupFunctions.push(() => {
+            if (this.workerPort) {
+              this.workerPort.close();
+            }
+          });
+
+          // Set up heartbeat to monitor worker connection
+          this.startWorkerHeartbeat();
+
+          this.workerAvailable = true;
+          logger.info("SharedWorker communication initialized");
+        } catch (error) {
+          logger.error(
+            "Failed to initialize SharedWorker, falling back",
+            error
+          );
+          this.workerAvailable = false;
+        }
+      }
+
+      // If SharedWorker failed or is not available, try BroadcastChannel API
+      if (!this.workerAvailable && typeof BroadcastChannel !== "undefined") {
+        this.broadcastChannel = new BroadcastChannel(this.config.channelName);
+        this.broadcastChannel.addEventListener("message", (event) => {
+          this.handleIncomingMessage(event.data);
+        });
 
         // Add to cleanup functions
         this.cleanupFunctions.push(() => {
           if (this.broadcastChannel) {
-            this.broadcastChannel.removeEventListener(
-              "message",
-              this.messageHandler
-            );
+            this.broadcastChannel.removeEventListener("message", (event) => {
+              this.handleIncomingMessage(event.data);
+            });
             this.broadcastChannel.close();
           }
         });
 
         logger.debug("BroadcastChannel communication initialized");
-      } else {
+      } else if (!this.workerAvailable) {
         logger.warn(
           "BroadcastChannel API not available, using localStorage fallback"
         );
       }
 
-      // Set up localStorage event listener as fallback
+      // Set up localStorage event listener as final fallback
       const storageHandler = (event: StorageEvent) => {
         if (
           !event.key ||
@@ -202,354 +256,417 @@ export class CrossTabService {
     }
   }
 
-  // Start leader election process
-  private startLeaderElection(): void {
-    // Try to become leader on init
-    this.electLeader();
+  // Start heartbeat to verify worker connection
+  private startWorkerHeartbeat(): void {
+    if (this.workerHeartbeatId) {
+      clearInterval(this.workerHeartbeatId);
+    }
 
-    // Periodically check and renew leadership
-    this.leaderCheckIntervalId = window.setInterval(() => {
-      if (this.isLeader()) {
-        // Renew leadership
-        this.renewLeadership();
-      } else if (!localStorage.getItem(this.leaderStorageKey)) {
-        // No leader, try to become one
-        this.electLeader();
+    this.workerHeartbeatId = window.setInterval(() => {
+      if (this.workerPort) {
+        try {
+          const heartbeatStart = Date.now();
+
+          // Send heartbeat message
+          this.workerPort.postMessage({
+            type: "HEARTBEAT",
+            payload: { timestamp: heartbeatStart },
+            tabId: this.tabId,
+            timestamp: heartbeatStart,
+          });
+
+          // Set timeout to detect worker failure
+          const timeoutId = setTimeout(() => {
+            logger.warn(
+              "SharedWorker heartbeat timeout - worker may be unresponsive"
+            );
+            this.workerAvailable = false;
+
+            // Fall back to traditional methods
+            if (!this.leaderCheckIntervalId) {
+              this.startLeaderElection();
+            }
+          }, 2000); // 2 second timeout
+
+          // Add one-time handler to clear timeout when response received
+          const heartbeatHandler = (event: MessageEvent) => {
+            if (event.data && event.data.type === "HEARTBEAT_RESPONSE") {
+              clearTimeout(timeoutId);
+              this.workerPort?.removeEventListener("message", heartbeatHandler);
+            }
+          };
+
+          this.workerPort.addEventListener("message", heartbeatHandler);
+        } catch (error) {
+          logger.error("SharedWorker heartbeat failed", error);
+          this.workerAvailable = false;
+
+          // Fall back to traditional methods
+          if (!this.leaderCheckIntervalId) {
+            this.startLeaderElection();
+          }
+        }
       }
-    }, this.config.leaderCheckInterval);
+    }, 30000); // Check every 30 seconds
 
-    // Add to cleanup functions
     this.cleanupFunctions.push(() => {
-      if (this.leaderCheckIntervalId !== null) {
-        clearInterval(this.leaderCheckIntervalId);
+      if (this.workerHeartbeatId) {
+        clearInterval(this.workerHeartbeatId);
       }
     });
   }
 
-  // Process incoming message
-  private handleIncomingMessage(message: CrossTabMessage): void {
-    // Skip if this is our own message
-    if (message.sourceTabId === this.tabId) {
-      return;
+  // Start leader election process (for fallback when worker is not available)
+  private startLeaderElection(): void {
+    // Clear any existing interval
+    if (this.leaderCheckIntervalId) {
+      clearInterval(this.leaderCheckIntervalId);
     }
 
-    // Skip old messages
-    if (Date.now() - message.timestamp > this.config.messageTimeout) {
-      return;
-    }
+    // Try to become the leader
+    this.attemptLeaderElection();
 
-    // Verify message integrity if needed
-    if (message.signature && !this.verifyMessageIntegrity(message)) {
-      logger.warn("Message integrity check failed", { message });
-      return;
-    }
+    // Set up regular leader check
+    this.leaderCheckIntervalId = window.setInterval(() => {
+      this.checkLeader();
+    }, this.config.leaderCheckInterval);
 
-    // Handle leader-related messages
-    if (
-      message.type === MessageType.LEADER_PING ||
-      message.type === MessageType.LEADER_ELECTION
-    ) {
-      this.handleLeaderMessage(message);
-      return;
-    }
-
-    // Emit event for subscribers
-    this.eventEmitter.emit(message.type, message.payload);
-
-    // Debug logging
-    if (this.config.debug) {
-      logger.debug("Received cross-tab message", { type: message.type });
-    }
+    // Add cleanup function
+    this.cleanupFunctions.push(() => {
+      if (this.leaderCheckIntervalId) {
+        clearInterval(this.leaderCheckIntervalId);
+        this.leaderCheckIntervalId = null;
+      }
+    });
   }
 
-  // Handle leader-related messages
-  private handleLeaderMessage(message: CrossTabMessage): void {
-    if (message.type === MessageType.LEADER_ELECTION) {
-      // Another tab is trying to become leader
-      if (this.isLeaderTab) {
-        // We're already leader, send a ping to assert leadership
-        this.broadcastLeaderPing();
-      }
-    } else if (message.type === MessageType.LEADER_PING) {
-      // Another tab is claiming leadership
-      const leaderData = message.payload;
-
-      if (leaderData && leaderData.tabId !== this.tabId) {
-        // Update our understanding of who's leader
-        this.isLeaderTab = false;
-        localStorage.setItem(this.leaderStorageKey, JSON.stringify(leaderData));
-      }
-    }
-  }
-
-  // Add a channel validity check before broadcasting
-  private ensureChannelValid(): boolean {
-    if (!this.broadcastChannel) {
-      try {
-        this.broadcastChannel = new BroadcastChannel(this.config.channelName);
-        this.broadcastChannel.addEventListener("message", this.messageHandler);
-        logger.debug("BroadcastChannel reconnected");
-        return true;
-      } catch (error) {
-        logger.error("Failed to create BroadcastChannel", error);
-        return false;
-      }
-    }
-
-    // Test if channel is still valid
+  // Attempt to become the leader (for fallback)
+  private attemptLeaderElection(): void {
     try {
-      // Send a tiny ping message to test channel
-      this.broadcastChannel.postMessage({ type: "PING" });
-      return true;
+      const now = Date.now();
+      const leaderData = localStorage.getItem(this.leaderStorageKey);
+
+      if (!leaderData) {
+        // No leader, become the leader
+        this.becomeLeader();
+        return;
+      }
+
+      const leader = JSON.parse(leaderData);
+      const leaderTimestamp = leader.timestamp || 0;
+      const leaderExpired =
+        now - leaderTimestamp > this.config.leaderCheckInterval * 3;
+
+      if (leaderExpired) {
+        // Leader expired, become the leader
+        this.becomeLeader();
+      } else if (leader.tabId === this.tabId) {
+        // Already the leader, update timestamp
+        this.updateLeaderTimestamp();
+      } else {
+        // Someone else is leader
+        this.isLeaderTab = false;
+      }
     } catch (error) {
-      // Channel is invalid, close and recreate
-      try {
-        this.broadcastChannel.close();
-      } catch (e) {
-        // Ignore errors during close
+      logger.error("Error in leader election process", error);
+    }
+  }
+
+  // Become the leader (for fallback)
+  private becomeLeader(): void {
+    try {
+      const leaderData = {
+        tabId: this.tabId,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(this.leaderStorageKey, JSON.stringify(leaderData));
+      this.isLeaderTab = true;
+      logger.info("This tab is now the leader");
+
+      // Broadcast leader election result
+      this.broadcastMessage(MessageType.LEADER_ELECTION, {
+        tabId: this.tabId,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      logger.error("Failed to become leader", error);
+    }
+  }
+
+  // Update leader timestamp (for fallback)
+  private updateLeaderTimestamp(): void {
+    try {
+      const leaderData = {
+        tabId: this.tabId,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(this.leaderStorageKey, JSON.stringify(leaderData));
+      this.isLeaderTab = true;
+    } catch (error) {
+      logger.error("Failed to update leader timestamp", error);
+    }
+  }
+
+  // Check current leader (for fallback)
+  private checkLeader(): void {
+    try {
+      const leaderData = localStorage.getItem(this.leaderStorageKey);
+      if (!leaderData) {
+        // No leader, try to become one
+        this.becomeLeader();
+        return;
       }
 
-      this.broadcastChannel = null;
+      const leader = JSON.parse(leaderData);
+      this.isLeaderTab = leader.tabId === this.tabId;
 
-      // Try to recreate once
-      try {
-        this.broadcastChannel = new BroadcastChannel(this.config.channelName);
-        this.broadcastChannel.addEventListener("message", this.messageHandler);
-        return true;
-      } catch (error) {
-        logger.error("Failed to recreate BroadcastChannel", error);
-        return false;
+      // If we are the leader, update the timestamp
+      if (this.isLeaderTab) {
+        this.updateLeaderTimestamp();
       }
+    } catch (error) {
+      logger.error("Failed to check leader", error);
+    }
+  }
+
+  // Start health check process
+  private startHealthCheck(): void {
+    // Health check logic can be added here
+    // For now, let's just clean up old messages
+    this.cleanupOldMessages();
+  }
+
+  // Clean up old messages from localStorage (for fallback)
+  private cleanupOldMessages(): void {
+    try {
+      if (typeof localStorage === "undefined") return;
+
+      const now = Date.now();
+      const keysToRemove: string[] = [];
+
+      // Find old message keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (
+          key &&
+          key.startsWith(this.config.storagePrefix) &&
+          key !== this.leaderStorageKey
+        ) {
+          try {
+            const messageData = JSON.parse(localStorage.getItem(key) || "{}");
+            if (
+              messageData.timestamp &&
+              now - messageData.timestamp > this.config.messageTimeout * 2
+            ) {
+              keysToRemove.push(key);
+            }
+          } catch (e) {
+            // Ignore parsing errors
+            keysToRemove.push(key);
+          }
+        }
+      }
+
+      // Remove old keys
+      keysToRemove.forEach((key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          // Ignore errors
+        }
+      });
+    } catch (error) {
+      logger.error("Error cleaning up old messages", error);
+    }
+  }
+
+  // Handle incoming messages from BroadcastChannel or localStorage (for fallback)
+  private handleIncomingMessage(message: any): void {
+    if (!message || !message.type) return;
+
+    // Validate message
+    if (message.tabId === this.tabId) {
+      // Skip messages from self
+      return;
+    }
+
+    // Check for message timeout
+    if (
+      message.timestamp &&
+      Date.now() - message.timestamp > this.config.messageTimeout
+    ) {
+      logger.debug("Ignoring outdated message", { message });
+      return;
+    }
+
+    // Process message
+    switch (message.type) {
+      case MessageType.LEADER_ELECTION:
+        // Update local leadership status
+        this.isLeaderTab = message.payload?.tabId === this.tabId;
+        break;
+      case MessageType.LEADER_PING:
+        // Handle leader ping
+        if (this.isLeaderTab) {
+          // Respond with leader confirmation
+          this.broadcastMessage(MessageType.LEADER_PING, {
+            tabId: this.tabId,
+            timestamp: Date.now(),
+            isResponse: true,
+          });
+        }
+        break;
+      default:
+        // Pass other messages to subscribers
+        if (Object.values(MessageType).includes(message.type)) {
+          this.eventEmitter.emit(message.type, message.payload);
+        }
+        break;
+    }
+  }
+
+  // Handle messages from SharedWorker
+  private handleWorkerMessage(message: any): void {
+    if (!message || !message.type) return;
+
+    switch (message.type) {
+      case "AUTH_STATE_UPDATE":
+        // Worker is sending updated auth state
+        this.eventEmitter.emit(MessageType.AUTH_STATE_CHANGED, message.payload);
+        logger.debug("Received auth state update from worker", {
+          isAuthenticated: !!message.payload?.isAuthenticated,
+        });
+        break;
+
+      case "LOGOUT_CONFIRMED":
+        // Worker confirmed logout, emit to subscribers
+        this.eventEmitter.emit(MessageType.LOGOUT, message.payload);
+        logger.debug("Received logout confirmation from worker");
+        break;
+
+      case "LEADER_ELECTED":
+      case "LEADER_INFO":
+        // Update leader information
+        if (message.payload && message.payload.tabId === this.tabId) {
+          this.isLeaderTab = true;
+          logger.debug("This tab is now the leader");
+        } else {
+          this.isLeaderTab = false;
+        }
+        break;
+
+      case "CONNECTED_TABS":
+        // Just for info logging
+        if (this.config.debug) {
+          logger.debug("Connected tabs:", message.payload);
+        }
+        break;
+
+      // Handle other message types as needed
+      default:
+        // Pass through other message types to subscribers
+        if (Object.values(MessageType).includes(message.type)) {
+          this.eventEmitter.emit(message.type, message.payload);
+        }
     }
   }
 
   // Broadcast a message to all tabs
   public broadcastMessage(type: MessageType, payload: any): void {
-    const message: CrossTabMessage = {
+    const message = {
       type,
       payload,
       timestamp: Date.now(),
-      sourceTabId: this.tabId,
+      tabId: this.tabId,
     };
 
-    // Sign message if needed
-    // message.signature = this.signMessage(message);
-
-    // Try BroadcastChannel with safety check
-    let broadcastSuccessful = false;
-    if (this.ensureChannelValid()) {
+    // First try SharedWorker if available
+    if (this.workerAvailable && this.workerPort) {
       try {
-        this.broadcastChannel!.postMessage(message);
-        broadcastSuccessful = true;
+        this.workerPort.postMessage(message);
       } catch (error) {
-        // Close and nullify the channel so we can reconnect next time
-        try {
-          this.broadcastChannel!.close();
-        } catch (e) {}
-        this.broadcastChannel = null;
-        logger.error(
-          "BroadcastChannel send failed, falling back to localStorage",
-          error
-        );
+        logger.error("Failed to send message via SharedWorker", error);
+        this.workerAvailable = false;
       }
     }
 
-    // Always fall back to localStorage if broadcast failed
-    if (!broadcastSuccessful) {
+    // If worker not available or send failed, fall back to BroadcastChannel
+    if (!this.workerAvailable && this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage(message);
+      } catch (error) {
+        logger.error("Failed to send message via BroadcastChannel", error);
+
+        // Close and reset channel for reconnection attempt
+        try {
+          this.broadcastChannel.close();
+        } catch (e) {}
+        this.broadcastChannel = null;
+      }
+    }
+
+    // Final fallback to localStorage
+    if (!this.workerAvailable || !this.broadcastChannel) {
       try {
         const key = `${this.config.storagePrefix}${Date.now()}_${Math.random()
           .toString(36)
           .substring(2, 9)}`;
         localStorage.setItem(key, JSON.stringify(message));
-
-        // Clean up old messages (keep only last 10)
         this.cleanupOldMessages();
       } catch (error) {
         logger.error("LocalStorage fallback failed", error);
       }
     }
 
-    // Also emit locally
+    // Always emit locally
     this.eventEmitter.emit(type, payload);
   }
 
-  // Clean up old messages in localStorage
-  private cleanupOldMessages(): void {
-    try {
-      const keys = Object.keys(localStorage)
-        .filter(
-          (k) =>
-            k.startsWith(this.config.storagePrefix) &&
-            k !== this.leaderStorageKey
-        )
-        .sort()
-        .slice(0, -10); // Keep only the 10 most recent messages
-
-      keys.forEach((k) => localStorage.removeItem(k));
-    } catch (error) {
-      logger.error("Failed to clean up old messages", error);
-    }
-  }
-
-  // Try to become the leader tab
-  public async electLeader(): Promise<boolean> {
-    try {
-      const now = Date.now();
-
-      // Use a locking mechanism with timestamp for atomic update
-      const lockKey = `${this.config.storagePrefix}election_lock`;
-      const lockValue = `${this.tabId}_${now}`;
-
-      // Try to acquire lock
-      localStorage.setItem(lockKey, lockValue);
-
-      // Wait a bit to ensure consistency across tabs
-      return new Promise<boolean>((resolve) => {
-        setTimeout(() => {
-          // Check if we still have the lock
-          if (localStorage.getItem(lockKey) === lockValue) {
-            // We got the lock, proceed with leader election
-            const currentLeader = localStorage.getItem(this.leaderStorageKey);
-
-            // Become leader
-            const leaderData = { tabId: this.tabId, timestamp: now };
-            localStorage.setItem(
-              this.leaderStorageKey,
-              JSON.stringify(leaderData)
-            );
-            this.isLeaderTab = true;
-
-            // Broadcast leadership claim
-            this.broadcastLeaderPing();
-
-            localStorage.removeItem(lockKey); // Release lock
-            resolve(true);
-          } else {
-            // Someone else got the lock
-            resolve(false);
-          }
-        }, 50); // Small delay, but enough to reduce race condition probability
-      });
-    } catch (error) {
-      logger.error("Leader election failed", error);
-      return Promise.resolve(false);
-    }
-  }
-
-  // Add a synchronous version for internal use
-  private electLeaderSync(): boolean {
-    try {
-      const now = Date.now();
-
-      // Use simple check without the timeout
-      const currentLeader = localStorage.getItem(this.leaderStorageKey);
-      if (currentLeader) {
-        try {
-          const leaderData = JSON.parse(currentLeader);
-
-          // If leader is recent and not this tab, we're not leader
-          if (
-            leaderData.tabId &&
-            leaderData.tabId !== this.tabId &&
-            now - leaderData.timestamp < 10000
-          ) {
-            this.isLeaderTab = false;
-            return false;
-          }
-        } catch (error) {
-          logger.error("Failed to parse leader data", error);
-        }
-      }
-
-      // Become leader
-      const leaderData = { tabId: this.tabId, timestamp: now };
-      localStorage.setItem(this.leaderStorageKey, JSON.stringify(leaderData));
-      this.isLeaderTab = true;
-
-      // Schedule async broadcast
-      setTimeout(() => this.broadcastLeaderPing(), 0);
-
-      return true;
-    } catch (error) {
-      logger.error("Leader election failed", error);
-      return false;
-    }
-  }
-
-  // Renew leadership
-  private renewLeadership(): void {
-    if (!this.isLeaderTab) return;
-
-    try {
-      localStorage.setItem(
-        this.leaderStorageKey,
-        JSON.stringify({ tabId: this.tabId, timestamp: Date.now() })
-      );
-    } catch (error) {
-      logger.error("Failed to renew leadership", error);
-    }
-  }
-
-  // Broadcast leader ping
-  private broadcastLeaderPing(): void {
-    this.broadcastMessage(MessageType.LEADER_PING, {
-      tabId: this.tabId,
-      timestamp: Date.now(),
-    });
-  }
-
-  // Check if this tab is the leader
+  // Public API: Check if this tab is the leader
   public isLeader(): boolean {
-    // Fast path
-    if (this.isLeaderTab) {
-      return true;
-    }
-
-    try {
-      const currentLeader = localStorage.getItem(this.leaderStorageKey);
-      if (!currentLeader) {
-        return this.electLeaderSync(); // Use sync version
-      }
-
-      const leaderData = JSON.parse(currentLeader);
-
-      // If leader data is stale, try to become leader
-      if (Date.now() - leaderData.timestamp > 10000) {
-        return this.electLeaderSync(); // Use sync version
-      }
-
-      this.isLeaderTab = leaderData.tabId === this.tabId;
-      return this.isLeaderTab;
-    } catch (error) {
-      logger.error("Leader check failed", error);
-      return false;
-    }
+    return this.isLeaderTab;
   }
 
-  // Get this tab's ID
+  // Public API: Get tab ID
   public getTabId(): string {
     return this.tabId;
   }
 
-  // Generate a unique tab ID
-  private generateTabId(): string {
-    // Try to get existing tab ID from session storage
-    if (typeof sessionStorage !== "undefined") {
-      const existingId = sessionStorage.getItem("tab_id");
-      if (existingId) {
-        return existingId;
-      }
-    }
-
-    // Generate new ID
-    return `tab_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  // Public API: Check if SharedWorker is being used
+  public isUsingSharedWorker(): boolean {
+    return this.workerAvailable;
   }
 
-  // Message integrity verification (optional)
-  private verifyMessageIntegrity(message: CrossTabMessage): boolean {
-    // Implement message integrity check as needed
-    // This could use a hash or simple validation logic
-    return true; // Simplified for now
+  // Public API: Get connected tabs info
+  public getConnectedTabs(): Promise<string[]> {
+    return new Promise((resolve) => {
+      if (this.workerAvailable && this.workerPort) {
+        const messageHandler = (event: MessageEvent) => {
+          if (event.data && event.data.type === "CONNECTED_TABS") {
+            this.workerPort?.removeEventListener("message", messageHandler);
+            resolve(event.data.payload?.tabs || []);
+          }
+        };
+
+        // Listen for response
+        this.workerPort.addEventListener("message", messageHandler);
+
+        // Send request
+        this.workerPort.postMessage({
+          type: "GET_CONNECTED_TABS",
+          tabId: this.tabId,
+          timestamp: Date.now(),
+        });
+
+        // Timeout after 2 seconds
+        setTimeout(() => {
+          this.workerPort?.removeEventListener("message", messageHandler);
+          resolve([]);
+        }, 2000);
+      } else {
+        resolve([]);
+      }
+    });
   }
 
   // Subscribe to messages of a specific type
@@ -564,6 +681,17 @@ export class CrossTabService {
   public cleanup(): void {
     logger.debug("Cleaning up CrossTabService resources");
 
+    // Clean up SharedWorker
+    if (this.workerPort) {
+      try {
+        this.workerPort.close();
+      } catch (error) {
+        logger.error("Error closing SharedWorker port", error);
+      }
+      this.workerPort = null;
+      this.sharedWorker = null;
+    }
+
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.close();
@@ -577,47 +705,22 @@ export class CrossTabService {
     this.cleanupFunctions.forEach((cleanup) => cleanup());
     this.cleanupFunctions = [];
 
-    // Clear leader check interval
+    // Clear intervals
     if (this.leaderCheckIntervalId !== null) {
       clearInterval(this.leaderCheckIntervalId);
       this.leaderCheckIntervalId = null;
+    }
+
+    if (this.workerHeartbeatId !== null) {
+      clearInterval(this.workerHeartbeatId);
+      this.workerHeartbeatId = null;
     }
 
     // Reset state
     this.isInitialized = false;
   }
 
-  // Add this to the CrossTabService class
-  private startHealthCheck(): void {
-    // Run health check every 30 seconds
-    const healthCheckId = setInterval(() => {
-      // Check leader status
-      const leaderData = localStorage.getItem(this.leaderStorageKey);
-
-      if (!leaderData) {
-        logger.warn("No leader found, initiating leader election");
-        this.electLeader();
-      }
-
-      // Check BroadcastChannel status
-      if (!this.ensureChannelValid()) {
-        logger.error("BroadcastChannel invalid and couldn't be restored");
-      }
-
-      // Send heartbeat if we're leader
-      if (this.isLeaderTab) {
-        this.broadcastMessage(MessageType.LEADER_PING, {
-          tabId: this.tabId,
-          timestamp: Date.now(),
-          healthCheck: true,
-        });
-      }
-    }, 30000);
-
-    this.cleanupFunctions.push(() => clearInterval(healthCheckId));
-  }
-
-  // Add this public method to the CrossTabService class
+  // Add this public method
   public getLeaderStorageKey(): string {
     return this.leaderStorageKey;
   }

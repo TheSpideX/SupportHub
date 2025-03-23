@@ -160,6 +160,26 @@ export const LoginPage = () => {
     checkAuthServiceState();
   }, [authState, isAuthenticated, navigate, from]);
   
+  // Add to your useEffect
+  useEffect(() => {
+    // Check authentication status directly with the server
+    const checkAuthWithServer = async () => {
+      try {
+        const authService = getAuthService();
+        const isAuthenticated = await authService.verifySessionFromServer();
+        
+        if (isAuthenticated) {
+          logger.info("[LoginPage] Authentication verified with server, redirecting");
+          navigate(from, { replace: true });
+        }
+      } catch (error) {
+        logger.error("[LoginPage] Error checking authentication with server", error);
+      }
+    };
+    
+    checkAuthWithServer();
+  }, []);
+  
   // Get services from our centralized auth system instead of creating new instances
   const tokenService = getTokenService();
   const securityService = getSecurityService();
