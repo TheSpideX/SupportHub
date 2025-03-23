@@ -336,20 +336,18 @@ export class TokenService {
    * Cache tokens for offline use
    */
   private cacheTokensForOffline(): void {
-    // In a real implementation, you would securely cache token data
-    // This is a simplified version
     try {
-      // We don't store the actual tokens, just metadata
-      const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
-      if (accessToken) {
-        const decoded = this.decodeToken(accessToken);
-        if (decoded) {
-          this.offlineTokenCache.set('exp', decoded.exp.toString());
-          this.offlineTokenCache.set('userId', decoded.userId);
-          this.offlineTokenCache.set('role', decoded.role);
-        }
+      // We can't access HTTP-only cookies directly
+      // Instead, use session metadata which should be synchronized with the token
+      const sessionData = getSessionMetadata();
+      if (sessionData) {
+        this.offlineTokenCache.set('exp', sessionData.expiresAt.toString());
+        this.offlineTokenCache.set('userId', sessionData.userId);
+        
+        logger.info('Token metadata cached for offline use');
+      } else {
+        logger.warn('No session metadata available for offline caching');
       }
-      logger.info('Tokens cached for offline use');
     } catch (error) {
       logger.error('Failed to cache tokens for offline use:', error);
     }
@@ -366,15 +364,13 @@ export class TokenService {
     }
     
     try {
-      // Get access token and decode it
-      const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
-      if (!accessToken) return;
-      
-      const decoded = this.decodeToken(accessToken);
-      if (!decoded || !decoded.exp) return;
+      // With HTTP-only cookies, we can't access the token directly
+      // Use session metadata instead
+      const sessionData = getSessionMetadata();
+      if (!sessionData || !sessionData.expiresAt) return;
       
       // Calculate time until refresh (expiry - threshold)
-      const expiresAt = decoded.exp * 1000; // Convert to milliseconds
+      const expiresAt = new Date(sessionData.expiresAt).getTime();
       const now = Date.now();
       const timeUntilRefresh = expiresAt - now - (this.config.refreshThreshold * 1000);
       
@@ -518,21 +514,19 @@ export class TokenService {
 
   /**
    * Check if authentication tokens exist
-   * For HTTP-only cookies, we check both the existence flag and session cookie
+   * For HTTP-only cookies, we check the existence flag
    */
   public hasTokens(): boolean {
-    // Check for both the existence flag and session cookie
+    // Check for the existence flag
     const hasFlag = !!getCookie(TOKEN_EXISTS_FLAG);
-    const hasSession = !!getCookie('session_id') || !!getCookie('access_token');
     
     // Log the token check for debugging
     logger.debug('Token existence check', { 
-      hasFlag, 
-      hasSession,
+      hasFlag,
       cookies: document.cookie.split(';').map(c => c.trim().split('=')[0])
     });
     
-    return hasFlag || hasSession;
+    return hasFlag;
   }
 
   /**
@@ -558,22 +552,17 @@ export class TokenService {
     }
     
     // Check if the session is expired with the given buffer
-    return isSessionExpired(sessionData);
+    const expiresAt = new Date(sessionData.expiresAt).getTime();
+    const now = Date.now();
+    return expiresAt <= now + (bufferSeconds * 1000);
   }
 
   /**
    * Gets the CSRF token for use in requests
    */
   public getCsrfToken(): string | null {
-    // Get the CSRF token from cookies
-    const cookies = document.cookie.split(';');
-    for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'csrf_token') {
-        return decodeURIComponent(value);
-      }
-    }
-    return null;
+    // Get the CSRF token from cookies (this is not HTTP-only)
+    return getCookie(CSRF_TOKEN_COOKIE);
   }
 
   /**
@@ -875,20 +864,21 @@ export class TokenService {
    */
   public getTokenMetadata(): Record<string, any> {
     try {
-      const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
-      if (!accessToken) return {};
+      // With HTTP-only cookies, we can't access the token directly
+      // Use session metadata instead
+      const sessionData = getSessionMetadata();
+      if (!sessionData) return {};
       
-      const decoded = this.decodeToken(accessToken);
-      if (!decoded) return {};
-      
-      return {
-        issuedAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : null,
-        expiresAt: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : null,
+      const metadata: Record<string, any> = {
+        expiresAt: new Date(sessionData.expiresAt).toISOString(),
         tokenVersion: this.tokenVersion,
         hasFingerprint: !!this.deviceFingerprint,
         crossTabEnabled: this.config.enableCrossTabs,
-        offlineSupportEnabled: this.config.enableOfflineSupport
+        offlineSupportEnabled: this.config.enableOfflineSupport,
+        userId: sessionData.userId
       };
+
+      return metadata;
     } catch (error) {
       logger.error('Failed to get token metadata:', error);
       return {};
@@ -901,12 +891,12 @@ export class TokenService {
    */
   public getAccessToken(): string | null {
     // With HTTP-only cookies, we can't directly access the token
-    // Instead, we'll check if we have a CSRF token
-    const csrfToken = this.getCsrfToken();
+    // Instead, we'll check if we have a token existence flag
+    const hasToken = this.hasTokens();
     
-    // If we have a CSRF token, we're likely authenticated
+    // If we have the flag, we're likely authenticated
     // The actual token is stored in HTTP-only cookies
-    return csrfToken ? 'token-exists-in-http-only-cookie' : null;
+    return hasToken ? 'token-exists-in-http-only-cookie' : null;
   }
 
   /**
@@ -923,20 +913,30 @@ export class TokenService {
     // If we're using HTTP-only cookies, we can't decode the token directly
     // Instead, we need to rely on the session data from the server
     if (token === 'token-exists-in-http-only-cookie') {
-      // Return a placeholder object that indicates we're authenticated
-      // The actual session data will be fetched from the server
+      const sessionData = getSessionMetadata();
+      if (!sessionData) return null;
+      
+      // Return a placeholder object with session data
       return {
         isAuthenticated: true,
-        // Add other required fields with placeholder values
-        exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
-        iat: Math.floor(Date.now() / 1000)
+        exp: new Date(sessionData.expiresAt).getTime() / 1000,
+        userId: sessionData.userId,
       };
     }
     
+    // For non-HTTP-only tokens (should not happen in this implementation)
     try {
-      return jwtDecode(token);
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
     } catch (error) {
-      logger.error('Failed to decode token:', { error });
+      logger.error('Failed to decode token:', error);
       return null;
     }
   }
@@ -1764,6 +1764,15 @@ export class TokenService {
       logger.error('Failed to clear tokens:', error);
       return false;
     }
+  }
+
+  /**
+   * Get the timestamp of the last user activity
+   * @returns {number} Timestamp of last activity or current time
+   */
+  private getLastActivity(): number {
+    const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
+    return lastActivity ? parseInt(lastActivity, 10) : Date.now();
   }
 
   private getInactivityThreshold(): number {

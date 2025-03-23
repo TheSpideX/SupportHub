@@ -217,7 +217,7 @@ export const handleAuthFailure = (error) => {
   console.error('Auth initialization failed:', error);
   
   // Clear any existing tokens
-  tokenService.clearTokens();
+  authInstance.tokenService.clearTokens();
   
   // Redirect to login page with the correct path
   window.location.href = '/login'; // Update from AUTH_CONSTANTS.ROUTES.LOGIN if it was '/auth/login'
