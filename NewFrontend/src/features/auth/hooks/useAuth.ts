@@ -69,7 +69,7 @@ export const useAuth = () => {
     
     try {
       // Get the auth service instance
-      const authServiceInstance = authService || getAuthService();
+      const authServiceInstance = getAuthService();
       
       // Make login request through auth service
       const result = await authServiceInstance.login(credentials);

@@ -1,10 +1,11 @@
-import React from 'react';
+import * as React from 'react';
 import { Grid, Box, Typography } from '@mui/material';
-import { AuthStatusMonitor } from '@/features/dashboard/components/AuthStatusMonitor';
+import TokenServiceTester from '@/features/dashboard/components/TokenServiceTester';
 
 export const DashboardPage = () => {
   return (
     <div>
+      <TokenServiceTester />
     </div>
   );
 };

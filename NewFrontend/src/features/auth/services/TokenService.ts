@@ -1392,7 +1392,7 @@ export class TokenService {
   /**
    * Start token heartbeat to periodically check token status with backend
    */
-  private startTokenHeartbeat(): void {
+  public startTokenHeartbeat(): void {
     const w = typeof window !== "undefined" ? window : ({} as any);
 
     // Check if another instance already has a heartbeat running
@@ -1467,7 +1467,7 @@ export class TokenService {
    * Check token status with the server
    * Used with HTTP-only cookies where we can't directly access the token
    */
-  private checkTokenStatus(): void {
+  public checkTokenStatus(): void {
     // Skip if refresh is already in progress
     if (this._refreshLock) {
       logger.debug("Token status check: Skipping - refresh in progress");
@@ -1824,7 +1824,7 @@ export class TokenService {
   /**
    * Handle logout due to inactivity
    */
-  private logoutDueToInactivity(): void {
+  public logoutDueToInactivity(): void {
     logger.info("Logging out due to inactivity", {
       lastActivity: new Date(this.getLastActivity()).toISOString(),
       inactiveTimeMinutes: Math.round(
@@ -1838,17 +1838,28 @@ export class TokenService {
         const { authService } = getAuthServices();
 
         // Call logout with correct parameter structure
-        authService.logout().catch((error) => {
-          logger.error("Failed to logout due to inactivity:", error);
+        authService
+          .logout()
+          .then(() => {
+            // Add explicit redirection after successful logout
+            logger.info(
+              "Successfully logged out due to inactivity, redirecting to login"
+            );
+            if (typeof window !== "undefined") {
+              window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
+            }
+          })
+          .catch((error) => {
+            logger.error("Failed to logout due to inactivity:", error);
 
-          // Fallback: clear tokens directly if logout fails
-          this.clearTokens();
+            // Fallback: clear tokens directly if logout fails
+            this.clearTokens();
 
-          // Redirect to login page with inactivity reason
-          if (typeof window !== "undefined") {
-            window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
-          }
-        });
+            // Redirect to login page with inactivity reason
+            if (typeof window !== "undefined") {
+              window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
+            }
+          });
 
         // Dispatch a custom event to notify about inactivity logout
         if (typeof document !== "undefined") {
@@ -1862,6 +1873,11 @@ export class TokenService {
       .catch((error) => {
         logger.error("Failed to import auth services:", error);
         this.forceLogout("inactivity");
+
+        // Add redirect here as well
+        if (typeof window !== "undefined") {
+          window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
+        }
       });
   }
 

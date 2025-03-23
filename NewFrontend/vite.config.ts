@@ -15,6 +15,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     cors: true,
+    hmr: false, // Disable HMR
     proxy: {
       '/api': {
         target: 'http://localhost:4290',
