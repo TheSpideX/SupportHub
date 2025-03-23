@@ -103,8 +103,27 @@ export function App() {
     // Initialize once
     const crossTabService = getCrossTabService();
 
+    // Log tab information
+    logger.info("Tab initialized", {
+      tabId: crossTabService.getTabId(),
+      isLeader: crossTabService.isLeader(),
+    });
+
+    // Register tab visibility change handler
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible") {
+        // Tab became active, check if we should become leader
+        if (!localStorage.getItem(crossTabService.getLeaderStorageKey())) {
+          crossTabService.electLeader();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", visibilityHandler);
+
     // Clean up when component unmounts
     return () => {
+      document.removeEventListener("visibilitychange", visibilityHandler);
       crossTabService.cleanup();
     };
   }, []);

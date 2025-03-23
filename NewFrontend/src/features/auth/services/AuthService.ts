@@ -113,6 +113,11 @@ export class AuthService {
   private _validationInProgress: boolean = false;
   private _validationPromise: Promise<boolean> | null = null;
 
+  // Add these properties to AuthService
+  private lastStateUpdateTime: number = 0;
+  private stateChangeCounter: number = 0;
+  private lastBroadcastSource: string | null = null;
+
   constructor(
     config: Partial<AuthServiceConfig> = {},
     tokenService: TokenService,
@@ -299,48 +304,58 @@ export class AuthService {
   /**
    * Update auth state and notify listeners
    */
-  private updateAuthState(
+  public updateAuthState(
     newState: Partial<AuthState>,
     broadcast: boolean = true
   ): void {
-    this.authState = { ...this.authState, ...newState };
+    // Use timestamp to track state update sequence
+    const timestamp = Date.now();
 
-    // Notify all listeners
-    this.stateChangeListeners.forEach((listener) => {
-      listener(this.authState);
-    });
-
-    // Broadcast to other tabs if needed
-    if (broadcast && this.broadcastChannel) {
-      this.broadcastChannel.postMessage({
-        type: "AUTH_STATE_CHANGE",
-        payload: {
-          state: this.authState,
-        },
+    // Skip if we've processed a more recent update
+    if (timestamp < this.lastStateUpdateTime) {
+      logger.debug("Ignoring outdated state update", {
+        current: this.lastStateUpdateTime,
+        received: timestamp,
       });
+      return;
     }
 
-    logger.debug("Auth state updated", {
-      isAuthenticated: this.authState.isAuthenticated,
-    });
+    // Loop detection - too many changes in short period
+    if (timestamp - this.lastStateUpdateTime < 2000) {
+      this.stateChangeCounter++;
 
-    // Update the authState with the new values
-    this.authState = {
-      ...this.authState,
-      ...newState,
-    };
+      // If we've had more than 3 changes in 2 seconds, something is wrong
+      if (this.stateChangeCounter > 3) {
+        logger.warn("Detected potential auth state loop, skipping broadcast", {
+          counter: this.stateChangeCounter,
+          timeDiff: timestamp - this.lastStateUpdateTime,
+        });
+        broadcast = false; // Don't broadcast to break the loop
+        this.stateChangeCounter = 0; // Reset counter after breaking loop
+      }
+    } else {
+      // Reset counter for normal operation
+      this.stateChangeCounter = 0;
+    }
 
-    // Update Redux store
+    // Update last timestamp
+    this.lastStateUpdateTime = timestamp;
+
+    // Update local state
+    this.authState = { ...this.authState, ...newState };
+
+    // Update Redux store if available
     if (this.store) {
       this.store.dispatch(setAuthState(this.authState));
     }
 
-    // Broadcast to other tabs if enabled
-    if (this.broadcastAuthStateChanges && this.crossTabService) {
+    // Only broadcast significant changes (not every small update)
+    if (broadcast && this.crossTabService && "isAuthenticated" in newState) {
       this.crossTabService.broadcastMessage(MessageType.AUTH_STATE_CHANGED, {
         authState: this.authState,
-        timestamp: Date.now(),
+        timestamp,
         sourceTabId: this.crossTabService.getTabId(),
+        version: timestamp, // Use timestamp as version
       });
     }
   }
@@ -1394,16 +1409,39 @@ export class AuthService {
 
   // Handle auth state changes from other tabs
   private handleRemoteAuthStateChange(payload: any): void {
-    if (!payload || payload.sourceTabId === this.crossTabService.getTabId()) {
-      return; // Skip our own messages
+    if (!payload || !payload.authState) return;
+
+    // Skip if this is our own message
+    if (payload.sourceTabId === this.crossTabService.getTabId()) {
+      return;
     }
 
-    logger.debug("Received auth state change from another tab");
-
-    // Update local state to match
-    if (payload.authState) {
-      this.updateAuthState(payload.authState, false); // Don't broadcast back
+    // Skip if we've already seen a newer version
+    if (payload.timestamp <= this.lastStateUpdateTime) {
+      logger.debug("Ignoring outdated remote state update", {
+        current: this.lastStateUpdateTime,
+        received: payload.timestamp,
+      });
+      return;
     }
+
+    // Track source to detect ping-pong
+    if (this.lastBroadcastSource === payload.sourceTabId) {
+      logger.warn("Detected ping-pong with tab", {
+        sourceTabId: payload.sourceTabId,
+      });
+      // Don't update state if we're ping-ponging with the same tab
+      return;
+    }
+
+    this.lastBroadcastSource = payload.sourceTabId;
+    logger.debug("Received auth state change from another tab", {
+      sourceTabId: payload.sourceTabId,
+      timestamp: new Date(payload.timestamp).toISOString(),
+    });
+
+    // Update without broadcasting back (very important!)
+    this.updateAuthState(payload.authState, false);
   }
 
   // Add this method to handle remote session expiration

@@ -140,6 +140,9 @@ export class CrossTabService {
     // Start leader election process
     this.startLeaderElection();
 
+    // Start health check process
+    this.startHealthCheck();
+
     // Mark as initialized
     this.isInitialized = true;
   }
@@ -284,16 +287,40 @@ export class CrossTabService {
     if (!this.broadcastChannel) {
       try {
         this.broadcastChannel = new BroadcastChannel(this.config.channelName);
-        // Use the stored message handler
         this.broadcastChannel.addEventListener("message", this.messageHandler);
         logger.debug("BroadcastChannel reconnected");
+        return true;
+      } catch (error) {
+        logger.error("Failed to create BroadcastChannel", error);
+        return false;
+      }
+    }
+
+    // Test if channel is still valid
+    try {
+      // Send a tiny ping message to test channel
+      this.broadcastChannel.postMessage({ type: "PING" });
+      return true;
+    } catch (error) {
+      // Channel is invalid, close and recreate
+      try {
+        this.broadcastChannel.close();
+      } catch (e) {
+        // Ignore errors during close
+      }
+
+      this.broadcastChannel = null;
+
+      // Try to recreate once
+      try {
+        this.broadcastChannel = new BroadcastChannel(this.config.channelName);
+        this.broadcastChannel.addEventListener("message", this.messageHandler);
         return true;
       } catch (error) {
         logger.error("Failed to recreate BroadcastChannel", error);
         return false;
       }
     }
-    return true;
   }
 
   // Broadcast a message to all tabs
@@ -365,11 +392,56 @@ export class CrossTabService {
   }
 
   // Try to become the leader tab
-  public electLeader(): boolean {
+  public async electLeader(): Promise<boolean> {
     try {
       const now = Date.now();
 
-      // Check if there's already a leader
+      // Use a locking mechanism with timestamp for atomic update
+      const lockKey = `${this.config.storagePrefix}election_lock`;
+      const lockValue = `${this.tabId}_${now}`;
+
+      // Try to acquire lock
+      localStorage.setItem(lockKey, lockValue);
+
+      // Wait a bit to ensure consistency across tabs
+      return new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+          // Check if we still have the lock
+          if (localStorage.getItem(lockKey) === lockValue) {
+            // We got the lock, proceed with leader election
+            const currentLeader = localStorage.getItem(this.leaderStorageKey);
+
+            // Become leader
+            const leaderData = { tabId: this.tabId, timestamp: now };
+            localStorage.setItem(
+              this.leaderStorageKey,
+              JSON.stringify(leaderData)
+            );
+            this.isLeaderTab = true;
+
+            // Broadcast leadership claim
+            this.broadcastLeaderPing();
+
+            localStorage.removeItem(lockKey); // Release lock
+            resolve(true);
+          } else {
+            // Someone else got the lock
+            resolve(false);
+          }
+        }, 50); // Small delay, but enough to reduce race condition probability
+      });
+    } catch (error) {
+      logger.error("Leader election failed", error);
+      return Promise.resolve(false);
+    }
+  }
+
+  // Add a synchronous version for internal use
+  private electLeaderSync(): boolean {
+    try {
+      const now = Date.now();
+
+      // Use simple check without the timeout
       const currentLeader = localStorage.getItem(this.leaderStorageKey);
       if (currentLeader) {
         try {
@@ -394,10 +466,9 @@ export class CrossTabService {
       localStorage.setItem(this.leaderStorageKey, JSON.stringify(leaderData));
       this.isLeaderTab = true;
 
-      // Broadcast leadership claim
-      this.broadcastLeaderPing();
+      // Schedule async broadcast
+      setTimeout(() => this.broadcastLeaderPing(), 0);
 
-      logger.debug("Tab elected as leader", { tabId: this.tabId });
       return true;
     } catch (error) {
       logger.error("Leader election failed", error);
@@ -437,14 +508,14 @@ export class CrossTabService {
     try {
       const currentLeader = localStorage.getItem(this.leaderStorageKey);
       if (!currentLeader) {
-        return this.electLeader();
+        return this.electLeaderSync(); // Use sync version
       }
 
       const leaderData = JSON.parse(currentLeader);
 
       // If leader data is stale, try to become leader
       if (Date.now() - leaderData.timestamp > 10000) {
-        return this.electLeader();
+        return this.electLeaderSync(); // Use sync version
       }
 
       this.isLeaderTab = leaderData.tabId === this.tabId;
@@ -514,6 +585,41 @@ export class CrossTabService {
 
     // Reset state
     this.isInitialized = false;
+  }
+
+  // Add this to the CrossTabService class
+  private startHealthCheck(): void {
+    // Run health check every 30 seconds
+    const healthCheckId = setInterval(() => {
+      // Check leader status
+      const leaderData = localStorage.getItem(this.leaderStorageKey);
+
+      if (!leaderData) {
+        logger.warn("No leader found, initiating leader election");
+        this.electLeader();
+      }
+
+      // Check BroadcastChannel status
+      if (!this.ensureChannelValid()) {
+        logger.error("BroadcastChannel invalid and couldn't be restored");
+      }
+
+      // Send heartbeat if we're leader
+      if (this.isLeaderTab) {
+        this.broadcastMessage(MessageType.LEADER_PING, {
+          tabId: this.tabId,
+          timestamp: Date.now(),
+          healthCheck: true,
+        });
+      }
+    }, 30000);
+
+    this.cleanupFunctions.push(() => clearInterval(healthCheckId));
+  }
+
+  // Add this public method to the CrossTabService class
+  public getLeaderStorageKey(): string {
+    return this.leaderStorageKey;
   }
 }
 

@@ -1,5 +1,5 @@
 import { ReactNode, useState, useRef, useEffect, useCallback } from "react";
-import { useLocation, Navigate } from "react-router-dom";
+import { useLocation, Navigate, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
 import { APP_ROUTES } from "@/config/routes";
@@ -35,6 +35,9 @@ export const AuthGuard = ({
   const validationInProgress = useRef(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const lastVerifyTime = useRef<number>(0);
+  const navigate = useNavigate();
+  const lastRedirectTime = useRef<number>(0);
+  const redirectDebounceTimeout = useRef<number | null>(null);
 
   // Enhanced logging for component evaluation
   logger.info("AuthGuard evaluation", {
@@ -124,7 +127,7 @@ export const AuthGuard = ({
                 ? typeof serviceAuthState.sessionExpiry === "object"
                   ? serviceAuthState.sessionExpiry.getTime()
                   : serviceAuthState.sessionExpiry
-                : Date.now() + 30 * 60 * 1000,
+                : Date.now() + 30 * 60 * 1000, // Default: 30 min from now if null
           })
         );
 
@@ -164,7 +167,7 @@ export const AuthGuard = ({
                     ? typeof authState.sessionExpiry === "object"
                       ? authState.sessionExpiry.getTime()
                       : authState.sessionExpiry
-                    : Date.now() + 30 * 60 * 1000,
+                    : Date.now() + 30 * 60 * 1000, // Default: 30 min from now if null
               })
             );
           }
@@ -200,6 +203,58 @@ export const AuthGuard = ({
     // Use the debounced verify auth function
     verifyAuthDebounced();
   }, [dispatch, isInitialized, isAuthenticated, verifyAuthDebounced]);
+
+  // Debounced navigation to prevent rapid back-and-forth
+  const debouncedNavigate = useCallback(
+    (path: string) => {
+      const now = Date.now();
+
+      // Don't redirect more than once every 2 seconds
+      if (now - lastRedirectTime.current < 2000) {
+        logger.debug("Skipping rapid redirection", {
+          timeSinceLastRedirect: now - lastRedirectTime.current,
+        });
+        return;
+      }
+
+      // Clear any pending redirects
+      if (redirectDebounceTimeout.current) {
+        clearTimeout(redirectDebounceTimeout.current);
+      }
+
+      // Set new redirect with delay
+      redirectDebounceTimeout.current = window.setTimeout(() => {
+        logger.info(`AuthGuard redirecting to ${path}`, {
+          component: "AuthGuard",
+          from: window.location.pathname,
+        });
+
+        lastRedirectTime.current = Date.now();
+        navigate(path);
+
+        redirectDebounceTimeout.current = null;
+      }, 300); // Small delay to allow state to settle
+    },
+    [navigate]
+  );
+
+  // Handle auth state changes
+  useEffect(() => {
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        debouncedNavigate("/login");
+      }
+    }
+  }, [isAuthenticated, isLoading, debouncedNavigate]);
+
+  // Clean up timeout
+  useEffect(() => {
+    return () => {
+      if (redirectDebounceTimeout.current) {
+        clearTimeout(redirectDebounceTimeout.current);
+      }
+    };
+  }, []);
 
   // Use a better loading component
   if (isLoading) {
