@@ -215,7 +215,7 @@ self.addEventListener('message', (event: MessageEvent) => {
 // Handle background token refresh
 async function handleTokenRefresh(payload: any): Promise<void> {
   try {
-    const response = await fetch('/api/auth/refresh-token', {
+    const response = await fetch('/api/auth/token/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

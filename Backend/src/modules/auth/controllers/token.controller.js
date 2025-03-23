@@ -25,7 +25,13 @@ exports.refreshTokens = asyncHandler(async (req, res) => {
   
   try {
     // Refresh tokens and update session
-    const { tokens, session } = await tokenService.refreshTokens(refreshToken);
+    const result = await tokenService.refreshTokens(refreshToken);
+
+    // Create tokens object with the correct structure for setTokenCookies
+    const tokens = {
+      accessToken: result.accessToken, 
+      refreshToken: result.refreshToken
+    };
     
     // Set cookies
     tokenService.setTokenCookies(res, tokens);

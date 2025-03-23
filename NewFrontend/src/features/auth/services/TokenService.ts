@@ -1,6 +1,6 @@
 /**
  * TokenService
- * 
+ *
  * Handles all token-related operations including:
  * - Token storage in HTTP-only cookies
  * - Token validation
@@ -12,39 +12,26 @@
  * - Advanced security measures
  */
 
-import { logger } from '@/utils/logger';
-import { jwtDecode } from 'jwt-decode';
-import EventEmitter from 'eventemitter3';
-import { 
-  getCookie, 
-  setCookie, 
+import { logger } from "@/utils/logger";
+import EventEmitter from "eventemitter3";
+import {
+  getCookie,
+  setCookie,
   removeCookie,
-  hasAuthTokens,
-  getSessionMetadata
-} from '../utils/storage.utils';
-import { 
-  isSessionExpired
-} from '../utils/auth.utils';
-import { 
-  TokenData, 
-  AuthError, 
-  AUTH_ERROR_CODES,
-  TokenRefreshQueueItem
-} from '../types/auth.types';
-import { apiClient } from '@/api/apiClient';
-import { AUTH_CONSTANTS } from '../constants/auth.constants';
-// import { toast } from '@/components/ui/toast';
-// import { navigate } from '@/utils/navigation';
-import { AuthService } from '@/features/auth/services/AuthService';
+  getSessionMetadata,
+} from "../utils/storage.utils";
+import { AuthError, TokenRefreshQueueItem } from "../types/auth.types";
+import { apiClient } from "@/api/apiClient";
+import { AUTH_CONSTANTS } from "../constants/auth.constants";
 
 // Constants
-const ACCESS_TOKEN_COOKIE = 'auth_access_token';
-const REFRESH_TOKEN_COOKIE = 'auth_refresh_token';
-const TOKEN_EXISTS_FLAG = 'auth_token_exists';
-const CSRF_TOKEN_COOKIE = 'csrf_token';
-const TOKEN_VERSION_KEY = 'token_version';
-const FINGERPRINT_KEY = 'device_fingerprint';
-const USER_ACTIVITY_KEY = 'last_user_activity';
+const ACCESS_TOKEN_COOKIE = "auth_access_token";
+const REFRESH_TOKEN_COOKIE = "auth_refresh_token";
+const TOKEN_EXISTS_FLAG = "auth_token_exists";
+const CSRF_TOKEN_COOKIE = "csrf_token";
+const TOKEN_VERSION_KEY = "token_version";
+const FINGERPRINT_KEY = "device_fingerprint";
+const USER_ACTIVITY_KEY = "last_user_activity";
 const INACTIVITY_THRESHOLD = 30 * 60 * 1000; // 30 minutes
 const INACTIVITY_CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
 const TOKEN_STATUS_CHECK_INTERVAL = 60 * 1000; // Check token status every minute
@@ -74,14 +61,14 @@ export interface TokenServiceConfig {
 }
 
 const defaultConfig: TokenServiceConfig = {
-  apiBaseUrl: '/api',
-  tokenEndpoint: '/auth/token',
-  refreshEndpoint: '/auth/token/refresh', // Update this to match your backend endpoint
+  apiBaseUrl: "/api",
+  tokenEndpoint: "/auth/token",
+  refreshEndpoint: "/auth/token/refresh", // Standardized endpoint
   cookieSecure: true,
-  cookiePath: '/',
+  cookiePath: "/",
   accessTokenMaxAge: 15 * 60, // 15 minutes
   refreshTokenMaxAge: 7 * 24 * 60 * 60, // 7 days
-  csrfHeaderName: 'X-CSRF-Token',
+  csrfHeaderName: "X-CSRF-Token",
   refreshThreshold: 5 * 60, // Update to 5 minutes (300 seconds) to match API_CONFIG
   refreshRetryDelay: 5000, // 5 seconds
   maxRefreshRetries: 3,
@@ -117,152 +104,246 @@ export class TokenService {
   private inactivityCheckerId: number | null = null;
   private inactivityMonitorId: number | null = null;
   private lastInactivityCheck: number | null = null;
+  private _refreshLock: boolean = false;
+  private _lastProcessedMessageTime: number | null = null;
+  private _tabId: string = this._generateTabId();
+  private _lastTokenVerification: number | null = null;
+  private _validationInProgress = false;
+  private _validationPromise: Promise<boolean> | null = null;
+  private _instanceId: string = `inst_${Math.random()
+    .toString(36)
+    .substr(2, 9)}_${Date.now()}`; // Add this line
 
   // Strengthen the singleton pattern
   public static instance: TokenService | null = null;
-  
-  // Add a static getInstance method
-  public static getInstance(config: Partial<TokenServiceConfig> = {}): TokenService {
-    if (!TokenService.instance) {
-      TokenService.instance = new TokenService(config);
+
+  // Use window to persist the instance across HMR
+  public static getInstance(
+    config: Partial<TokenServiceConfig> = {}
+  ): TokenService {
+    // Store instance on window object to survive HMR
+    const w = typeof window !== "undefined" ? window : ({} as any);
+    if (!w.__tokenServiceInstance) {
+      w.__tokenServiceInstance = new TokenService(config);
+      logger.info("Created new TokenService instance");
+    } else {
+      logger.debug("Using existing TokenService instance");
     }
-    return TokenService.instance;
+    TokenService.instance = w.__tokenServiceInstance;
+    return w.__tokenServiceInstance;
   }
 
   constructor(config: Partial<TokenServiceConfig> = {}) {
-    // If an instance already exists, return it instead of creating a new one
-    if (TokenService.instance) {
-      logger.debug('TokenService already initialized, returning existing instance');
-      return TokenService.instance;
+    // Return existing instance if one exists (prevent "this" context issues)
+    const w = typeof window !== "undefined" ? window : ({} as any);
+    if (w.__tokenServiceInstance) {
+      logger.debug(
+        "TokenService already initialized, returning existing instance"
+      );
+      return w.__tokenServiceInstance;
     }
-    
-    // Initialize the instance
+
+    // Continue with initialization if this is the first instance
     this.config = { ...defaultConfig, ...config };
     this.eventBus = new EventEmitter();
-    
+
     // Set heartbeat interval
     this.heartbeatInterval = Math.min(
       30 * 1000, // 30 seconds default
       (this.config.refreshThreshold * 1000) / 3 // Or 1/3 of refresh threshold
     );
-    
-    logger.info(`TokenService initialized with refresh threshold: ${this.config.refreshThreshold}s, heartbeat: ${this.heartbeatInterval/1000}s`);
-    
+
+    logger.info(
+      `TokenService initialized with refresh threshold: ${
+        this.config.refreshThreshold
+      }s, heartbeat: ${this.heartbeatInterval / 1000}s`
+    );
+
     // Store the instance
     TokenService.instance = this;
-    
+
     // Initialize other properties and start services
     this.initializeServices();
   }
-  
+
   // Move initialization logic to a separate method
   private initializeServices(): void {
     // Only start token heartbeat if user is authenticated
     if (this.hasTokens()) {
       this.startTokenHeartbeat();
       this.setupActivityTracking();
-      
+
       // Initialize cross-tab communication if enabled
-      if (this.config.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
+      if (
+        this.config.enableCrossTabs &&
+        typeof BroadcastChannel !== "undefined"
+      ) {
         this.initCrossTabCommunication();
       }
-      
+
       // Generate device fingerprint if enabled
       if (this.config.enableFingerprinting) {
         this.generateDeviceFingerprint();
       }
-      
+
       // Initialize token version
       this.initTokenVersion();
-      
+
       // Schedule token refresh if tokens exist
       this.scheduleTokenRefresh();
-      
+
       // Listen for online/offline events
       if (this.config.enableOfflineSupport) {
         this.setupOfflineSupport();
       }
-      
+
       this.isInitialized = true;
-      logger.info('TokenService fully initialized for authenticated user');
+      logger.info("TokenService fully initialized for authenticated user");
     } else {
-      logger.info('TokenService initialized in standby mode (no authenticated user)');
+      logger.info(
+        "TokenService initialized in standby mode (no authenticated user)"
+      );
     }
   }
 
   /**
-   * Initialize cross-tab communication
+   * Generate a unique device fingerprint for security verification
    */
+  private generateDeviceFingerprint(): void {
+    try {
+      // Check if we already have a fingerprint
+      let fingerprint = localStorage.getItem(FINGERPRINT_KEY);
+
+      if (!fingerprint) {
+        // Generate a new fingerprint based on device characteristics
+        const fpData = [
+          navigator.userAgent,
+          navigator.language,
+          screen.colorDepth,
+          screen.width + "x" + screen.height,
+          new Date().getTimezoneOffset(),
+          // Add more entropy with a random component
+          Math.random().toString(36).substr(2, 10),
+        ].join("|");
+
+        // Create a simple hash
+        let hash = 0;
+        for (let i = 0; i < fpData.length; i++) {
+          const char = fpData.charCodeAt(i);
+          hash = (hash << 5) - hash + char;
+          hash = hash & hash; // Convert to 32bit integer
+        }
+
+        fingerprint = Math.abs(hash).toString(36);
+        localStorage.setItem(FINGERPRINT_KEY, fingerprint);
+      }
+
+      this.deviceFingerprint = fingerprint;
+      logger.debug("Device fingerprint initialized");
+    } catch (error) {
+      logger.error("Failed to generate device fingerprint:", error);
+      this.deviceFingerprint = null;
+    }
+  }
+
+  /**
+   * Validate cross-tab messages to prevent security issues
+   */
+  private validateCrossTabMessage(message: any): boolean {
+    // Verify message structure
+    if (!message || !message.type || !message.timestamp) {
+      logger.warn("Received malformed cross-tab message", message);
+      return false;
+    }
+
+    // Prevent replay attacks by checking timestamp
+    if (
+      this._lastProcessedMessageTime &&
+      message.timestamp <= this._lastProcessedMessageTime
+    ) {
+      logger.warn("Ignoring outdated cross-tab message", message);
+      return false;
+    }
+
+    // Verify the source tab if tabId is available
+    if (message.tabId && message.tabId === this._tabId) {
+      // Skip messages from self
+      return false;
+    }
+
+    // Message is valid, update timestamp
+    this._lastProcessedMessageTime = message.timestamp;
+    return true;
+  }
+
+  // Update initCrossTabCommunication method to use validation
   private initCrossTabCommunication(): void {
-    if (typeof window !== 'undefined' && window.BroadcastChannel) {
-      this.authChannel = new BroadcastChannel('auth_channel');
-      
-      this.authChannel.addEventListener('message', (event) => {
-        if (event.data && event.data.type) {
+    if (typeof window !== "undefined" && window.BroadcastChannel) {
+      try {
+        this.authChannel = new BroadcastChannel("auth_channel");
+
+        this.authChannel.addEventListener("message", (event) => {
+          // Validate message before processing
+          if (!this.validateCrossTabMessage(event.data)) {
+            return;
+          }
+
+          // Process the message by type
           switch (event.data.type) {
-            case 'SESSION_UPDATED':
+            case "SESSION_UPDATED":
               this.handleSessionUpdate(event.data.payload);
               break;
-            case 'TOKEN_REFRESHED':
+            case "TOKEN_REFRESHED":
               this.handleTokenRefreshed(event.data.payload);
               break;
-            case 'LOGOUT':
+            case "TOKEN_VERSION_UPDATED":
+              this.handleTokenVersionUpdated(event.data.payload);
+              break;
+            case "LOGOUT":
               this.handleLogout();
               break;
+            default:
+              logger.warn("Received unknown message type:", event.data.type);
           }
-        }
-      });
+        });
+
+        // Announce this tab to other tabs
+        this.authChannel.postMessage({
+          type: "TAB_CONNECTED",
+          timestamp: Date.now(),
+          tabId: this._tabId,
+        });
+
+        logger.debug("Cross-tab communication initialized");
+      } catch (error) {
+        logger.error("Failed to initialize cross-tab communication:", error);
+      }
     }
   }
 
-  /**
-   * Generate a device fingerprint for token binding
-   */
-  private async generateDeviceFingerprint(): Promise<void> {
-    try {
-      // Simple fingerprinting based on available browser data
-      // In production, you might want to use a more sophisticated approach
-      const fingerprint = {
-        userAgent: navigator.userAgent,
-        language: navigator.language,
-        platform: navigator.platform,
-        screenWidth: window.screen.width,
-        screenHeight: window.screen.height,
-        colorDepth: window.screen.colorDepth,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        timestamp: Date.now()
-      };
-      
-      // Create a hash of the fingerprint
-      const fingerprintString = JSON.stringify(fingerprint);
-      const encoder = new TextEncoder();
-      const data = encoder.encode(fingerprintString);
-      
-      // Use SubtleCrypto if available, otherwise use a simple hash
-      if (window.crypto && window.crypto.subtle) {
-        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        this.deviceFingerprint = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      } else {
-        // Simple hash function as fallback
-        let hash = 0;
-        for (let i = 0; i < fingerprintString.length; i++) {
-          hash = ((hash << 5) - hash) + fingerprintString.charCodeAt(i);
-          hash |= 0; // Convert to 32bit integer
-        }
-        this.deviceFingerprint = hash.toString(16);
-      }
-      
-      // Store fingerprint in localStorage for persistence
-      localStorage.setItem(FINGERPRINT_KEY, this.deviceFingerprint);
-      
-      logger.info('Device fingerprint generated');
-    } catch (error) {
-      logger.error('Failed to generate device fingerprint:', error);
-      // Fallback to a simple random ID
-      this.deviceFingerprint = Math.random().toString(36).substring(2, 15);
-      localStorage.setItem(FINGERPRINT_KEY, this.deviceFingerprint);
+  // Add handler for token version updates
+  private handleTokenVersionUpdated(payload: any): void {
+    if (!payload || typeof payload.tokenVersion !== "number") {
+      return;
     }
+
+    // Update token version if newer
+    if (payload.tokenVersion > this.tokenVersion) {
+      logger.debug(
+        `Updating token version from ${this.tokenVersion} to ${payload.tokenVersion}`
+      );
+      this.tokenVersion = payload.tokenVersion;
+
+      try {
+        localStorage.setItem(TOKEN_VERSION_KEY, this.tokenVersion.toString());
+      } catch (error) {
+        logger.error("Failed to store updated token version:", error);
+      }
+    }
+  }
+
+  private _generateTabId(): string {
+    return `tab_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
   }
 
   /**
@@ -273,7 +354,7 @@ export class TokenService {
       const storedVersion = localStorage.getItem(TOKEN_VERSION_KEY);
       this.tokenVersion = storedVersion ? parseInt(storedVersion, 10) : 0;
     } catch (error) {
-      logger.error('Failed to initialize token version:', error);
+      logger.error("Failed to initialize token version:", error);
       this.tokenVersion = 0;
     }
   }
@@ -286,7 +367,7 @@ export class TokenService {
     try {
       localStorage.setItem(TOKEN_VERSION_KEY, this.tokenVersion.toString());
     } catch (error) {
-      logger.error('Failed to store token version:', error);
+      logger.error("Failed to store token version:", error);
     }
   }
 
@@ -294,9 +375,9 @@ export class TokenService {
    * Setup offline support
    */
   private setupOfflineSupport(): void {
-    window.addEventListener('online', this.handleOnline.bind(this));
-    window.addEventListener('offline', this.handleOffline.bind(this));
-    
+    window.addEventListener("online", this.handleOnline.bind(this));
+    window.addEventListener("offline", this.handleOffline.bind(this));
+
     // Initialize offline cache if we're already offline
     if (!navigator.onLine && this.hasTokens()) {
       this.cacheTokensForOffline();
@@ -307,13 +388,13 @@ export class TokenService {
    * Handle coming back online
    */
   private async handleOnline(): Promise<void> {
-    logger.info('Network connection restored');
-    
+    logger.info("Network connection restored");
+
     // If we have queued operations, process them
     if (this.operationQueue.length > 0) {
       await this.processOperationQueue();
     }
-    
+
     // Refresh token if we have one
     if (this.hasTokens()) {
       await this.refreshToken();
@@ -324,8 +405,8 @@ export class TokenService {
    * Handle going offline
    */
   private handleOffline(): void {
-    logger.info('Network connection lost');
-    
+    logger.info("Network connection lost");
+
     // Cache tokens for offline use
     if (this.hasTokens()) {
       this.cacheTokensForOffline();
@@ -333,23 +414,33 @@ export class TokenService {
   }
 
   /**
-   * Cache tokens for offline use
+   * Cache tokens for offline use with more data
    */
   private cacheTokensForOffline(): void {
     try {
-      // We can't access HTTP-only cookies directly
-      // Instead, use session metadata which should be synchronized with the token
       const sessionData = getSessionMetadata();
-      if (sessionData) {
-        this.offlineTokenCache.set('exp', sessionData.expiresAt.toString());
-        this.offlineTokenCache.set('userId', sessionData.userId);
-        
-        logger.info('Token metadata cached for offline use');
-      } else {
-        logger.warn('No session metadata available for offline caching');
+      if (!sessionData) {
+        logger.warn("No session data available for offline caching");
+        return;
       }
+
+      // Clear previous cache
+      this.offlineTokenCache.clear();
+
+      // Store essential token information
+      this.offlineTokenCache.set("exp", sessionData.expiresAt.toString());
+      this.offlineTokenCache.set("userId", sessionData.userId);
+      this.offlineTokenCache.set("tokenVersion", this.tokenVersion.toString());
+      this.offlineTokenCache.set("cachedAt", Date.now().toString());
+
+      // Store fingerprint if available
+      if (this.deviceFingerprint) {
+        this.offlineTokenCache.set("fingerprint", this.deviceFingerprint);
+      }
+
+      logger.info("Token data cached for offline use");
     } catch (error) {
-      logger.error('Failed to cache tokens for offline use:', error);
+      logger.error("Failed to cache tokens for offline use:", error);
     }
   }
 
@@ -362,31 +453,36 @@ export class TokenService {
       clearTimeout(this.refreshTimeoutId);
       this.refreshTimeoutId = null;
     }
-    
+
     try {
       // With HTTP-only cookies, we can't access the token directly
       // Use session metadata instead
       const sessionData = getSessionMetadata();
       if (!sessionData || !sessionData.expiresAt) return;
-      
+
       // Calculate time until refresh (expiry - threshold)
       const expiresAt = new Date(sessionData.expiresAt).getTime();
       const now = Date.now();
-      const timeUntilRefresh = expiresAt - now - (this.config.refreshThreshold * 1000);
-      
+      const timeUntilRefresh =
+        expiresAt - now - this.config.refreshThreshold * 1000;
+
       // Schedule refresh
       if (timeUntilRefresh > 0) {
         this.refreshTimeoutId = window.setTimeout(() => {
           this.refreshToken();
         }, timeUntilRefresh);
-        
-        logger.info(`Token refresh scheduled in ${Math.round(timeUntilRefresh / 1000)} seconds`);
+
+        logger.info(
+          `Token refresh scheduled in ${Math.round(
+            timeUntilRefresh / 1000
+          )} seconds`
+        );
       } else {
         // Token is already expired or close to expiry, refresh immediately
         this.refreshToken();
       }
     } catch (error) {
-      logger.error('Failed to schedule token refresh:', error);
+      logger.error("Failed to schedule token refresh:", error);
     }
   }
 
@@ -398,9 +494,9 @@ export class TokenService {
       this.operationQueue.push({
         ...operation,
         resolve,
-        reject
+        reject,
       });
-      
+
       // If we're not currently refreshing, process the queue
       if (!this.isRefreshing) {
         this.processOperationQueue();
@@ -414,16 +510,16 @@ export class TokenService {
   private async processOperationQueue(): Promise<void> {
     // If queue is empty, do nothing
     if (this.operationQueue.length === 0) return;
-    
+
     // If we need to refresh the token first, do that
     if (this.isTokenExpired() && navigator.onLine) {
       await this.refreshToken();
     }
-    
+
     // Process each operation in the queue
     const operations = [...this.operationQueue];
     this.operationQueue = [];
-    
+
     for (const operation of operations) {
       try {
         const result = await operation.operation();
@@ -435,64 +531,6 @@ export class TokenService {
   }
 
   /**
-   * Stores authentication tokens in HTTP-only cookies with sliding expiration
-   */
-  public storeTokens(accessToken: string, refreshToken: string): boolean {
-    try {
-      // Store the actual tokens in HTTP-only cookies
-      setCookie(ACCESS_TOKEN_COOKIE, accessToken, {
-        httpOnly: true,
-        secure: this.config.cookieSecure,
-        sameSite: 'strict',
-        path: this.config.cookiePath,
-        domain: this.config.cookieDomain,
-        maxAge: this.config.accessTokenMaxAge
-      });
-
-      setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
-        httpOnly: true,
-        secure: this.config.cookieSecure,
-        sameSite: 'strict',
-        path: this.config.cookiePath,
-        domain: this.config.cookieDomain,
-        maxAge: this.config.refreshTokenMaxAge
-      });
-
-      // Set a non-HTTP-only flag cookie to indicate token presence
-      // This allows the client to know if tokens exist without accessing them
-      setCookie(TOKEN_EXISTS_FLAG, 'true', {
-        httpOnly: false,
-        secure: this.config.cookieSecure,
-        sameSite: 'strict',
-        path: this.config.cookiePath,
-        domain: this.config.cookieDomain,
-        maxAge: this.config.accessTokenMaxAge
-      });
-      
-      // Cache tokens for offline use if enabled
-      if (this.config.enableOfflineSupport && !navigator.onLine) {
-        this.cacheTokensForOffline();
-      }
-      
-      // Schedule token refresh
-      this.scheduleTokenRefresh();
-      
-      // Notify other tabs if cross-tab is enabled
-      if (this.broadcastChannel) {
-        this.broadcastChannel.postMessage({
-          type: 'TOKEN_REFRESH',
-          payload: { success: true }
-        });
-      }
-
-      return true;
-    } catch (error) {
-      logger.error('Failed to store tokens:', error);
-      return false;
-    }
-  }
-  
-  /**
    * Clear tokens locally (without broadcasting)
    */
   private clearTokensLocally(): void {
@@ -501,13 +539,12 @@ export class TokenService {
       clearTimeout(this.refreshTimeoutId);
       this.refreshTimeoutId = null;
     }
-    
-    // Clear cookies
-    removeCookie(ACCESS_TOKEN_COOKIE);
-    removeCookie(REFRESH_TOKEN_COOKIE);
+
+    // Clear token existence flag cookie
+    // Note: The actual token cookies are HTTP-only and will be cleared by the backend
     removeCookie(TOKEN_EXISTS_FLAG);
     removeCookie(CSRF_TOKEN_COOKIE);
-    
+
     // Clear offline cache
     this.offlineTokenCache.clear();
   }
@@ -519,13 +556,13 @@ export class TokenService {
   public hasTokens(): boolean {
     // Check for the existence flag
     const hasFlag = !!getCookie(TOKEN_EXISTS_FLAG);
-    
+
     // Log the token check for debugging
-    logger.debug('Token existence check', { 
+    logger.debug("Token existence check", {
       hasFlag,
-      cookies: document.cookie.split(';').map(c => c.trim().split('=')[0])
+      cookies: document.cookie.split(";").map((c) => c.trim().split("=")[0]),
     });
-    
+
     return hasFlag;
   }
 
@@ -533,7 +570,20 @@ export class TokenService {
    * Validates the current token state
    */
   public isAuthenticated(): boolean {
-    return this.hasTokens() && !this.isTokenExpired();
+    // Get all state in one atomic operation
+    const session = this.getSessionInfo();
+
+    // Verify token version
+    if (
+      session.isValid &&
+      session.tokenVersion &&
+      session.tokenVersion < this.tokenVersion
+    ) {
+      logger.warn("Session has outdated token version");
+      return false;
+    }
+
+    return session.isValid;
   }
 
   /**
@@ -542,222 +592,149 @@ export class TokenService {
    * we rely on the token data stored in session metadata
    */
   public isTokenExpired(bufferSeconds: number = 60): boolean {
-    // We can't directly check the token in HTTP-only cookies
-    // Instead, we'll check the expiration time stored in session metadata
-    const sessionData = getSessionMetadata();
-    
-    // If no session data exists, consider the token expired
-    if (!sessionData) {
-      return true;
+    try {
+      const session = this.getSessionInfo();
+      if (!session.isValid || !session.expiresAt) {
+        return true;
+      }
+
+      const now = new Date();
+      const bufferMs = bufferSeconds * 1000;
+      return session.expiresAt.getTime() <= now.getTime() + bufferMs;
+    } catch (error) {
+      logger.error("Error checking token expiration:", error);
+      return true; // Safer to assume expired if there's an error
     }
-    
-    // Check if the session is expired with the given buffer
-    const expiresAt = new Date(sessionData.expiresAt).getTime();
-    const now = Date.now();
-    return expiresAt <= now + (bufferSeconds * 1000);
   }
 
   /**
-   * Gets the CSRF token for use in requests
+   * Get CSRF token from cookie
    */
   public getCsrfToken(): string | null {
-    // Get the CSRF token from cookies (this is not HTTP-only)
-    return getCookie(CSRF_TOKEN_COOKIE);
+    try {
+      return (
+        document.cookie
+          .split("; ")
+          .find((row) => row.startsWith(`${this.config.csrfTokenName}=`))
+          ?.split("=")[1] || null
+      );
+    } catch (error) {
+      logger.error("Error getting CSRF token from cookie:", error);
+      return null;
+    }
   }
 
   /**
-   * Sets the CSRF token in a cookie
+   * Set CSRF token in memory
    */
-  public setCsrfToken(token: string): boolean {
-    try {
-      setCookie(this.config.csrfTokenName, token, {
-        path: this.config.cookiePath,
-        secure: this.config.cookieSecure,
-        domain: this.config.cookieDomain,
-        maxAge: this.config.accessTokenMaxAge
-      });
-      
-      logger.info('CSRF token set');
-      return true;
-    } catch (error) {
-      logger.error('Failed to set CSRF token:', error);
-      return false;
-    }
+  private setCsrfToken(token: string): void {
+    // Store the token in a class property if needed
+    // No need to set the cookie as the backend does this
+    // zJust use the token for the current request if needed
+    // If you need to track the token in memory, add a class property:
+    // private csrfTokenValue: string | null = null;
+    // this.csrfTokenValue = token;
   }
 
   /**
    * Rotates the CSRF token
    */
   public async rotateCsrfToken(): Promise<boolean> {
-    try {
-      // In a real implementation, you would make an API call to get a new CSRF token
-      // This is a simplified version that generates a random token
-      const buffer = new Uint8Array(32);
-      window.crypto.getRandomValues(buffer);
-      const token = Array.from(buffer)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-      
-      return this.setCsrfToken(token);
-    } catch (error) {
-      logger.error('Failed to rotate CSRF token:', error);
-      return false;
-    }
+    const newToken = await this.syncCsrfToken();
+    return newToken !== null;
   }
 
   /**
    * Refreshes the access token using the refresh token
    */
   public async refreshToken(): Promise<boolean> {
-    // Check for user inactivity before attempting refresh
-    if (this.isUserInactive()) {
-      logger.warn('User inactive, logging out instead of refreshing token');
-      this.logoutDueToInactivity();
-      return false;
+    // Check global lock first
+    if (!this._getGlobalLock()) {
+      logger.debug("Global refresh lock active, skipping refresh");
+      return true; // Assume another instance is handling it
     }
-    
-    // If already refreshing, return the existing promise
-    if (this.refreshing) {
-      logger.debug('Token refresh already in progress');
-      return this.refreshQueue || Promise.resolve(false);
-    }
-    
-    this.refreshing = true;
-    
-    // Create a new promise for this refresh operation
-    this.refreshQueue = new Promise<boolean>(async (resolve) => {
-      try {
-        logger.debug('Refreshing tokens');
-        
-        // Make refresh request with CSRF token
-        const response = await fetch(`${this.config.apiBaseUrl}${this.config.refreshEndpoint}`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': this.getCsrfToken() || '',
-            'X-Requested-With': 'XMLHttpRequest'
-          }
-        });
-        
-        // Handle response
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Update CSRF token if provided
-          if (data.csrfToken) {
-            this.setCsrfToken(data.csrfToken);
-          }
-          
-          // Update session data if provided
-          if (data.data && data.data.session) {
-            this.updateSessionData(data.data.session);
-          }
-          
-          // Reset retry count on success
-          this.refreshRetryCount = 0;
-          
-          // Update last refresh time
-          this.lastRefreshTime = Date.now();
-          
-          // Schedule next refresh
-          this.scheduleTokenRefresh();
-          
-          // Broadcast token refreshed event to other tabs
-          this.broadcastTokenRefreshed();
-          
-          // Emit token refreshed event
-          this.emitTokenRefreshedEvent();
-          
-          logger.debug('Tokens refreshed successfully');
-          resolve(true);
-        } else {
-          // Handle specific error responses
-          const errorData = await response.json().catch(() => ({}));
-          
-          if (response.status === 401) {
-            const errorCode = errorData.code || 'UNKNOWN_ERROR';
-            
-            // Handle specific error codes
-            if (['REFRESH_TOKEN_EXPIRED', 'REFRESH_TOKEN_INVALID', 'SESSION_EXPIRED'].includes(errorCode)) {
-              logger.warn(`Token refresh failed: ${errorCode}`, errorData);
-              
-              // Clear tokens and trigger logout
-              this.clearTokens();
-              
-              // Emit auth error event
-              this.emitAuthErrorEvent({
-                code: errorCode,
-                message: errorData.message || 'Your session has expired. Please log in again.'
-              });
-              
-              // Force logout
-              this.forceLogout(errorCode);
-              
-              resolve(false);
-            }
-          }
-          
-          // For other errors, retry if possible
-          logger.error('Token refresh failed:', response.status, errorData);
-          
-          if (this.refreshRetryCount < this.config.maxRefreshRetries) {
-            this.refreshRetryCount++;
-            
-            // Schedule retry
-            setTimeout(() => {
-              this.refreshPromise = null;
-              this.refreshing = false;
-              this.refreshToken().then(resolve);
-            }, this.config.refreshRetryDelay);
-          } else {
-            // Max retries reached, clear tokens and emit error
-            logger.error('Max refresh retries reached, forcing logout');
-            
-            this.clearTokens();
-            this.emitAuthErrorEvent({
-              code: 'MAX_REFRESH_RETRIES',
-              message: 'Failed to refresh authentication. Please log in again.'
-            });
-            
-            this.forceLogout('MAX_REFRESH_RETRIES');
-            resolve(false);
-          }
-        }
-      } catch (error) {
-        logger.error('Token refresh error:', error);
-        
-        // Handle network errors
-        if (this.refreshRetryCount < this.config.maxRefreshRetries) {
-          this.refreshRetryCount++;
-          
-          // Schedule retry
-          setTimeout(() => {
-            this.refreshPromise = null;
-            this.refreshing = false;
-            this.refreshToken().then(resolve);
-          }, this.config.refreshRetryDelay);
-        } else {
-          // Max retries reached, clear tokens
-          this.clearTokens();
-          this.emitAuthErrorEvent({
-            code: 'REFRESH_NETWORK_ERROR',
-            message: 'Network error during authentication refresh. Please log in again.'
-          });
-          
-          this.forceLogout('REFRESH_NETWORK_ERROR');
-          resolve(false);
-        }
-      } finally {
-        // Clear promise and refreshing flag
-        setTimeout(() => {
-          this.refreshPromise = null;
-          this.refreshing = false;
-        }, 100);
+
+    try {
+      // Existing refresh logic
+      // If already refreshing, return existing promise
+      if (this.refreshState.isRefreshing && this.refreshState.promise) {
+        logger.debug("Token refresh already in progress");
+        return this.refreshState.promise;
       }
-    });
-    
-    return this.refreshQueue;
+
+      // For backward compatibility - set legacy flags
+      this.isRefreshing = true;
+      this.refreshing = true;
+      this._refreshLock = true;
+
+      // Set refreshing state
+      this.refreshState.isRefreshing = true;
+
+      // Create new refresh promise
+      this.refreshState.promise = new Promise<boolean>(async (resolve) => {
+        try {
+          logger.info("Starting token refresh");
+
+          // Check for user inactivity before attempting refresh
+          if (this.isUserInactive()) {
+            logger.warn(
+              "User inactive, logging out instead of refreshing token"
+            );
+            this.logoutDueToInactivity();
+            resolve(false);
+            return;
+          }
+
+          // Perform actual refresh logic
+          const result = await this.performTokenRefresh();
+
+          // Update last refresh time
+          this.refreshState.lastRefreshTime = Date.now();
+          this.lastRefreshTime = Date.now(); // For backward compatibility
+
+          // Reset retry count on success
+          this.refreshState.retryCount = 0;
+          this.refreshRetryCount = 0; // For backward compatibility
+
+          if (result) {
+            // Schedule next refresh
+            this.scheduleTokenRefresh();
+
+            // Notify listeners
+            this.notifyRefreshListeners({
+              expiresAt: this.getAccessTokenExpiry(),
+            });
+
+            // Broadcast to other tabs
+            this.broadcastTokenRefreshed();
+          }
+
+          resolve(result);
+        } catch (error) {
+          logger.error("Token refresh failed:", error);
+          this.refreshState.retryCount++;
+          this.refreshRetryCount++; // For backward compatibility
+          resolve(false);
+        } finally {
+          // Reset state with a small delay to prevent race conditions
+          setTimeout(() => {
+            this.refreshState.isRefreshing = false;
+            this.isRefreshing = false;
+            this.refreshing = false;
+            this._refreshLock = false;
+            this.refreshPromise = null;
+          }, 100);
+        }
+      });
+
+      // For backward compatibility
+      this.refreshQueue = this.refreshState.promise;
+      this.refreshPromise = this.refreshState.promise;
+
+      return this.refreshState.promise;
+    } finally {
+      this._releaseGlobalLock();
+    }
   }
 
   /**
@@ -765,23 +742,23 @@ export class TokenService {
    */
   public getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
-    
+
     // Add CSRF token if available
     const csrfToken = this.getCsrfToken();
     if (csrfToken) {
       headers[this.config.csrfHeaderName] = csrfToken;
     }
-    
+
     // Add device fingerprint if available
     if (this.deviceFingerprint) {
-      headers['X-Device-Fingerprint'] = this.deviceFingerprint;
+      headers["X-Device-Fingerprint"] = this.deviceFingerprint;
     }
-    
+
     // Add token version if available
     if (this.tokenVersion > 0) {
-      headers['X-Token-Version'] = this.tokenVersion.toString();
+      headers["X-Token-Version"] = this.tokenVersion.toString();
     }
-    
+
     return headers;
   }
 
@@ -796,27 +773,30 @@ export class TokenService {
     try {
       const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
       if (!accessToken) return false;
-      
+
       const decoded = this.decodeToken(accessToken);
       if (!decoded) return false;
-      
+
       // Validate device fingerprint if enabled
       if (this.config.enableFingerprinting && this.deviceFingerprint) {
-        if (decoded.deviceFingerprint && decoded.deviceFingerprint !== this.deviceFingerprint) {
-          logger.warn('Device fingerprint mismatch detected');
+        if (
+          decoded.deviceFingerprint &&
+          decoded.deviceFingerprint !== this.deviceFingerprint
+        ) {
+          logger.warn("Device fingerprint mismatch detected");
           return false;
         }
       }
-      
+
       // Validate token version
       if (decoded.version && decoded.version < this.tokenVersion) {
-        logger.warn('Token version is outdated');
+        logger.warn("Token version is outdated");
         return false;
       }
-      
+
       return true;
     } catch (error) {
-      logger.error('Token security validation failed:', error);
+      logger.error("Token security validation failed:", error);
       return false;
     }
   }
@@ -830,7 +810,7 @@ export class TokenService {
       this.clearTokens();
       return true;
     } catch (error) {
-      logger.error('Failed to revoke tokens:', error);
+      logger.error("Failed to revoke tokens:", error);
       return false;
     }
   }
@@ -840,17 +820,17 @@ export class TokenService {
    */
   public handleSecurityEvent(eventType: string, data?: any): void {
     logger.warn(`Security event detected: ${eventType}`, data);
-    
+
     switch (eventType) {
-      case 'suspicious_activity':
+      case "suspicious_activity":
         // Revoke tokens and force re-authentication
         this.revokeAllTokens();
         break;
-      case 'location_change':
+      case "location_change":
         // Require additional verification
         this.rotateCsrfToken();
         break;
-      case 'multiple_failures':
+      case "multiple_failures":
         // Implement temporary lockout
         this.clearTokens();
         break;
@@ -868,19 +848,19 @@ export class TokenService {
       // Use session metadata instead
       const sessionData = getSessionMetadata();
       if (!sessionData) return {};
-      
+
       const metadata: Record<string, any> = {
         expiresAt: new Date(sessionData.expiresAt).toISOString(),
         tokenVersion: this.tokenVersion,
         hasFingerprint: !!this.deviceFingerprint,
         crossTabEnabled: this.config.enableCrossTabs,
         offlineSupportEnabled: this.config.enableOfflineSupport,
-        userId: sessionData.userId
+        userId: sessionData.userId,
       };
 
       return metadata;
     } catch (error) {
-      logger.error('Failed to get token metadata:', error);
+      logger.error("Failed to get token metadata:", error);
       return {};
     }
   }
@@ -893,10 +873,10 @@ export class TokenService {
     // With HTTP-only cookies, we can't directly access the token
     // Instead, we'll check if we have a token existence flag
     const hasToken = this.hasTokens();
-    
+
     // If we have the flag, we're likely authenticated
     // The actual token is stored in HTTP-only cookies
-    return hasToken ? 'token-exists-in-http-only-cookie' : null;
+    return hasToken ? "token-exists-in-http-only-cookie" : null;
   }
 
   /**
@@ -906,16 +886,16 @@ export class TokenService {
    */
   public decodeToken(token: string | null): any {
     if (!token) {
-      logger.debug('No token to decode');
+      logger.debug("No token to decode");
       return null;
     }
-    
+
     // If we're using HTTP-only cookies, we can't decode the token directly
     // Instead, we need to rely on the session data from the server
-    if (token === 'token-exists-in-http-only-cookie') {
+    if (token === "token-exists-in-http-only-cookie") {
       const sessionData = getSessionMetadata();
       if (!sessionData) return null;
-      
+
       // Return a placeholder object with session data
       return {
         isAuthenticated: true,
@@ -923,20 +903,20 @@ export class TokenService {
         userId: sessionData.userId,
       };
     }
-    
+
     // For non-HTTP-only tokens (should not happen in this implementation)
     try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const base64Url = token.split(".")[1];
+      const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
       const jsonPayload = decodeURIComponent(
         atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
       );
       return JSON.parse(jsonPayload);
     } catch (error) {
-      logger.error('Failed to decode token:', error);
+      logger.error("Failed to decode token:", error);
       return null;
     }
   }
@@ -946,19 +926,8 @@ export class TokenService {
    * @returns User ID or null if not authenticated
    */
   public getUserId(): string | null {
-    try {
-      const accessToken = this.getAccessToken();
-      if (!accessToken) {
-        return null;
-      }
-      
-      // Decode the token to get the user ID
-      const tokenData = this.decodeToken(accessToken);
-      return tokenData?.sub || null;
-    } catch (error) {
-      logger.error('Failed to get user ID from token:', error);
-      return null;
-    }
+    const session = this.getSessionInfo();
+    return session.isValid ? session.userId || null : null;
   }
 
   /**
@@ -970,19 +939,19 @@ export class TokenService {
       clearTimeout(this.refreshTimeoutId);
       this.refreshTimeoutId = null;
     }
-    
+
     // Close broadcast channel
     if (this.broadcastChannel) {
       this.broadcastChannel.close();
       this.broadcastChannel = null;
     }
-    
+
     // Remove event listeners
     if (this.config.enableOfflineSupport) {
-      window.removeEventListener('online', this.handleOnline.bind(this));
-      window.removeEventListener('offline', this.handleOffline.bind(this));
+      window.removeEventListener("online", this.handleOnline.bind(this));
+      window.removeEventListener("offline", this.handleOffline.bind(this));
     }
-    
+
     // Stop token heartbeat
     this.stopTokenHeartbeat();
   }
@@ -1002,16 +971,17 @@ export class TokenService {
     try {
       // Generate a new CSRF token
       const csrfToken = this.generateCsrfToken();
-      
+
       // Store the token in a non-HttpOnly cookie for CSRF validation
-      document.cookie = `XSRF-TOKEN=${csrfToken}; path=/; SameSite=Strict`;
-      
+      // Change from XSRF-TOKEN to csrf_token to match backend expectations
+      document.cookie = `csrf_token=${csrfToken}; path=/; SameSite=Strict`;
+
       // Add an interceptor to add the CSRF token to all requests
       this.setupCsrfInterceptor(csrfToken);
-      
-      logger.info('CSRF protection initialized');
+
+      logger.info("CSRF protection initialized");
     } catch (error) {
-      logger.error('Failed to set up CSRF protection:', error);
+      logger.error("Failed to set up CSRF protection:", error);
     }
   }
 
@@ -1022,56 +992,86 @@ export class TokenService {
     // Generate a random string for CSRF token
     const array = new Uint8Array(16);
     window.crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
+      ""
+    );
   }
 
   /**
    * Set up CSRF interceptor for API requests
    */
   private setupCsrfInterceptor(token: string): void {
-    // This would depend on your HTTP client
-    // For example, with axios:
-    /*
-    axios.interceptors.request.use(config => {
-      config.headers['X-CSRF-TOKEN'] = token;
-      return config;
-    });
-    */
-    
     // For fetch API, you might set up a wrapper function
     const originalFetch = window.fetch;
-    window.fetch = function(input, init) {
+    window.fetch = function (input, init) {
       if (!init) {
         init = {};
       }
       if (!init.headers) {
         init.headers = {};
       }
-      
-      // Add CSRF token to headers
-      init.headers['X-CSRF-TOKEN'] = token;
-      
+
+      // Add CSRF token to headers with correct header name
+      init.headers["X-CSRF-Token"] = token;
+
       return originalFetch(input, init);
     };
   }
 
   /**
-   * Validate tokens with the backend
+   * Validate tokens with atomic operations
    */
   public async validateTokens(): Promise<boolean> {
-    try {
-      logger.debug('Validating tokens with backend');
-      
-      // Use the correct endpoint from constants
-      const response = await apiClient.get(
-        AUTH_CONSTANTS.ENDPOINTS.VALIDATE_SESSION
-      );
-      
-      return response.data && response.data.success;
-    } catch (error) {
-      logger.error('Token validation failed', { error });
-      return false;
+    // If validation is already in progress, return the existing promise
+    if (this._validationInProgress && this._validationPromise) {
+      return this._validationPromise;
     }
+
+    this._validationInProgress = true;
+
+    this._validationPromise = (async () => {
+      try {
+        // Get session info atomically
+        const session = this.getSessionInfo();
+        if (!session.isValid) {
+          return false;
+        }
+
+        // If online, verify with server
+        if (navigator.onLine) {
+          const response = await fetch(
+            `${this.config.apiBaseUrl}/auth/token-status`,
+            {
+              method: "GET",
+              credentials: "include",
+              headers: this.getAuthHeaders(),
+            }
+          );
+
+          if (!response.ok) {
+            if (response.status === 401 && !this.refreshState.isRefreshing) {
+              // Try to refresh token
+              return await this.refreshToken();
+            }
+            return false;
+          }
+
+          return true;
+        } else {
+          // In offline mode, rely on local validation only
+          return session.isValid && session.expiresAt
+            ? new Date() < session.expiresAt
+            : false;
+        }
+      } catch (error) {
+        logger.error("Token validation failed:", error);
+        return false;
+      } finally {
+        this._validationInProgress = false;
+      }
+    })();
+
+    return this._validationPromise;
   }
 
   /**
@@ -1083,16 +1083,15 @@ export class TokenService {
     // For HTTP-only cookies, we don't need to do anything special
     // The browser handles the cookie sync automatically
     // We just need to update our local state
-    logger.debug('Tokens synced from storage (HTTP-only cookies)');
-    
+    logger.debug("Tokens synced from storage (HTTP-only cookies)");
+
     // Update the session active flag
-    if (localStorage.getItem('auth_session_active') === 'true') {
+    if (localStorage.getItem("auth_session_active") === "true") {
       // Validate the session is still active with the server
-      this.validateTokens()
-        .catch(error => {
-          logger.warn('Failed to validate synced tokens', error);
-          localStorage.removeItem('auth_session_active');
-        });
+      this.validateTokens().catch((error) => {
+        logger.warn("Failed to validate synced tokens", error);
+        localStorage.removeItem("auth_session_active");
+      });
     }
   }
 
@@ -1115,10 +1114,10 @@ export class TokenService {
    */
   private emitTokenRefreshedEvent(): void {
     this.lastRefreshTime = Date.now();
-    
+
     // Dispatch event for monitoring
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('token-refreshed'));
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("token-refreshed"));
     }
   }
 
@@ -1129,14 +1128,16 @@ export class TokenService {
   public getAccessTokenExpiry(): Date | null {
     try {
       // For HTTP-only cookies, we need to rely on stored metadata
-      const tokenMetadata = localStorage.getItem('auth_token_metadata');
+      const tokenMetadata = localStorage.getItem("auth_token_metadata");
       if (tokenMetadata) {
         const metadata = JSON.parse(tokenMetadata);
-        return metadata.accessTokenExpiry ? new Date(metadata.accessTokenExpiry) : null;
+        return metadata.accessTokenExpiry
+          ? new Date(metadata.accessTokenExpiry)
+          : null;
       }
       return null;
     } catch (error) {
-      logger.error('Error getting access token expiry', error);
+      logger.error("Error getting access token expiry", error);
       return null;
     }
   }
@@ -1148,14 +1149,16 @@ export class TokenService {
   public getRefreshTokenExpiry(): Date | null {
     try {
       // For HTTP-only cookies, we need to rely on stored metadata
-      const tokenMetadata = localStorage.getItem('auth_token_metadata');
+      const tokenMetadata = localStorage.getItem("auth_token_metadata");
       if (tokenMetadata) {
         const metadata = JSON.parse(tokenMetadata);
-        return metadata.refreshTokenExpiry ? new Date(metadata.refreshTokenExpiry) : null;
+        return metadata.refreshTokenExpiry
+          ? new Date(metadata.refreshTokenExpiry)
+          : null;
       }
       return null;
     } catch (error) {
-      logger.error('Error getting refresh token expiry', error);
+      logger.error("Error getting refresh token expiry", error);
       return null;
     }
   }
@@ -1172,47 +1175,75 @@ export class TokenService {
    */
   private async performTokenRefresh(): Promise<boolean> {
     try {
-      // Get CSRF token if available
-      const csrfToken = this.getCsrfToken();
-      
-      const response = await fetch(`${this.config.apiBaseUrl}/auth/token/refresh`, {
-        method: 'POST',
-        credentials: 'include', // Important for cookies
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
-        },
-        body: JSON.stringify({
-          tokenVersion: this.tokenVersion
-        })
-      });
-      
+      logger.info("Starting token refresh");
+
+      // Check for extended inactivity (logout threshold)
+      // Only check for extended inactivity, not regular activity
+      const lastActivity = this.getLastActivity();
+      const now = Date.now();
+      const inactiveTime = now - lastActivity;
+      const threshold = this.getInactivityThreshold();
+
+      if (inactiveTime > threshold) {
+        logger.warn(
+          "User inactive beyond threshold, logging out instead of refreshing token",
+          {
+            inactiveTimeMinutes: Math.round(inactiveTime / 60000),
+            thresholdMinutes: Math.round(threshold / 60000),
+          }
+        );
+        this.logoutDueToInactivity();
+        return false;
+      }
+
+      // Perform actual refresh logic
+      const response = await fetch(
+        `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            ...this.getAuthHeaders(),
+          },
+        }
+      );
+
       if (!response.ok) {
-        throw new Error(`Token refresh failed: ${response.status}`);
+        throw new Error(`Token refresh failed with status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
-      // Update CSRF token if provided
-      if (data.data?.csrfToken) {
-        this.setCsrfToken(data.data.csrfToken);
+      logger.info("Token refresh successful", {
+        hasSession: !!data.data?.session,
+      });
+
+      // Update session metadata
+      if (data.data?.session) {
+        this.updateSessionData(data.data.session);
       }
-      
+
       // Notify listeners about token refresh
       this.notifyRefreshListeners(data.data?.session || {});
-      
+
       return true;
     } catch (error) {
       // Handle retry logic
       if (this.refreshRetryCount < this.config.maxRefreshRetries) {
         this.refreshRetryCount++;
-        const delay = this.config.refreshRetryDelay * Math.pow(2, this.refreshRetryCount - 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const delay =
+          this.config.refreshRetryDelay *
+          Math.pow(2, this.refreshRetryCount - 1);
+        logger.warn(
+          `Token refresh failed, retrying in ${delay}ms (attempt ${this.refreshRetryCount}/${this.config.maxRefreshRetries})`,
+          { error }
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
         return this.performTokenRefresh();
       }
-      
+
       this.refreshRetryCount = 0;
+      logger.error("Token refresh failed after all retry attempts", { error });
       throw error;
     }
   }
@@ -1221,7 +1252,7 @@ export class TokenService {
    * Handle session update from another tab
    */
   private handleSessionUpdate(payload: any): void {
-    logger.debug('Received session update from another tab', payload);
+    logger.debug("Received session update from another tab", payload);
     // Update local session state based on the payload
     // This might involve updating Redux store or other state management
   }
@@ -1230,25 +1261,80 @@ export class TokenService {
    * Handle token refreshed event from another tab
    */
   private handleTokenRefreshed(payload: any): void {
-    logger.debug('Received token refreshed event from another tab', payload);
-    // Update local token state
-    // No need to refresh tokens again since another tab already did it
-    
-    // Emit local event for components that might be listening
-    this.emitTokenRefreshedEvent();
+    try {
+      if (!payload) {
+        logger.warn("Received empty token refresh payload");
+        return;
+      }
+
+      logger.debug("Received token refreshed event from another tab", payload);
+
+      // Verify timestamp to prevent replay attacks
+      if (payload.timestamp && Date.now() - payload.timestamp > 30000) {
+        logger.warn("Ignoring stale token refresh message (>30s old)");
+        return;
+      }
+
+      // Verify the token version
+      if (payload.tokenVersion !== undefined) {
+        if (payload.tokenVersion < this.tokenVersion) {
+          logger.warn("Ignoring outdated token version from another tab");
+          return;
+        }
+
+        // Update local token version if newer
+        if (payload.tokenVersion > this.tokenVersion) {
+          this.tokenVersion = payload.tokenVersion;
+          try {
+            localStorage.setItem(
+              TOKEN_VERSION_KEY,
+              this.tokenVersion.toString()
+            );
+          } catch (error) {
+            logger.error("Failed to update token version:", error);
+          }
+        }
+      }
+
+      // Verify token is still valid with backend
+      this._safeVerifyTokenWithBackend();
+
+      // Emit local event for components that might be listening
+      this.emitTokenRefreshedEvent();
+    } catch (error) {
+      logger.error("Error handling token refreshed event:", error);
+    }
+  }
+
+  // Add a new method for safe token verification
+  private _safeVerifyTokenWithBackend(): void {
+    // If we've verified recently, don't do it again
+    if (
+      this._lastTokenVerification &&
+      Date.now() - this._lastTokenVerification < 5000
+    ) {
+      return;
+    }
+
+    this._lastTokenVerification = Date.now();
+
+    // Queue the verification to avoid API hammering
+    setTimeout(() => {
+      this.checkTokenStatus();
+    }, 500);
   }
 
   /**
    * Handle logout event from another tab
    */
   private handleLogout(): void {
-    logger.debug('Received logout event from another tab');
+    logger.debug("Received logout event from another tab");
     // Clear local tokens and state
     this.clearTokens();
-    
+
     // Redirect to login page if needed
-    if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
     }
   }
 
@@ -1256,29 +1342,32 @@ export class TokenService {
    * Notify refresh listeners about token refresh
    */
   private notifyRefreshListeners(sessionData: any): void {
-    logger.debug('Notifying token refresh listeners', { sessionData });
-    
+    logger.debug("Notifying token refresh listeners", { sessionData });
+
     // Update local storage with session metadata if needed
     if (sessionData) {
       try {
-        localStorage.setItem('auth_token_metadata', JSON.stringify({
-          accessTokenExpiry: sessionData.expiresAt,
-          refreshTokenExpiry: sessionData.refreshExpiresAt,
-          lastRefresh: Date.now()
-        }));
+        localStorage.setItem(
+          "auth_token_metadata",
+          JSON.stringify({
+            accessTokenExpiry: sessionData.expiresAt,
+            refreshTokenExpiry: sessionData.refreshExpiresAt,
+            lastRefresh: Date.now(),
+          })
+        );
       } catch (error) {
-        logger.warn('Failed to update token metadata in storage', error);
+        logger.warn("Failed to update token metadata in storage", error);
       }
     }
-    
+
     // Emit token refreshed event
     this.emitTokenRefreshedEvent();
-    
+
     // Notify other tabs if cross-tab communication is enabled
     if (this.authChannel) {
       this.authChannel.postMessage({
-        type: 'TOKEN_REFRESHED',
-        payload: { timestamp: Date.now() }
+        type: "TOKEN_REFRESHED",
+        payload: { timestamp: Date.now() },
       });
     }
   }
@@ -1290,80 +1379,53 @@ export class TokenService {
   public initializeTokenRefresh(): void {
     // For HTTP-only cookies, we can't directly access the token
     // Instead, we'll rely on the server to tell us when to refresh
-    
+
     // Set up a heartbeat to check token status
     this.startTokenHeartbeat();
-    
+
     // Listen for token expiration events
     this.setupTokenExpirationListener();
-    
-    logger.info('Token refresh mechanism initialized for HTTP-only cookies');
+
+    logger.info("Token refresh mechanism initialized for HTTP-only cookies");
   }
 
   /**
    * Start token heartbeat to periodically check token status with backend
    */
   private startTokenHeartbeat(): void {
+    const w = typeof window !== "undefined" ? window : ({} as any);
+
+    // Check if another instance already has a heartbeat running
+    if (
+      w.__tokenHeartbeatActive &&
+      Date.now() - w.__tokenHeartbeatLastPing < 70000
+    ) {
+      logger.info(
+        "Another TokenService instance is already running heartbeat checks"
+      );
+      return;
+    }
+
     // Ensure we don't start multiple heartbeats
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
     }
-    
-    // Use local variable instead of modifying readonly property
-    const heartbeatInterval = TOKEN_STATUS_CHECK_INTERVAL;
-    
+
+    // Register this instance as having the active heartbeat
+    w.__tokenHeartbeatActive = true;
+    w.__tokenHeartbeatLastPing = Date.now();
+
+    // Rest of heartbeat logic
+    // ...
+
+    // Update last ping time in the interval
     this.heartbeatIntervalId = window.setInterval(() => {
-      fetch(`${this.config.apiBaseUrl}/auth/token-status`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'X-CSRF-Token': this.getCsrfToken() || '',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      })
-      .then(response => {
-        if (response.status === 401) {
-          // Token is expired, check for activity before refreshing
-          if (!this.isUserInactive()) {
-            logger.debug('Token expired according to backend, refreshing due to recent activity');
-            this.refreshToken();
-          } else {
-            logger.debug('Token expired and user inactive, logging out');
-            this.logoutDueToInactivity();
-          }
-          return null;
-        } else if (response.ok) {
-          return response.json();
-        }
-        return null;
-      })
-      .then(data => {
-        if (data && typeof data.expiresIn === 'number') {
-          logger.debug(`Token expires in ${data.expiresIn} seconds`);
-          
-          // Convert to milliseconds for comparison
-          const expiresInMs = data.expiresIn * 1000;
-          
-          if (expiresInMs < TOKEN_REFRESH_THRESHOLD) {
-            // Token expiring soon, check for activity
-            if (!this.isUserInactive()) {
-              logger.debug(`Token expiring soon (${data.expiresIn}s), refreshing due to recent activity`);
-              this.refreshToken();
-            } else {
-              // Start monitoring for activity more frequently as token approaches expiry
-              this.startInactivityMonitoring();
-              logger.debug(`Token expiring soon (${data.expiresIn}s), but user inactive. Monitoring for activity.`);
-            }
-          }
-        }
-      })
-      .catch(error => {
-        logger.error('Token heartbeat check failed:', error);
-      });
-    }, heartbeatInterval);
-    
-    logger.debug(`Token heartbeat started with interval of ${heartbeatInterval}ms`);
+      w.__tokenHeartbeatLastPing = Date.now();
+
+      // Normal heartbeat logic
+      // ...
+    }, TOKEN_STATUS_CHECK_INTERVAL);
   }
 
   /**
@@ -1373,7 +1435,7 @@ export class TokenService {
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
-      logger.debug('Token heartbeat stopped');
+      logger.debug("Token heartbeat stopped");
     }
   }
 
@@ -1383,22 +1445,22 @@ export class TokenService {
    */
   private setupTokenExpirationListener(): void {
     // Listen for 401 responses from API calls
-    document.addEventListener('auth:token-expired', () => {
-      logger.debug('Token expiration event detected');
+    document.addEventListener("auth:token-expired", () => {
+      logger.debug("Token expiration event detected");
       this.refreshToken();
     });
 
     // Listen for visibility change to check token status when tab becomes visible
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.hasTokens()) {
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && this.hasTokens()) {
           // Check token status when tab becomes visible
           this.checkTokenStatus();
         }
       });
     }
 
-    logger.debug('Token expiration listener set up');
+    logger.debug("Token expiration listener set up");
   }
 
   /**
@@ -1406,44 +1468,63 @@ export class TokenService {
    * Used with HTTP-only cookies where we can't directly access the token
    */
   private checkTokenStatus(): void {
-    fetch('/api/auth/token-status', {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-Token': this.getCsrfToken() || ''
-      }
+    // Skip if refresh is already in progress
+    if (this._refreshLock) {
+      logger.debug("Token status check: Skipping - refresh in progress");
+      return;
+    }
+
+    fetch(`${this.config.apiBaseUrl}/auth/token-status`, {
+      method: "GET",
+      credentials: "include",
+      headers: this.getAuthHeaders(),
     })
-    .then(response => {
-      if (response.status === 401) {
-        // Token is expired, try to refresh if user is active
-        if (!this.isUserInactive()) {
-          this.refreshToken();
-        } else {
-          this.logoutDueToInactivity();
+      .then((response) => {
+        logger.debug("Token status response received", {
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+        });
+
+        if (response.status === 401) {
+          // Token is expired, try to refresh regardless of user activity
+          // This ensures we maintain the session as long as we're within inactivity threshold
+          logger.info("Token expired (401), attempting refresh");
+          return this.refreshToken();
+        } else if (response.ok) {
+          return response.json();
         }
-      } else if (response.ok) {
-        return response.json();
-      }
-    })
-    .then(data => {
-      if (data && data.expiresIn) {
-        const expiresInMs = data.expiresIn * 1000;
-        
-        if (expiresInMs < TOKEN_REFRESH_THRESHOLD) {
-          // Token will expire soon, refresh it if user is active
-          if (!this.isUserInactive()) {
-            this.refreshToken();
-          } else {
-            // Start intensive monitoring
-            this.startInactivityMonitoring();
+        throw new Error(`Token status check failed: ${response.status}`);
+      })
+      .then((data) => {
+        if (data && data.expiresIn) {
+          const expiresInMs = data.expiresIn * 1000;
+          logger.info(
+            `Token expires in ${Math.round(expiresInMs / 1000)} seconds`,
+            {
+              expiresInMs,
+              refreshThreshold: this.config.refreshThreshold * 1000,
+              shouldRefresh: expiresInMs < this.config.refreshThreshold * 1000,
+            }
+          );
+
+          if (expiresInMs < this.config.refreshThreshold * 1000) {
+            // Token will expire soon, refresh it regardless of user activity
+            // This ensures we maintain the session as long as we're within inactivity threshold
+            logger.info("Token expiring soon, refreshing");
+            this.refreshToken().then((success) => {
+              logger.debug("Token refresh completed", { success });
+            });
           }
+        } else {
+          logger.warn("Token status response missing expiresIn field", {
+            data,
+          });
         }
-      }
-    })
-    .catch(error => {
-      logger.error('Token status check failed:', error);
-    });
+      })
+      .catch((error) => {
+        logger.error("Token status check failed:", error);
+      });
   }
 
   /**
@@ -1452,29 +1533,31 @@ export class TokenService {
   private forceLogout(reason: string): void {
     // Clear tokens
     this.clearTokens();
-    
+
     // Clear auth state in localStorage
-    localStorage.removeItem('auth_session_active');
-    localStorage.removeItem('session_metadata');
-    
+    localStorage.removeItem("auth_session_active");
+    localStorage.removeItem("session_metadata");
+
     // Broadcast logout to other tabs
     if (this.authChannel) {
       this.authChannel.postMessage({
-        type: 'LOGOUT',
-        payload: { reason }
+        type: "LOGOUT",
+        payload: { reason },
       });
     }
-    
+
     // Emit logout event
-    this.eventBus.emit('logout', { reason });
-    
+    this.eventBus.emit("logout", { reason });
+
     // Dispatch custom event for global listeners
-    if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent(AUTH_CONSTANTS.EVENTS.FORCED_LOGOUT, {
-        detail: { reason }
-      }));
+    if (typeof document !== "undefined") {
+      document.dispatchEvent(
+        new CustomEvent(AUTH_CONSTANTS.EVENTS.FORCED_LOGOUT, {
+          detail: { reason },
+        })
+      );
     }
-    
+
     logger.warn(`Forced logout due to: ${reason}`);
   }
 
@@ -1482,13 +1565,15 @@ export class TokenService {
    * Emit auth error event
    */
   private emitAuthErrorEvent(error: AuthError): void {
-    this.eventBus.emit('authError', error);
-    
+    this.eventBus.emit("authError", error);
+
     // Dispatch custom event for global listeners
-    if (typeof document !== 'undefined') {
-      document.dispatchEvent(new CustomEvent(AUTH_CONSTANTS.EVENTS.AUTH_ERROR, {
-        detail: error
-      }));
+    if (typeof document !== "undefined") {
+      document.dispatchEvent(
+        new CustomEvent(AUTH_CONSTANTS.EVENTS.AUTH_ERROR, {
+          detail: error,
+        })
+      );
     }
   }
 
@@ -1497,23 +1582,26 @@ export class TokenService {
    * @param sessionData Session data from server
    */
   private updateSessionData(sessionData: any): void {
-    logger.debug('Updating session data', sessionData);
-    
+    logger.debug("Updating session data", sessionData);
+
     // Store session metadata if available
     if (sessionData && sessionData.id) {
       try {
         // Update session metadata in storage
-        localStorage.setItem('session_metadata', JSON.stringify({
-          id: sessionData.id,
-          expiresAt: sessionData.expiresAt,
-          lastActivity: sessionData.lastActivity || Date.now(),
-          idleTimeout: sessionData.idleTimeout
-        }));
-        
+        localStorage.setItem(
+          "session_metadata",
+          JSON.stringify({
+            id: sessionData.id,
+            expiresAt: sessionData.expiresAt,
+            lastActivity: sessionData.lastActivity || Date.now(),
+            idleTimeout: sessionData.idleTimeout,
+          })
+        );
+
         // Emit session updated event
-        this.eventBus.emit('sessionUpdated', sessionData);
+        this.eventBus.emit("sessionUpdated", sessionData);
       } catch (error) {
-        logger.error('Failed to update session data:', error);
+        logger.error("Failed to update session data:", error);
       }
     }
   }
@@ -1524,40 +1612,75 @@ export class TokenService {
   private broadcastTokenRefreshed(): void {
     if (this.authChannel) {
       this.authChannel.postMessage({
-        type: 'TOKEN_REFRESHED',
+        type: "TOKEN_REFRESHED",
         payload: {
           timestamp: Date.now(),
-          tokenVersion: this.tokenVersion
-        }
+          tokenVersion: this.tokenVersion,
+        },
       });
     }
   }
 
   /**
-   * Set up activity tracking to detect user inactivity
+   * Set up activity tracking with improved handling
    */
   private setupActivityTracking(): void {
-    if (this.activityListeners) return;
-    
+    if (this.activityListeners) {
+      logger.debug("Activity listeners already set up");
+      return;
+    }
+
     // Record initial activity timestamp
     this.recordUserActivity();
-    
+
     // Set up event listeners for user activity
-    if (typeof window !== 'undefined') {
-      const activityEvents = ['mousedown', 'keypress', 'scroll', 'touchstart', 'click'];
-      
-      activityEvents.forEach(eventType => {
-        window.addEventListener(eventType, this.handleUserActivity);
+    if (typeof window !== "undefined") {
+      const activityEvents = [
+        "mousedown",
+        "keypress",
+        "scroll",
+        "touchstart",
+        "click",
+        "mousemove",
+      ];
+
+      // Throttled handler to prevent excessive updates
+      let lastRecordTime = 0;
+      const throttledHandler = () => {
+        const now = Date.now();
+        if (now - lastRecordTime > 10000) {
+          // 10 seconds throttle
+          this.recordUserActivity();
+          lastRecordTime = now;
+
+          // If we were in inactivity monitoring, exit it
+          if (this.inactivityMonitorId) {
+            logger.debug("User activity detected during inactivity monitoring");
+            this.refreshToken().catch((err) => {
+              logger.error("Failed to refresh token after user activity:", err);
+            });
+          }
+        }
+      };
+
+      activityEvents.forEach((eventType) => {
+        window.addEventListener(eventType, throttledHandler, { passive: true });
       });
-      
+
+      // Add visibility change listener
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+
       this.activityListeners = true;
-      logger.debug('User activity tracking initialized');
+      logger.debug("User activity tracking initialized with improved handling");
     }
-    
+
     // Set up periodic inactivity check
     this.setupInactivityCheck();
   }
-  
+
   /**
    * Set up periodic check for inactivity
    */
@@ -1565,46 +1688,53 @@ export class TokenService {
     if (this.inactivityCheckerId) {
       clearInterval(this.inactivityCheckerId);
     }
-    
+
     this.inactivityCheckerId = window.setInterval(() => {
       if (this.isUserInactive() && this.hasTokens()) {
-        logger.warn('User inactive beyond threshold during periodic check, logging out');
+        logger.warn(
+          "User inactive beyond threshold during periodic check, logging out"
+        );
         this.logoutDueToInactivity();
       }
     }, INACTIVITY_CHECK_INTERVAL) as unknown as number;
-    
-    logger.debug(`Inactivity check scheduled every ${INACTIVITY_CHECK_INTERVAL/1000} seconds`);
+
+    logger.debug(
+      `Inactivity check scheduled every ${
+        INACTIVITY_CHECK_INTERVAL / 1000
+      } seconds`
+    );
   }
-  
+
   /**
    * Handle user activity event
    */
   private handleUserActivity = (): void => {
     const now = Date.now();
     const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
-    
+
     // Only update if significant time has passed (prevent excessive updates)
-    if (!lastActivity || now - parseInt(lastActivity, 10) > 10000) { // 10 seconds
+    if (!lastActivity || now - parseInt(lastActivity, 10) > 10000) {
+      // 10 seconds
       this.recordUserActivity();
-      
+
       // If we're in intensive monitoring mode, check if token needs refresh
       if (this.inactivityMonitorId) {
         // Get token status to see if refresh is needed
         this.checkTokenStatus();
       }
     }
-  }
-  
+  };
+
   /**
    * Record current user activity timestamp
    */
   private recordUserActivity(): void {
-    if (typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== "undefined") {
       localStorage.setItem(USER_ACTIVITY_KEY, Date.now().toString());
       this.lastInactivityCheck = Date.now(); // Reset the check time
     }
   }
-  
+
   /**
    * Check if user has been inactive beyond the threshold
    */
@@ -1612,8 +1742,8 @@ export class TokenService {
     const lastActivity = this.getLastActivity();
     const now = Date.now();
     const threshold = this.getInactivityThreshold();
-    
-    return (now - lastActivity) > threshold;
+
+    return now - lastActivity > threshold;
   }
 
   /**
@@ -1624,21 +1754,24 @@ export class TokenService {
     if (this.inactivityMonitorId) {
       clearInterval(this.inactivityMonitorId);
     }
-    
+
     // Start monitoring for activity more frequently
     this.inactivityMonitorId = window.setInterval(() => {
       // Check if user has been active since last check
       const lastActivity = localStorage.getItem(USER_ACTIVITY_KEY);
       if (lastActivity) {
         const lastActivityTime = parseInt(lastActivity, 10);
-        const timeSinceLastCheck = this.lastInactivityCheck ? 
-          lastActivityTime - this.lastInactivityCheck : 0;
-        
+        const timeSinceLastCheck = this.lastInactivityCheck
+          ? lastActivityTime - this.lastInactivityCheck
+          : 0;
+
         // If there was activity since last check, refresh the token
         if (timeSinceLastCheck > 0) {
-          logger.debug('Activity detected during inactivity monitoring, refreshing token');
+          logger.debug(
+            "Activity detected during inactivity monitoring, refreshing token"
+          );
           this.refreshToken();
-          
+
           // Stop intensive monitoring after successful refresh
           if (this.inactivityMonitorId) {
             clearInterval(this.inactivityMonitorId);
@@ -1646,12 +1779,12 @@ export class TokenService {
           }
         }
       }
-      
+
       // Update last check time
       this.lastInactivityCheck = Date.now();
     }, INACTIVITY_CHECK_INTERVAL);
-    
-    logger.debug('Started intensive inactivity monitoring');
+
+    logger.debug("Started intensive inactivity monitoring");
   }
 
   /**
@@ -1659,29 +1792,32 @@ export class TokenService {
    */
   public initializeAfterAuthentication(): void {
     if (this.isInitialized) {
-      logger.debug('TokenService already initialized');
+      logger.debug("TokenService already initialized");
       return;
     }
-    
-    logger.info('Initializing TokenService after authentication');
+
+    logger.info("Initializing TokenService after authentication");
     this.setupActivityTracking();
     this.startTokenHeartbeat();
     this.scheduleTokenRefresh();
-    
-    if (this.config.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
+
+    if (
+      this.config.enableCrossTabs &&
+      typeof BroadcastChannel !== "undefined"
+    ) {
       this.initCrossTabCommunication();
     }
-    
+
     if (this.config.enableFingerprinting) {
       this.generateDeviceFingerprint();
     }
-    
+
     this.initTokenVersion();
-    
+
     if (this.config.enableOfflineSupport) {
       this.setupOfflineSupport();
     }
-    
+
     this.isInitialized = true;
   }
 
@@ -1689,82 +1825,181 @@ export class TokenService {
    * Handle logout due to inactivity
    */
   private logoutDueToInactivity(): void {
-    logger.warn('Logging out due to user inactivity');
-    
-    // Import and use the auth service from the services index
-    import('@/features/auth/services').then(({ getAuthServices }) => {
-      const { authService } = getAuthServices();
-      
-      // Call logout with correct parameter structure
-      authService.logout().catch(error => {
-        logger.error('Failed to logout due to inactivity:', error);
-        
-        // Fallback: clear tokens directly if logout fails
-        this.clearTokens();
-        
-        // Redirect to login page with inactivity reason
-        if (typeof window !== 'undefined') {
-          window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
-        }
-      });
-      
-      // Dispatch a custom event to notify about inactivity logout
-      if (typeof document !== 'undefined') {
-        document.dispatchEvent(new CustomEvent(AUTH_CONSTANTS.EVENTS.LOGOUT, {
-          detail: { timestamp: Date.now() }
-        }));
-      }
-    }).catch(error => {
-      logger.error('Failed to import auth services:', error);
-      this.forceLogout('inactivity');
+    logger.info("Logging out due to inactivity", {
+      lastActivity: new Date(this.getLastActivity()).toISOString(),
+      inactiveTimeMinutes: Math.round(
+        (Date.now() - this.getLastActivity()) / 60000
+      ),
     });
+
+    // Import and use the auth service from the services index
+    import("@/features/auth/services")
+      .then(({ getAuthServices }) => {
+        const { authService } = getAuthServices();
+
+        // Call logout with correct parameter structure
+        authService.logout().catch((error) => {
+          logger.error("Failed to logout due to inactivity:", error);
+
+          // Fallback: clear tokens directly if logout fails
+          this.clearTokens();
+
+          // Redirect to login page with inactivity reason
+          if (typeof window !== "undefined") {
+            window.location.href = `/login?reason=inactivity&t=${Date.now()}`;
+          }
+        });
+
+        // Dispatch a custom event to notify about inactivity logout
+        if (typeof document !== "undefined") {
+          document.dispatchEvent(
+            new CustomEvent(AUTH_CONSTANTS.EVENTS.LOGOUT, {
+              detail: { timestamp: Date.now() },
+            })
+          );
+        }
+      })
+      .catch((error) => {
+        logger.error("Failed to import auth services:", error);
+        this.forceLogout("inactivity");
+      });
   }
-  
+
   /**
    * Clean up activity tracking on logout
    */
   private cleanupActivityTracking(): void {
     if (!this.activityListeners) return;
-    
-    if (typeof window !== 'undefined') {
-      const activityEvents = ['mousedown', 'keypress', 'scroll', 'touchstart', 'click'];
-      
-      activityEvents.forEach(eventType => {
+
+    if (typeof window !== "undefined") {
+      const activityEvents = [
+        "mousedown",
+        "keypress",
+        "scroll",
+        "touchstart",
+        "click",
+      ];
+
+      activityEvents.forEach((eventType) => {
         window.removeEventListener(eventType, this.handleUserActivity);
       });
-      
+
       this.activityListeners = false;
     }
-    
-    if (typeof localStorage !== 'undefined') {
+
+    if (typeof localStorage !== "undefined") {
       localStorage.removeItem(USER_ACTIVITY_KEY);
     }
-    
-    logger.debug('User activity tracking cleaned up');
+
+    logger.debug("User activity tracking cleaned up");
   }
-  
-  // Modify clearTokens to also clean up activity tracking
+
   public clearTokens(): boolean {
     try {
       this.clearTokensLocally();
-      
-      // Clean up activity tracking
-      this.cleanupActivityTracking();
+
+      // Clean up all timers and listeners in one place
+      this._cleanupAllResources();
+
+      // Reset all state flags
+      this.isRefreshing = false;
+      this.refreshing = false;
+      this._refreshLock = false;
+      this.refreshPromise = null;
+      this.refreshQueue = null;
       this.isInitialized = false;
-      
+
       // Notify other tabs if cross-tab is enabled
       if (this.broadcastChannel) {
         this.broadcastChannel.postMessage({
-          type: 'TOKEN_CLEARED'
+          type: "TOKEN_CLEARED",
         });
       }
-      
+
       return true;
     } catch (error) {
-      logger.error('Failed to clear tokens:', error);
+      logger.error("Failed to clear tokens:", error);
       return false;
     }
   }
+
+  // Add a new private method to handle comprehensive cleanup
+  private _cleanupAllResources(): void {
+    try {
+      // Clean up activity tracking
+      this.cleanupActivityTracking();
+
+      // Clear all interval timers and timeouts
+      [
+        this.inactivityMonitorId,
+        this.inactivityCheckerId,
+        this.heartbeatIntervalId,
+        this.refreshTimeoutId,
+      ].forEach((timerId) => {
+        if (timerId) {
+          clearInterval(timerId);
+          clearTimeout(timerId);
+        }
+      });
+
+      // Reset timer IDs
+      this.inactivityMonitorId = null;
+      this.inactivityCheckerId = null;
+      this.heartbeatIntervalId = null;
+      this.refreshTimeoutId = null;
+
+      // Remove document event listeners for token expiration
+      if (typeof document !== "undefined") {
+        document.removeEventListener(
+          "auth:token-expired",
+          this.refreshToken.bind(this)
+        );
+        document.removeEventListener(
+          "visibilitychange",
+          this.handleVisibilityChange
+        );
+      }
+
+      // Remove network listeners
+      if (this.config.enableOfflineSupport && typeof window !== "undefined") {
+        window.removeEventListener("online", this.handleOnline.bind(this));
+        window.removeEventListener("offline", this.handleOffline.bind(this));
+      }
+
+      // Close broadcast channels
+      if (this.authChannel) {
+        this.authChannel.close();
+        this.authChannel = null;
+      }
+
+      if (this.broadcastChannel) {
+        this.broadcastChannel.close();
+        this.broadcastChannel = null;
+      }
+
+      // Reset state
+      this.refreshState.isRefreshing = false;
+      this.refreshState.promise = null;
+      this.isRefreshing = false;
+      this.refreshing = false;
+      this._refreshLock = false;
+      this.refreshPromise = null;
+      this.refreshQueue = null;
+
+      logger.debug("All TokenService resources cleaned up");
+    } catch (error) {
+      logger.error("Error during resource cleanup:", error);
+    }
+  }
+
+  // Add visibility change handler
+  private handleVisibilityChange = (): void => {
+    if (document.visibilityState === "visible" && this.hasTokens()) {
+      // Verify token status when tab becomes visible
+      logger.debug("Tab became visible, checking token status");
+      this.checkTokenStatus();
+    }
+  };
 
   /**
    * Get the timestamp of the last user activity
@@ -1777,17 +2012,314 @@ export class TokenService {
 
   private getInactivityThreshold(): number {
     // Check if "Remember me" was selected during login
-    const rememberMe = localStorage.getItem('auth_remember_me') === 'true';
-    
+    const rememberMe = localStorage.getItem("auth_remember_me") === "true";
+
     // Use a longer threshold if "Remember me" is enabled
-    return rememberMe 
+    return rememberMe
       ? EXTENDED_INACTIVITY_THRESHOLD // e.g., 7 days in milliseconds
       : INACTIVITY_THRESHOLD; // Regular 30 minutes
+  }
+
+  /**
+   * Get session information safely for HTTP-only cookie implementation
+   * This centralizes all session data access
+   */
+  private getSessionInfo(): {
+    isValid: boolean;
+    userId?: string;
+    expiresAt?: Date;
+    tokenVersion?: number;
+  } {
+    try {
+      // For HTTP-only cookies, we rely on session metadata
+      const sessionData = getSessionMetadata();
+
+      if (!sessionData) {
+        return { isValid: false };
+      }
+
+      // Check if session has expired
+      const expiresAt = new Date(sessionData.expiresAt);
+      const now = new Date();
+
+      if (expiresAt <= now) {
+        return { isValid: false };
+      }
+
+      // Get token version from class property or localStorage instead of sessionData
+      const tokenVersion =
+        this.tokenVersion ||
+        (() => {
+          try {
+            const storedVersion = localStorage.getItem(TOKEN_VERSION_KEY);
+            return storedVersion ? parseInt(storedVersion, 10) : 0;
+          } catch (e) {
+            return 0;
+          }
+        })();
+
+      return {
+        isValid: true,
+        userId: sessionData.userId,
+        expiresAt: expiresAt,
+        tokenVersion: tokenVersion, // Use the tokenVersion from class property or localStorage
+      };
+    } catch (error) {
+      logger.error("Error getting session info:", error);
+      return { isValid: false };
+    }
+  }
+
+  // Add this to the class properties section
+  private refreshState: {
+    isRefreshing: boolean;
+    promise: Promise<boolean> | null;
+    lastRefreshTime: number | null;
+    retryCount: number;
+  } = {
+    isRefreshing: false,
+    promise: null,
+    lastRefreshTime: null,
+    retryCount: 0,
+  };
+
+  /**
+   * Safely executes token operations with consistent error handling
+   */
+  private async safeTokenOperation<T>(
+    operation: () => Promise<T>,
+    operationName: string
+  ): Promise<T | null> {
+    try {
+      return await operation();
+    } catch (error) {
+      logger.error(`Token operation failed: ${operationName}`, error);
+
+      // Handle specific error types
+      if (error instanceof Response || (error as any).status === 401) {
+        // Handle unauthorized errors consistently
+        this.handleUnauthorizedError(operationName);
+      } else if (
+        (error as any).message === "Network Error" ||
+        !navigator.onLine
+      ) {
+        // Handle offline scenarios
+        logger.warn(
+          `Network error during ${operationName}, device may be offline`
+        );
+        if (this.config.enableOfflineSupport) {
+          this.handleOffline();
+        }
+      }
+
+      return null;
+    }
+  }
+
+  /**
+   * Handle unauthorized errors consistently
+   */
+  private handleUnauthorizedError(operationName: string): void {
+    logger.warn(`Unauthorized response during ${operationName}`);
+
+    // Try token refresh if not already refreshing
+    if (!this.refreshState.isRefreshing && !this.isUserInactive()) {
+      this.refreshToken().catch((err) => {
+        logger.error("Failed to refresh token after unauthorized error:", err);
+        this.forceLogout("unauthorized");
+      });
+    } else if (this.isUserInactive()) {
+      // User is inactive, log them out
+      this.logoutDueToInactivity();
+    }
+  }
+
+  /**
+   * Synchronize CSRF token with server
+   */
+  public async syncCsrfToken(): Promise<string | null> {
+    return await this.safeTokenOperation(async () => {
+      // Use the correct endpoint from backend
+      const response = await fetch(
+        `${this.config.apiBaseUrl}/auth/token/csrf`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            ...(this.getCsrfToken()
+              ? { [this.config.csrfHeaderName]: this.getCsrfToken() }
+              : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to sync CSRF token: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.csrfToken) {
+        // Set the new CSRF token
+        this.setCsrfToken(data.csrfToken);
+        return data.csrfToken;
+      }
+
+      return this.getCsrfToken();
+    }, "syncCsrfToken");
+  }
+
+  /**
+   * Synchronize token version with server
+   */
+  public async syncTokenVersion(): Promise<number> {
+    try {
+      if (!this.hasTokens() || !navigator.onLine) {
+        return this.tokenVersion;
+      }
+
+      // Get token version from server
+      const response = await fetch(
+        `${this.config.apiBaseUrl}/auth/token-version`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: this.getAuthHeaders(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to get token version: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Update token version if server version is higher
+      if (data.version !== undefined && data.version > this.tokenVersion) {
+        logger.debug(
+          `Updating token version from ${this.tokenVersion} to ${data.version}`
+        );
+        this.tokenVersion = data.version;
+
+        try {
+          localStorage.setItem(TOKEN_VERSION_KEY, this.tokenVersion.toString());
+        } catch (error) {
+          logger.error("Failed to store token version:", error);
+        }
+
+        // Broadcast to other tabs
+        this.broadcastTokenVersion();
+      }
+
+      return this.tokenVersion;
+    } catch (error) {
+      logger.error("Failed to sync token version:", error);
+      return this.tokenVersion;
+    }
+  }
+
+  /**
+   * Broadcast token version to other tabs
+   */
+  private broadcastTokenVersion(): void {
+    if (!this.authChannel) return;
+
+    this.authChannel.postMessage({
+      type: "TOKEN_VERSION_UPDATED",
+      timestamp: Date.now(),
+      tabId: this._tabId,
+      payload: { tokenVersion: this.tokenVersion },
+    });
+  }
+
+  /**
+   * Validate cached tokens for offline use
+   */
+  private validateOfflineTokens(): boolean {
+    if (!this.offlineTokenCache.has("exp")) {
+      return false;
+    }
+
+    try {
+      const expString = this.offlineTokenCache.get("exp") || "0";
+      const expiration = parseInt(expString, 10);
+
+      if (isNaN(expiration) || expiration < Date.now()) {
+        logger.warn("Offline token cache expired");
+        this.offlineTokenCache.clear();
+        return false;
+      }
+
+      // Check for required fields
+      if (!this.offlineTokenCache.has("userId")) {
+        logger.warn("Incomplete offline token cache");
+        this.offlineTokenCache.clear();
+        return false;
+      }
+
+      // Check token version
+      const cachedVersion = this.offlineTokenCache.get("tokenVersion");
+      if (cachedVersion && parseInt(cachedVersion, 10) < this.tokenVersion) {
+        logger.warn("Offline token cache has outdated version");
+        this.offlineTokenCache.clear();
+        return false;
+      }
+
+      logger.debug("Offline tokens validated successfully");
+      return true;
+    } catch (error) {
+      logger.error("Error validating offline tokens:", error);
+      this.offlineTokenCache.clear();
+      return false;
+    }
+  }
+
+  // Add a method to check heartbeat status
+  public getHeartbeatStatus(): Record<string, any> {
+    return {
+      active: !!this.heartbeatIntervalId,
+      intervalId: this.heartbeatIntervalId,
+      refreshLockActive: this._refreshLock,
+      refreshState: { ...this.refreshState },
+      hasTokens: this.hasTokens(),
+      sessionValid: this.isAuthenticated(),
+      tokenExpired: this.isTokenExpired(),
+    };
+  }
+
+  private _getGlobalLock(): boolean {
+    const w = typeof window !== "undefined" ? window : ({} as any);
+    if (w.__tokenServiceRefreshLock) {
+      const lockTime = w.__tokenServiceRefreshLockTime || 0;
+      // Consider lock stale after 10 seconds
+      if (Date.now() - lockTime > 10000) {
+        w.__tokenServiceRefreshLock = false;
+        return true;
+      }
+      return false;
+    }
+
+    w.__tokenServiceRefreshLock = true;
+    w.__tokenServiceRefreshLockTime = Date.now();
+    w.__tokenServiceRefreshingInstanceId = this._instanceId;
+    return true;
+  }
+
+  private _releaseGlobalLock(): void {
+    const w = typeof window !== "undefined" ? window : ({} as any);
+    if (w.__tokenServiceRefreshingInstanceId === this._instanceId) {
+      w.__tokenServiceRefreshLock = false;
+    }
   }
 }
 
 // Export a singleton instance
-export const tokenService = new TokenService();
+export const tokenService = TokenService.getInstance();
 
-// Export default for dependency injection in tests
+// Export the class for testing and dependency injection
 export default TokenService;
+
+// Prevent multiple instances by exporting a function that always returns the singleton
+export function getTokenService(): TokenService {
+  return TokenService.getInstance();
+}

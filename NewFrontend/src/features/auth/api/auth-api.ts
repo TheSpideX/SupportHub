@@ -242,7 +242,7 @@ export const authApi = {
   // Update the refreshToken method to properly handle HTTP-only cookies
   refreshToken: async () => {
     try {
-      const response = await apiInstance.post('/auth/token/refresh', {}, {
+      const response = await apiInstance.post('/api/auth/token/refresh', {}, {
         withCredentials: true,
         headers: {
           'X-Requested-With': 'XMLHttpRequest'
@@ -317,9 +317,13 @@ export const authApi = {
     screenSize?: { width: number; height: number };
   }) => {
     try {
-      // Get CSRF token from storage or service
-      const csrfToken = tokenService.getCsrfToken() || 
-                        localStorage.getItem('csrf_token') || '';
+      // Get CSRF token from cookie directly
+      const csrfToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('csrf_token='))
+        ?.split('=')[1] || '';
+      
+      console.log('Using CSRF token:', csrfToken);
       
       const response = await apiInstance.post('/api/auth/session/sync', data, {
         withCredentials: true,

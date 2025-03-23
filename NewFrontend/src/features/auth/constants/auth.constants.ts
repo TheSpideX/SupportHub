@@ -58,16 +58,16 @@ export const AUTH_CONSTANTS = {
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
     REGISTER: '/api/auth/register',
-    REFRESH: '/api/auth/token/refresh',
+    REFRESH: '/api/auth/token/refresh-token', // Correctly matches backend
     VERIFY_EMAIL: '/api/auth/verify-email',
     FORGOT_PASSWORD: '/api/auth/forgot-password',
     RESET_PASSWORD: '/api/auth/reset-password',
     CHANGE_PASSWORD: '/api/auth/change-password',
     TWO_FACTOR: '/api/auth/security/verify-2fa',
     VERIFY_DEVICE: '/api/auth/security/verify-device',
-    CSRF_TOKEN: '/api/auth/token/csrf',
+    CSRF_TOKEN: '/api/auth/token/csrf', // Updated to match backend
     USER_INFO: '/api/auth/me',
-    VALIDATE_SESSION: '/api/auth/session/validate', // Updated to match backend
+    VALIDATE_SESSION: '/api/auth/session/validate',
     SESSION_HEARTBEAT: '/api/auth/session/heartbeat',
   },
   
@@ -90,7 +90,7 @@ export const AUTH_CONSTANTS = {
   // CSRF protection settings
   CSRF: {
     HEADER_NAME: 'X-CSRF-Token',
-    COOKIE_NAME: 'csrf_token', // Changed from 'XSRF-TOKEN' to match backend
+    COOKIE_NAME: 'csrf_token', // Updated to match backend cookie name
     METHODS_REQUIRING_TOKEN: ['POST', 'PUT', 'PATCH', 'DELETE'],
   },
   

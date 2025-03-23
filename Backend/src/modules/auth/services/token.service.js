@@ -366,19 +366,50 @@ exports.verifyCsrfToken = async (token, userId) => {
  * @param {Object} tokens - Access and refresh tokens
  */
 exports.setTokenCookies = (res, tokens) => {
+  // Ensure cookie config exists with defaults if not defined
+  const cookieSecure = cookieConfig?.accessTokenOptions?.secure ?? true;
+  const cookieSameSite = cookieConfig?.accessTokenOptions?.sameSite ?? 'strict';
+  const cookieMaxAge = cookieConfig?.accessTokenOptions?.maxAge ?? 900000; // 15 minutes default
+  
+  // Set token existence flag for frontend detection
+  // This is not HTTP-only so frontend can detect authentication state
+  res.cookie(
+    'auth_token_exists', 
+    'true', 
+    {
+      httpOnly: false,
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
+      path: '/',
+      maxAge: cookieMaxAge
+    }
+  );
+  
   if (tokens.accessToken) {
     res.cookie(
-      cookieConfig.names.ACCESS_TOKEN, 
+      cookieConfig?.names?.ACCESS_TOKEN || 'access_token', 
       tokens.accessToken, 
-      cookieConfig.accessTokenOptions
+      cookieConfig?.accessTokenOptions || {
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+        path: '/',
+        maxAge: cookieMaxAge
+      }
     );
   }
   
   if (tokens.refreshToken) {
     res.cookie(
-      cookieConfig.names.REFRESH_TOKEN, 
+      cookieConfig?.names?.REFRESH_TOKEN || 'refresh_token', 
       tokens.refreshToken, 
-      cookieConfig.refreshTokenOptions
+      cookieConfig?.refreshTokenOptions || {
+        httpOnly: true,
+        secure: cookieSecure,
+        sameSite: cookieSameSite,
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days default
+      }
     );
   }
 };
@@ -388,9 +419,44 @@ exports.setTokenCookies = (res, tokens) => {
  * @param {Object} res - Express response object
  */
 exports.clearTokenCookies = (res) => {
-  res.clearCookie(cookieConfig.names.ACCESS_TOKEN, cookieConfig.accessTokenOptions);
-  res.clearCookie(cookieConfig.names.REFRESH_TOKEN, cookieConfig.refreshTokenOptions);
-  res.clearCookie(cookieConfig.names.CSRF_TOKEN, cookieConfig.csrfTokenOptions);
+  // Ensure cookie config exists with defaults if not defined
+  const cookieSecure = cookieConfig?.accessTokenOptions?.secure ?? true;
+  const cookieSameSite = cookieConfig?.accessTokenOptions?.sameSite ?? 'strict';
+  
+  // Default cookie names if config is missing
+  const accessTokenName = cookieConfig?.names?.ACCESS_TOKEN || 'access_token';
+  const refreshTokenName = cookieConfig?.names?.REFRESH_TOKEN || 'refresh_token';
+  const csrfTokenName = cookieConfig?.names?.CSRF_TOKEN || 'csrf_token';
+  
+  // Clear cookies with fallback options
+  res.clearCookie(accessTokenName, {
+    httpOnly: true,
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
+    path: '/'
+  });
+  
+  res.clearCookie(refreshTokenName, {
+    httpOnly: true,
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
+    path: '/'
+  });
+  
+  res.clearCookie(csrfTokenName, {
+    httpOnly: true,
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
+    path: '/'
+  });
+  
+  // Clear the token existence flag
+  res.clearCookie('auth_token_exists', {
+    httpOnly: false,
+    secure: cookieSecure,
+    sameSite: cookieSameSite,
+    path: '/'
+  });
 };
 
 /**
