@@ -655,11 +655,11 @@ export class AuthService {
 
     // Clear tokens first (important!)
     this.tokenService.clearTokens();
-    
+
     // Stop session tracking
     this.sessionService.stopSessionTracking();
 
-    // Update local state 
+    // Update local state
     this.updateAuthState(
       {
         isAuthenticated: false,
@@ -670,7 +670,7 @@ export class AuthService {
       },
       false // Don't broadcast from here to prevent loops
     );
-    
+
     // Update Redux store if available
     if (this.store) {
       this.store.dispatch(
@@ -681,7 +681,7 @@ export class AuthService {
         })
       );
     }
-    
+
     logger.info("[AuthService] Successfully synced logout from another tab");
   }
 
@@ -1531,6 +1531,46 @@ export class AuthService {
 
     // Update without broadcasting back (very important!)
     this.updateAuthState(payload.authState, false);
+  }
+
+  // Add this method to your AuthService class
+  /**
+   * Synchronize logout state across tabs
+   * Called when a logout occurs in another tab
+   */
+  public syncLogoutState(): void {
+    logger.info("[AuthService] Synchronizing logout state from another tab");
+
+    // Clear tokens first (important!)
+    this.tokenService.clearTokens();
+
+    // Stop session tracking
+    this.sessionService.stopSessionTracking();
+
+    // Update local state
+    this.updateAuthState(
+      {
+        isAuthenticated: false,
+        isLoading: false,
+        user: null,
+        error: null,
+        sessionExpiry: undefined,
+      },
+      false // Don't broadcast from here to prevent loops
+    );
+
+    // Update Redux store if available
+    if (this.store) {
+      this.store.dispatch(
+        setAuthState({
+          user: null,
+          isAuthenticated: false,
+          isInitialized: true,
+        })
+      );
+    }
+
+    logger.info("[AuthService] Successfully synchronized logout across tabs");
   }
 
   // Add this method to handle remote session expiration

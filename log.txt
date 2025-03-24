@@ -2,283 +2,307 @@ tab1-->
 
 client:743 [vite] connecting...
 client:866 [vite] connected.
-logger.ts:137 [storage.utils.ts] Storage type localStorage available: true {}
-logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true {}
-logger.ts:137 [storage.utils.ts] Storage type cookie available: true {}
-logger.ts:137 [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s {}
-logger.ts:137 [CrossTabService.ts] Initializing CrossTabService {tabId: 'tab_fjklpnc_1742766380864'}
-logger.ts:137 [CrossTabService.ts] SharedWorker communication initialized {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [TokenService.ts] TokenService initialized in standby mode (no authenticated user) {}
-logger.ts:137 [TokenService.ts] Created new TokenService instance {}
-logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
-logger.ts:137 [SessionService.ts] SessionService initialized {}
-logger.ts:127 [TokenService.ts] Using existing TokenService instance {}
-logger.ts:137 [auth/init][init.ts] Initializing authentication system {component: 'auth/init'}
-logger.ts:127 [TokenService.ts] TokenService already initialized, returning existing instance {}
-logger.ts:137 [SecurityService.ts] Security context initialized {}
-logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
-logger.ts:137 [SecurityService.ts] SecurityService initialized {}
-logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
-logger.ts:137 [SessionService.ts] SessionService initialized {}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized with SharedWorker {}
-logger.ts:137 [AuthService.ts] AuthService initialized {}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker {}
-logger.ts:137 [TokenService.ts] CSRF protection initialized {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard verifyAuth started {component: 'AuthGuard', isInitialized: false, isAuthenticated: '[REDACTED]', cookies: 'Cookies present', path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth service state check {component: 'AuthGuard', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, reduxIsAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth not initialized, initializing now {component: 'AuthGuard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Calling validateSession API {component: 'AuthGuard'}
-logger.ts:137 [App.tsx] Tab initialized {tabId: 'tab_fjklpnc_1742766380864', isLeader: false}
-logger.ts:137 [App][App.tsx] Starting auth initialization (attempt #1) {component: 'App'}
-logger.ts:137 [AuthService.ts] Initializing auth service and checking for existing session {}
-logger.ts:137 [AuthService.ts] Cookie check: No auth cookies found {}
-logger.ts:137 [AuthService.ts] Attempting to validate session with backend {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [AuthService.ts] No valid session found, initializing as unauthenticated {}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] Updating auth state from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:127 [CrossTabService.ts] Cleaning up CrossTabService resources {}
-logger.ts:137 [App.tsx] Tab initialized {tabId: 'tab_fjklpnc_1742766380864', isLeader: false}
-logger.ts:127 [App][App.tsx] Auth initialization already triggered, skipping {component: 'App'}
-logger.ts:137 [App][App.tsx] No active session found, user is not authenticated {component: 'App'}
-logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
-logger.ts:137 [App][App.tsx] Auth initialized successfully {component: 'App'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard redirecting to login {component: 'AuthGuard', from: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard redirecting to login {component: 'AuthGuard', from: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [LoginForm][LoginForm.tsx] Login form submission attempt {component: 'LoginForm', action: 'handleFormSubmit', hasEmail: true, hasPassword: '[REDACTED]'}
-logger.ts:127 [LoginForm][LoginForm.tsx] Calling onSubmit handler {component: 'LoginForm'}
-logger.ts:137 [LoginPage][LoginPage.tsx] Login form submitted {component: 'LoginPage', email: '***@***'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Getting device fingerprint {component: 'LoginPage'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Preparing login request with security context {component: 'LoginPage'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Calling login function {component: 'LoginPage'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [TokenService.ts] Using existing TokenService instance {}
-logger.ts:137 [TokenService.ts] Initializing TokenService after authentication {}
-logger.ts:127 [TokenService.ts] User activity tracking initialized with improved handling {}
-logger.ts:127 [TokenService.ts] Inactivity check scheduled every 300 seconds {}
-logger.ts:137 [TokenService.ts] Token refresh scheduled in 604068 seconds {}
-logger.ts:127 [TokenService.ts] Cross-tab communication initialized via unified service {}
-logger.ts:127 [TokenService.ts] Device fingerprint initialized {}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] Updating auth state from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:127 [AuthService.ts] Session metadata stored {}
-logger.ts:137 [SessionService.ts] Starting session tracking {}
-logger.ts:127 [SessionService.ts] Creating default session {}
-logger.ts:127 [SessionService.ts] Default session created {id: 'session-1742766389519'}
-logger.ts:127 [SessionService.ts] Activity tracking set up {}
-logger.ts:127 [SessionService.ts] Setting up session expiry check {}
-logger.ts:127 [SessionService.ts] Syncing session with server {}
-logger.ts:127 [SessionService.ts] Using CSRF token for session sync {}
-logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
-logger.ts:127 [SessionService.ts] Preparing session sync data {sessionId: null, hasLastActivity: true}
-logger.ts:137 [AuthService.ts] Session tracking started for session ID: 67e08135642e876c70ce10ff
-logger.ts:137 [AuthService.ts] Login successful {}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'exists', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'exists', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: true, serviceUserRole: 'admin'}
-logger.ts:137 [LoginPage][LoginPage.tsx] User authenticated, redirecting from login page {component: 'LoginPage', redirectTo: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'undefined (admin)', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: true, serviceUserRole: 'admin'}
-logger.ts:137 [useAuth][useAuth.ts] Login successful {component: 'useAuth'}
-logger.ts:137 [LoginPage][LoginPage.tsx] Login successful, navigating to: {component: 'LoginPage', destination: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Session heartbeat started {component: 'LoginPage'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Login form submission completed {component: 'LoginPage'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard verifyAuth started {component: 'AuthGuard', isInitialized: false, isAuthenticated: '[REDACTED]', cookies: 'Cookies present', path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth service state check {component: 'AuthGuard', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: true, reduxIsAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth not initialized, initializing now {component: 'AuthGuard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Calling validateSession API {component: 'AuthGuard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] Session is valid, updating Redux state {component: 'AuthGuard'}
-logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: true, path: '/dashboard', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [SessionService.ts] Session sync response {status: 200, hasData: true}
-logger.ts:127 [App.tsx] Tab visibility changed to visible, isLeader: false {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: true, cookies: {…}}
-logger.ts:127 [TokenService.ts] Tab became visible, checking token status {}
-logger.ts:127 [TokenService.ts] Token status response received {status: 200, ok: true, statusText: 'OK'}
-logger.ts:137 [TokenService.ts] Token expires in 896 seconds {expiresInMs: 896000, refreshThreshold: 300000, shouldRefresh: false}
+logger.ts:137 [storage.utils.ts] Storage type localStorage available: true Object
+logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true Object
+logger.ts:137 [storage.utils.ts] Storage type cookie available: true Object
+logger.ts:137 [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s Object
+logger.ts:137 [CrossTabService.ts] Initializing CrossTabService Object
+logger.ts:137 [CrossTabService.ts] SharedWorker communication initialized Object
+logger.ts:127 [TokenService.ts] Token existence check Object
+logger.ts:137 [TokenService.ts] TokenService initialized in standby mode (no authenticated user) Object
+logger.ts:137 [TokenService.ts] Created new TokenService instance Object
+logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService Object
+logger.ts:137 [SessionService.ts] SessionService initialized Object
+logger.ts:127 [TokenService.ts] Using existing TokenService instance Object
+logger.ts:137 [auth/init][init.ts] Initializing authentication system Object
+logger.ts:127 [TokenService.ts] TokenService already initialized, returning existing instance Object
+logger.ts:137 [SecurityService.ts] Security context initialized Object
+logger.ts:137 [SecurityService.ts] Device fingerprint generated Object
+logger.ts:137 [SecurityService.ts] SecurityService initialized Object
+logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService Object
+logger.ts:137 [SessionService.ts] SessionService initialized Object
+logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker Object
+logger.ts:127 [TokenService.ts] Token existence check Object
+logger.ts:127 [AuthService.ts] Cross-tab communication initialized with SharedWorker Object
+logger.ts:137 [AuthService.ts] AuthService initialized Object
+logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker Object
+logger.ts:137 [TokenService.ts] CSRF protection initialized Object
+logger.ts:127 [TokenService.ts] Token existence check Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+logger.ts:137 [App.tsx] Tab initialized Object
+logger.ts:137 [App][App.tsx] Starting auth initialization (attempt #1) Object
+logger.ts:137 [AuthService.ts] Initializing auth service and checking for existing session Object
+logger.ts:137 [AuthService.ts] Cookie check: No auth cookies found Object
+logger.ts:137 [AuthService.ts] Attempting to validate session with backend Object
+logger.ts:127 [TokenService.ts] Token existence check Object
+logger.ts:137 [AuthService.ts] No valid session found, initializing as unauthenticated Object
+logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker Object
+logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker Object
+logger.ts:137 [AuthService.ts] Updating auth state from worker Object
+logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker Object
+logger.ts:127 [CrossTabService.ts] Cleaning up CrossTabService resources Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+logger.ts:137 [App.tsx] Tab initialized Object
+logger.ts:127 [App][App.tsx] Auth initialization already triggered, skipping Object
+logger.ts:137 [App][App.tsx] No active session found, user is not authenticated Object
+logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux Object
+logger.ts:137 [App][App.tsx] Auth initialized successfully Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+:5173/api/auth/session-check:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hook.js:608 [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ hook.js:608
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+:5173/api/auth/session-check:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hook.js:608 [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ hook.js:608
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_ztcuub4_1742794684939, isLeader: false) Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+:5173/api/auth/session-check:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hook.js:608 [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ hook.js:608
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+
 
 
 tab2 -->
 
-client:743 [vite] connecting...
-client:866 [vite] connected.
-logger.ts:137 [storage.utils.ts] Storage type localStorage available: true {}
-logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true {}
-logger.ts:137 [storage.utils.ts] Storage type cookie available: true {}
-logger.ts:137 [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s {}
-logger.ts:137 [CrossTabService.ts] Initializing CrossTabService {tabId: 'tab_9zub6ck_1742766371101'}
-logger.ts:137 [CrossTabService.ts] SharedWorker communication initialized {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [TokenService.ts] TokenService initialized in standby mode (no authenticated user) {}
-logger.ts:137 [TokenService.ts] Created new TokenService instance {}
-logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
-logger.ts:137 [SessionService.ts] SessionService initialized {}
-logger.ts:127 [TokenService.ts] Using existing TokenService instance {}
-logger.ts:137 [auth/init][init.ts] Initializing authentication system {component: 'auth/init'}
-logger.ts:127 [TokenService.ts] TokenService already initialized, returning existing instance {}
-logger.ts:137 [SecurityService.ts] Security context initialized {}
-logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
-logger.ts:137 [SecurityService.ts] SecurityService initialized {}
-logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
-logger.ts:137 [SessionService.ts] SessionService initialized {}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized with SharedWorker {}
-logger.ts:137 [AuthService.ts] AuthService initialized {}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker {}
-logger.ts:137 [TokenService.ts] CSRF protection initialized {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:137 [App.tsx] Tab initialized {tabId: 'tab_9zub6ck_1742766371101', isLeader: false}
-logger.ts:137 [App][App.tsx] Starting auth initialization (attempt #1) {component: 'App'}
-logger.ts:137 [AuthService.ts] Initializing auth service and checking for existing session {}
-logger.ts:137 [AuthService.ts] Cookie check: No auth cookies found {}
-logger.ts:137 [AuthService.ts] Attempting to validate session with backend {}
-logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [AuthService.ts] No valid session found, initializing as unauthenticated {}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] Updating auth state from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] [AuthService] Received auth state change from worker {isAuthenticated: '[REDACTED]'}
-logger.ts:127 [CrossTabService.ts] Cleaning up CrossTabService resources {}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:137 [App.tsx] Tab initialized {tabId: 'tab_9zub6ck_1742766371101', isLeader: false}
-logger.ts:127 [App][App.tsx] Auth initialization already triggered, skipping {component: 'App'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:137 [App][App.tsx] No active session found, user is not authenticated {component: 'App'}
-logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
-logger.ts:137 [App][App.tsx] Auth initialized successfully {component: 'App'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766370730_hax69wn'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766365053_ezkahcb'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766369699_jspofd7'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766370832_y1l7pss'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766370826_q48ayrh'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766381017_xvyztpy'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766389507_9dutnpx'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_sync_1742766371237_6ewrdgr'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_session_metadata'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_event_session_updated'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_session_metadata'}
-logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_event_session_updated'}
-logger.ts:127 [App.tsx] Tab visibility changed to visible, isLeader: false {}
-logger.ts:127 [App.tsx] Tab visibility changed to visible, isLeader: false {}
+ [vite] connecting...
+ [storage.utils.ts] Storage type localStorage available: true Object
+ [storage.utils.ts] Storage type sessionStorage available: true Object
+ [storage.utils.ts] Storage type cookie available: true Object
+ [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s Object
+ [CrossTabService.ts] Initializing CrossTabService Object
+ [CrossTabService.ts] SharedWorker communication initialized Object
+ [TokenService.ts] Token existence check Object
+ [TokenService.ts] TokenService initialized in standby mode (no authenticated user) Object
+ [TokenService.ts] Created new TokenService instance Object
+ [SessionService.ts] Cross-tab communication initialized for SessionService Object
+ [SessionService.ts] SessionService initialized Object
+ [TokenService.ts] Using existing TokenService instance Object
+ [auth/init][init.ts] Initializing authentication system Object
+ [TokenService.ts] TokenService already initialized, returning existing instance Object
+ [SecurityService.ts] Security context initialized Object
+ [SecurityService.ts] Device fingerprint generated Object
+ [SecurityService.ts] SecurityService initialized Object
+ [SessionService.ts] Cross-tab communication initialized for SessionService Object
+ [SessionService.ts] SessionService initialized Object
+ [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker Object
+ [TokenService.ts] Token existence check Object
+ [AuthService.ts] Cross-tab communication initialized with SharedWorker Object
+ [AuthService.ts] AuthService initialized Object
+ [AuthService.ts] Cross-tab communication initialized for AuthService with SharedWorker Object
+ [TokenService.ts] CSRF protection initialized Object
+ [TokenService.ts] Token existence check Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [AuthService.ts] [AuthService] Verifying session from server Object
+ [App.tsx] Tab initialized Object
+ [App][App.tsx] Starting auth initialization (attempt #1) Object
+ [AuthService.ts] Initializing auth service and checking for existing session Object
+ [AuthService.ts] Cookie check: No auth cookies found Object
+ [AuthService.ts] Attempting to validate session with backend Object
+ [TokenService.ts] Token existence check Object
+ [AuthService.ts] No valid session found, initializing as unauthenticated Object
+ [AuthService.ts] [AuthService] Received auth state change from worker Object
+ [AuthService.ts] [AuthService] Received auth state change from worker Object
+ [AuthService.ts] Updating auth state from worker Object
+ [AuthService.ts] [AuthService] Received auth state change from worker Object
+ [CrossTabService.ts] Cleaning up CrossTabService resources Object
+ [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [AuthService.ts] [AuthService] Verifying session from server Object
+ [App.tsx] Tab initialized Object
+ [App][App.tsx] Auth initialization already triggered, skipping Object
+ [App][App.tsx] No active session found, user is not authenticated Object
+ [authSlice][authSlice.ts] Auth state initialized in Redux Object
+ [App][App.tsx] Auth initialized successfully Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+ [AuthService.ts] [AuthService] Verifying session from server Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [vite] connected.
+api/auth/session-check:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+ [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ installHook.js:1
+api/auth/session-check:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+ [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ installHook.js:1
+api/auth/session-check:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+ [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ installHook.js:1
+ [AuthService.ts] Processing storage event Object
+ [AuthService.ts] Processing storage event Object
+ [AuthService.ts] Processing storage event Object
+ [AuthService.ts] Processing storage event Object
+ [AuthService.ts] Processing storage event Object
+ [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+ [AuthService.ts] [AuthService] Verifying session from server Object
+api/auth/session-check:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+ [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ installHook.js:1
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+api/auth/session-check:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hook.js:608 [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ hook.js:608
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+logger.ts:137 [AuthService.ts] [AuthService] Session verified from server Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+logger.ts:137 [LoginPage][LoginPage.tsx] User authenticated, redirecting from login page Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+hook.js:377 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+logger.ts:137 [AuthService.ts] [AuthService] Session verified from server Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+hook.js:377 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+hook.js:377 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+api/auth/session-check:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hook.js:608 [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ hook.js:608
+App.tsx:148 Uncaught (in promise) TypeError: authService2.syncLogoutState is not a function
+    at App.tsx:148:27
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [App.tsx] Tab became visible, verifying auth state with server (tabId: tab_k43tue2_1742794650230, isLeader: false) Object
+logger.ts:127 [AuthService.ts] [AuthService] Verifying session from server Object
+api/auth/session-check:1 
+            
+            
+           Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+hook.js:608 [AuthService.ts] [AuthService] Error verifying session from server Object
+overrideMethod @ hook.js:608
+App.tsx:148 Uncaught (in promise) TypeError: authService2.syncLogoutState is not a function
+    at App.tsx:148:27
 
 
-tab1 logged in, tab still on the login page
+tab 1 is looged out usng the test buttin but tab 2 is not why
