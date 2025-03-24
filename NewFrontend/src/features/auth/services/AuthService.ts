@@ -264,7 +264,6 @@ export class AuthService {
 
     logger.debug("Processing storage event", { key: event.key });
 
-    // Fix: Use the correct constant reference
     if (event.key === "auth_tokens") {
       if (!event.newValue) {
         // Another tab logged out
@@ -277,6 +276,26 @@ export class AuthService {
     } else if (event.key === "auth_security_context") {
       // Security context updated in another tab
       this.securityService.syncSecurityContextFromStorage();
+    } else if (event.key === "auth_state") {
+      // Auth state updated in another tab
+      if (event.newValue) {
+        try {
+          const newState = JSON.parse(event.newValue);
+          this.handleAuthStateSync(newState);
+        } catch (error) {
+          logger.error("Failed to parse auth state from storage", error);
+        }
+      }
+    } else if (event.key === "auth_login_event") {
+      // Login event from another tab
+      if (event.newValue) {
+        try {
+          const loginEvent = JSON.parse(event.newValue);
+          this.handleLoginSync(loginEvent.user);
+        } catch (error) {
+          logger.error("Failed to parse login event from storage", error);
+        }
+      }
     }
   }
 
@@ -335,19 +354,12 @@ export class AuthService {
   }
 
   /**
-   * Login with email and password
+   * Login with credentials
    */
-  public async login(
-    credentials: LoginCredentials,
-    deviceInfo?: any
-  ): Promise<boolean> {
+  public async login(credentials: LoginCredentials, deviceInfo?: any): Promise<boolean> {
     try {
-      // Set loading state
-      this.updateAuthState({
-        isLoading: true,
-        error: null,
-      });
-
+      logger.info("Attempting login");
+      
       // Call login API
       const response = await this.authApi.login(credentials, deviceInfo);
 
@@ -381,6 +393,9 @@ export class AuthService {
           );
         }
 
+        // Explicitly broadcast login event to other tabs
+        this.broadcastLoginEvent(response.data.user);
+
         logger.info("Login successful");
         return true;
       } else {
@@ -390,34 +405,31 @@ export class AuthService {
           AUTH_ERROR_CODES.INVALID_CREDENTIALS,
           errorMessage
         );
-
-        this.updateAuthState({
-          isAuthenticated: false,
-          user: null,
-          isLoading: false,
-          error,
-        });
-
         throw error;
       }
     } catch (error) {
-      // Log and handle login error
-      logger.error("Login failed", { error });
+      // Handle login error
+      logger.error("Login failed:", error);
+      throw error;
+    }
+  }
 
-      // Create and throw auth error
-      const authError = createAuthError(
-        AUTH_ERROR_CODES.LOGIN_FAILED,
-        error instanceof Error ? error.message : "Login failed"
-      );
-
-      this.updateAuthState({
-        isAuthenticated: false,
-        user: null,
-        isLoading: false,
-        error: authError,
+  /**
+   * Broadcast login event to other tabs
+   */
+  private broadcastLoginEvent(user: any): void {
+    // Use localStorage for cross-tab communication
+    localStorage.setItem("auth_login_event", JSON.stringify({
+      timestamp: Date.now(),
+      user: user
+    }));
+    
+    // Also use BroadcastChannel if available
+    if (this.broadcastChannel) {
+      this.broadcastChannel.postMessage({
+        type: "LOGIN",
+        payload: { user }
       });
-
-      throw authError;
     }
   }
 
@@ -563,6 +575,12 @@ export class AuthService {
       },
       false
     );
+    
+    // Add redirect to login page
+    if (typeof window !== "undefined") {
+      logger.info(`Redirecting to login after cross-tab logout`);
+      window.location.href = `/login?reason=logout_sync&t=${Date.now()}`;
+    }
   }
 
   /**
@@ -1340,5 +1358,111 @@ export class AuthService {
       default:
         return UserRole.GUEST;
     }
+  }
+
+  /**
+   * Initialize broadcast channel for cross-tab communication
+   */
+  private initBroadcastChannel(): void {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        this.broadcastChannel = new BroadcastChannel('auth_channel');
+        
+        this.broadcastChannel.onmessage = (event) => {
+          const { type, payload } = event.data;
+          
+          logger.debug('Received broadcast message', { type });
+          
+          switch (type) {
+            case 'LOGOUT':
+              this.handleLogoutSync();
+              break;
+            case 'LOGIN':
+              this.handleLoginSync(payload.user);
+              break;
+            case 'AUTH_STATE_CHANGE':
+              this.handleAuthStateSync(payload.state);
+              break;
+            default:
+              logger.warn('Unknown broadcast message type', { type });
+          }
+        };
+        
+        // Listen for storage events as fallback
+        window.addEventListener('storage', this.handleStorageEvent);
+      } else {
+        logger.warn('BroadcastChannel not supported, falling back to localStorage');
+        window.addEventListener('storage', this.handleStorageEvent);
+      }
+    } catch (error) {
+      logger.error('Failed to initialize broadcast channel', error);
+      window.addEventListener('storage', this.handleStorageEvent);
+    }
+  }
+
+  /**
+   * Handle login sync from other tabs
+   */
+  private handleLoginSync(user: any): void {
+    logger.info('Handling login sync from another tab');
+    
+    // Update auth state without broadcasting to avoid loops
+    this.updateAuthState({
+      isAuthenticated: true,
+      user: user,
+      isLoading: false,
+      error: null
+    }, false);
+    
+    // Redirect to dashboard
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/login')) {
+      logger.info('Redirecting to dashboard after login in another tab');
+      window.location.href = '/dashboard';
+    }
+  }
+
+  /**
+   * Handle auth state sync from other tabs
+   */
+  private handleAuthStateSync(state: AuthState): void {
+    // Update local state without broadcasting to avoid loops
+    this.authState = state;
+    
+    // Notify subscribers
+    this.notifySubscribers();
+    
+    // Redirect if needed
+    if (state.isAuthenticated && 
+        typeof window !== 'undefined' && 
+        window.location.pathname.includes('/login')) {
+      logger.info('Redirecting to dashboard after auth state change in another tab');
+      window.location.href = '/dashboard';
+    }
+  }
+
+  /**
+   * Handle storage events for cross-tab communication
+   */
+  private handleStorageEvent = (event: StorageEvent): void => {
+    this.processStorageEvent(event);
+  }
+
+  /**
+   * Notify all subscribers of auth state changes
+   */
+  private notifySubscribers(): void {
+    // Notify all listeners
+    this.stateChangeListeners.forEach((listener) => {
+      listener(this.authState);
+    });
+    
+    // Dispatch event if store is available
+    if (this.store) {
+      this.store.dispatch(setAuthState(this.authState));
+    }
+    
+    logger.debug("Auth state subscribers notified", {
+      isAuthenticated: this.authState.isAuthenticated,
+    });
   }
 }
