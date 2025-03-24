@@ -2,8 +2,9 @@ const { redisClient } = require("../../../config/redis");
 const logger = require("../../../utils/logger");
 const Session = require("../models/session.model");
 const sessionConfig = require("../config/session.config");
-const cookie = require('cookie');
-const cookieConfig = require('../config/cookie.config');
+const cookie = require("cookie");
+const cookieConfig = require("../config/cookie.config");
+const crypto = require("crypto");
 
 // Store cleanup intervals for proper shutdown
 const cleanupIntervals = [];
@@ -12,6 +13,77 @@ const tokenService = require("./token.service");
 
 // Add this at the top level of the file, near other global variables
 const connectionThrottling = new Map();
+
+// Add at top of file with other constants
+const ROOM_TYPES = {
+  USER: "user",
+  DEVICE: "device",
+  SESSION: "session",
+  TAB: "tab",
+};
+
+// Add helper function for room management
+const createRoomName = (type, id) => `${type}:${id}`;
+
+// Add this function to manage room hierarchy
+const manageSocketRooms = async (socket, userData) => {
+  try {
+    const { userId, deviceId, sessionId, tabId } = userData;
+
+    // Create room names
+    const userRoom = createRoomName(ROOM_TYPES.USER, userId);
+    const deviceRoom = createRoomName(ROOM_TYPES.DEVICE, deviceId);
+    const sessionRoom = createRoomName(ROOM_TYPES.SESSION, sessionId);
+    const tabRoom = tabId ? createRoomName(ROOM_TYPES.TAB, tabId) : null;
+
+    // Join rooms in hierarchical order
+    await socket.join(userRoom);
+    await socket.join(deviceRoom);
+    await socket.join(sessionRoom);
+    if (tabRoom) await socket.join(tabRoom);
+
+    // Store room info in socket for cleanup
+    socket.userData = {
+      userId,
+      deviceId,
+      sessionId,
+      tabId,
+      rooms: {
+        userRoom,
+        deviceRoom,
+        sessionRoom,
+        tabRoom,
+      },
+    };
+
+    logger.debug("Socket joined rooms", {
+      socketId: socket.id,
+      rooms: socket.userData.rooms,
+    });
+
+    return socket.userData.rooms;
+  } catch (error) {
+    logger.error("Error managing socket rooms:", error);
+    throw error;
+  }
+};
+
+// Add function to cleanup empty rooms
+const cleanupEmptyRooms = async (io, namespace) => {
+  try {
+    const rooms = await io.of(namespace).adapter.allRooms();
+
+    for (const room of rooms) {
+      const sockets = await io.of(namespace).adapter.sockets(new Set([room]));
+      if (sockets.size === 0) {
+        logger.debug(`Cleaning up empty room: ${room}`);
+        await io.of(namespace).adapter.del(room);
+      }
+    }
+  } catch (error) {
+    logger.error("Error cleaning up empty rooms:", error);
+  }
+};
 
 /**
  * Create a new session
@@ -163,8 +235,8 @@ exports.markSessionForCleanup = async (sessionId) => {
 
     // Store updated session
     // Ensure we have a valid expiration time (default to 1 hour if maxAge is invalid)
-    const expirySeconds = Number.isFinite(sessionConfig.maxAge) 
-      ? Math.ceil(sessionConfig.maxAge / 1000) 
+    const expirySeconds = Number.isFinite(sessionConfig.maxAge)
+      ? Math.ceil(sessionConfig.maxAge / 1000)
       : 3600; // 1 hour default
 
     await redisClient.set(
@@ -674,187 +746,265 @@ exports.setupSessionWebSockets = function (io) {
   // Socket authentication middleware
   sessionNamespace.use(async (socket, next) => {
     try {
-      logger.debug('Socket authentication attempt', { 
+      logger.debug("Socket authentication attempt", {
         socketId: socket.id,
-        hasAuthCookies: !!socket.request.headers.cookie
+        hasAuthCookies: !!socket.request.headers.cookie,
+        headers: Object.keys(socket.request.headers),
+        query: socket.handshake.query,
+        auth: socket.handshake.auth,
       });
 
       // Extract cookies from socket request
       const cookies = socket.request.headers.cookie;
       if (!cookies) {
-        logger.warn('Socket connection rejected: No cookies found');
+        logger.warn("Socket connection rejected: No cookies found", {
+          headers: Object.keys(socket.request.headers),
+        });
         return next(new Error("Authentication required"));
       }
 
       // Parse cookies
       const parsedCookies = cookie.parse(cookies);
       const accessToken = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
-      
+
       if (!accessToken) {
-        logger.warn('Socket connection rejected: No access token cookie');
+        logger.warn("Socket connection rejected: No access token cookie");
         return next(new Error("Authentication required"));
       }
 
       // Verify the access token
       try {
         const decoded = await tokenService.verifyAccessToken(accessToken);
-        
+
         // Extract user and session info
         const userId = decoded.userId || decoded.sub;
         const sessionId = decoded.sessionId;
-        
+
         if (!userId || !sessionId) {
-          logger.warn('Socket connection rejected: Invalid token payload', { userId, sessionId });
+          logger.warn("Socket connection rejected: Invalid token payload", {
+            userId,
+            sessionId,
+          });
           return next(new Error("Invalid authentication"));
         }
-        
+
         // Attach user and session data to socket
         socket.data.userId = userId;
         socket.data.sessionId = sessionId;
-        socket.data.tabId = socket.handshake.query.tabId || `unknown_${Date.now()}`;
-        
-        logger.info('Socket authentication successful', { 
-          userId, 
+        socket.data.tabId =
+          socket.handshake.query.tabId || `unknown_${Date.now()}`;
+
+        logger.info("Socket authentication successful", {
+          userId,
           sessionId,
-          socketId: socket.id
+          socketId: socket.id,
         });
-        
+
         return next();
       } catch (error) {
-        logger.error('Socket connection rejected: Token verification failed', error);
+        logger.error(
+          "Socket connection rejected: Token verification failed",
+          error
+        );
         return next(new Error("Authentication failed"));
       }
     } catch (error) {
-      logger.error('Socket authentication error', error);
+      logger.error("Socket authentication error", error);
       return next(new Error("Authentication error"));
     }
   });
 
-  // Connection event handler
-  sessionNamespace.on("connection", (socket) => {
-    // Assign socket to a room based on user ID for secure isolation
-    const userId = socket.data.userId;
-    const sessionId = socket.data.sessionId;
-    const tabId = socket.handshake.query.tabId;
-
-    // Join user-specific and session-specific rooms
-    socket.join(`user:${userId}`);
-    socket.join(`session:${sessionId}`);
-
-    if (tabId) {
-      socket.join(`tab:${tabId}`);
-      socket.tabId = tabId;
-    }
-
-    logger.info(`Client connected to session WebSocket: ${socket.id}`, {
-      userId,
-      sessionId,
-      tabId,
-    });
-
-    // Track client metadata
-    const clientMetadata = {
-      userAgent: socket.handshake.headers["user-agent"],
-      ip: socket.handshake.address,
-      transport: socket.conn.transport.name,
-      query: socket.handshake.query,
-      timestamp: new Date(),
-    };
-
-    // Store metadata in Redis for analytics and monitoring
+  // Authentication middleware
+  sessionNamespace.use(async (socket, next) => {
     try {
+      // Existing authentication code...
+
+      // Extract device fingerprint
+      const deviceFingerprint = socket.handshake.auth.deviceFingerprint;
+      const deviceId = crypto
+        .createHash("sha256")
+        .update(
+          `${socket.handshake.headers["user-agent"]}:${deviceFingerprint || ""}`
+        )
+        .digest("hex");
+
+      // Store device info
+      socket.deviceId = deviceId;
+
+      next();
+    } catch (error) {
+      next(new Error("Authentication failed"));
+    }
+  });
+
+  // Connection event handler
+  sessionNamespace.on("connection", async (socket) => {
+    try {
+      // Set up room hierarchy
+      const rooms = await manageSocketRooms(socket, {
+        userId: socket.data.userId,
+        deviceId: socket.deviceId,
+        sessionId: socket.data.sessionId,
+        tabId: socket.handshake.query.tabId,
+      });
+
+      // Track client metadata with room context
+      const clientMetadata = {
+        userAgent: socket.handshake.headers["user-agent"],
+        ip: socket.handshake.address,
+        transport: socket.conn.transport.name,
+        query: socket.handshake.query,
+        rooms,
+        timestamp: new Date(),
+      };
+
+      // Store metadata in Redis
       const metadataKey = `socket:metadata:${socket.id}`;
-      redisClient.set(
+      await redisClient.set(
         metadataKey,
         JSON.stringify(clientMetadata),
         "EX",
         60 * 60 // 1 hour expiry
       );
-    } catch (error) {
-      logger.error("Failed to store socket metadata:", error);
-    }
 
-    // Handle session sync
-    socket.on("sync", async (data) => {
-      try {
-        if (!socket.sessionId) {
-          return socket.emit("error", { message: "Not authenticated" });
-        }
+      // Broadcast connection to device room
+      socket.to(rooms.deviceRoom).emit("device:connection", {
+        sessionId: socket.data.sessionId,
+        tabId: socket.handshake.query.tabId,
+        timestamp: Date.now(),
+      });
 
-        const session = await exports.getSessionById(socket.sessionId);
-        if (!session) {
-          return socket.emit("error", { message: "Session not found" });
-        }
+      // Handle session sync
+      socket.on("sync", async (data) => {
+        try {
+          if (!socket.data.sessionId) {
+            return socket.emit("error", { message: "Not authenticated" });
+          }
 
-        // Update tab activity
-        if (data.tabId) {
-          await exports.updateTabActivity(
-            socket.sessionId,
-            data.tabId,
-            data.clientInfo || {}
+          const session = await exports.getSessionById(socket.data.sessionId);
+          if (!session) {
+            return socket.emit("error", { message: "Session not found" });
+          }
+
+          // Update tab activity
+          if (data.tabId) {
+            await exports.updateTabActivity(
+              socket.data.sessionId,
+              data.tabId,
+              data.clientInfo || {}
+            );
+          }
+
+          // Send session data back to client
+          const sessionData = await exports.getSessionInfo(
+            socket.data.sessionId,
+            {
+              tabId: data.tabId,
+              clientInfo: data.clientInfo,
+            }
           );
+
+          // Broadcast updates to appropriate rooms based on scope
+          if (data.scope === "device") {
+            socket.to(rooms.deviceRoom).emit("session-update", sessionData);
+          } else if (data.scope === "user") {
+            socket.to(rooms.userRoom).emit("session-update", sessionData);
+          } else {
+            // Default to session scope
+            socket.to(rooms.sessionRoom).emit("session-update", sessionData);
+          }
+        } catch (error) {
+          logger.error("Error in session sync:", error);
+          socket.emit("error", { message: "Failed to sync session" });
         }
+      });
 
-        // Send session data back to client
-        const sessionData = await exports.getSessionInfo(socket.sessionId, {
-          tabId: data.tabId,
-          clientInfo: data.clientInfo,
-        });
+      // Handle user activity updates
+      socket.on("activity", async (data) => {
+        try {
+          if (!socket.data.sessionId) {
+            return socket.emit("error", { message: "Not authenticated" });
+          }
 
-        socket.emit("session-update", sessionData);
-      } catch (error) {
-        logger.error("Error in session sync:", error);
-        socket.emit("error", { message: "Failed to sync session" });
-      }
-    });
+          // Update session activity
+          await exports.updateSessionActivity(
+            socket.data.sessionId,
+            data.timestamp || Date.now()
+          );
 
-    // Handle user activity updates
-    socket.on("activity", async (data) => {
-      try {
-        if (!socket.sessionId) {
-          return socket.emit("error", { message: "Not authenticated" });
+          // Broadcast to other tabs of the same user
+          socket.to(`user:${socket.data.userId}`).emit("activity-update", {
+            userId: socket.data.userId,
+            sessionId: socket.data.sessionId,
+            tabId: data.tabId,
+            timestamp: data.timestamp || Date.now(),
+          });
+        } catch (error) {
+          logger.error("Error handling activity update:", error);
+          socket.emit("error", { message: "Failed to update activity" });
         }
+      });
 
-        // Update session activity
-        await exports.updateLastActivity(
-          socket.sessionId,
-          data.timestamp || Date.now()
-        );
+      // Handle heartbeat responses
+      socket.on("heartbeat:response", async (data) => {
+        try {
+          if (!socket.data.sessionId) {
+            return socket.emit("error", { message: "Not authenticated" });
+          }
 
-        // Broadcast to other tabs of the same user
-        socket.to(`user:${socket.userId}`).emit("activity-update", {
-          userId: socket.userId,
-          sessionId: socket.sessionId,
-          tabId: data.tabId,
-          timestamp: data.timestamp || Date.now(),
-        });
-      } catch (error) {
-        logger.error("Error handling activity update:", error);
-        socket.emit("error", { message: "Failed to update activity" });
-      }
-    });
+          // Update session activity
+          await exports.updateSessionActivity(
+            socket.data.sessionId,
+            data.timestamp || Date.now()
+          );
+          
+          // Mark socket as alive
+          socket.isAlive = true;
+        } catch (error) {
+          logger.error("Error handling heartbeat response:", error);
+        }
+      });
 
-    // Handle disconnect
-    socket.on("disconnect", async () => {
-      try {
-        // Decrement connection counter
-        connectionCount = Math.max(0, connectionCount - 1);
+      // Handle disconnect
+      socket.on("disconnect", async () => {
+        try {
+          // Decrement connection counter
+          connectionCount = Math.max(0, connectionCount - 1);
 
-        if (socket.sessionId && socket.tabId) {
-          logger.info("Client disconnected from session WebSocket", {
-            socketId: socket.id,
-            userId: socket.userId,
-            sessionId: socket.sessionId,
-            tabId: socket.tabId,
+          if (socket.data.sessionId && socket.data.tabId) {
+            logger.info("Client disconnected from session WebSocket", {
+              socketId: socket.id,
+              userId: socket.data.userId,
+              sessionId: socket.data.sessionId,
+              tabId: socket.data.tabId,
+            });
+
+            // Mark tab as inactive
+            await exports.markTabInactive(
+              socket.data.sessionId,
+              socket.data.tabId
+            );
+          }
+
+          // Broadcast disconnect to device room
+          socket.to(rooms.deviceRoom).emit("device:disconnect", {
+            sessionId: socket.data.sessionId,
+            tabId: socket.handshake.query.tabId,
+            timestamp: Date.now(),
           });
 
-          // Mark tab as inactive
-          await exports.markTabInactive(socket.sessionId, socket.tabId);
+          // Clean up empty rooms after a delay
+          setTimeout(() => {
+            cleanupEmptyRooms(io, "/session");
+          }, 5000); // 5 second delay to handle rapid reconnects
+        } catch (error) {
+          logger.error("Error handling socket disconnect:", error);
         }
-      } catch (error) {
-        logger.error("Error handling socket disconnect:", error);
-      }
-    });
+      });
+    } catch (error) {
+      logger.error("Error setting up socket connection:", error);
+      socket.disconnect(true);
+    }
   });
 
   return sessionNamespace;

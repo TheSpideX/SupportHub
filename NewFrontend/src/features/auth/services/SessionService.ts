@@ -43,7 +43,7 @@ import { authApi } from "@/features/auth/api/auth-api";
 import { apiClient } from "@/api/apiClient";
 import { AUTH_CONSTANTS } from "../constants/auth.constants";
 import { API_CONFIG } from "../../../config/api";
-import { sessionSocketManager } from '@/services/socket/socket';
+import { getSessionSocketManager } from '@/services/socket/socket';
 
 export interface SessionServiceConfig {
   apiBaseUrl: string;
@@ -315,7 +315,7 @@ export class SessionService {
 
     // Additionally, send activity to server via WebSocket
     try {
-      sessionSocketManager.activity();
+      getSessionSocketManager().activity();
     } catch (error) {
       logger.debug("Could not send activity via WebSocket", error);
     }
@@ -705,7 +705,7 @@ export class SessionService {
     }
 
     // Clean up socket resources
-    sessionSocketManager.destroy();
+    getSessionSocketManager().destroy();
 
     if (this.socketSyncInterval) {
       clearInterval(this.socketSyncInterval);
@@ -1240,7 +1240,7 @@ export class SessionService {
       const deviceFingerprint = await this.securityService.getDeviceFingerprint();
       
       // Initialize socket with device fingerprint only (token is in HTTP-only cookie)
-      sessionSocketManager.initialize(deviceFingerprint);
+      getSessionSocketManager().initialize(deviceFingerprint);
       
       // Set up socket event listeners
       this.setupSessionSocketListeners();
@@ -1328,15 +1328,15 @@ export class SessionService {
    * Set up socket event listeners
    */
   private setupSessionSocketListeners(): void {
-    sessionSocketManager.on('session-update', (data) => {
+    getSessionSocketManager().on('session-update', (data) => {
       this.handleSocketSessionUpdate(data);
     });
     
-    sessionSocketManager.on('activity-update', (data) => {
+    getSessionSocketManager().on('activity-update', (data) => {
       this.handleSocketActivityUpdate(data);
     });
     
-    sessionSocketManager.on('status', (status) => {
+    getSessionSocketManager().on('status', (status) => {
       logger.debug('Socket status changed:', status);
     });
   }

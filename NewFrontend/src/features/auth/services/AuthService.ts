@@ -1436,6 +1436,11 @@ export class AuthService {
         typeof window !== 'undefined' && 
         window.location.pathname.includes('/login')) {
       logger.info('Redirecting to dashboard after auth state change in another tab');
+      
+      // Initialize socket before redirect to ensure connection
+      const { initializeSessionSocket } = require('@/services/socket');
+      initializeSessionSocket();
+      
       window.location.href = '/dashboard';
     }
   }
