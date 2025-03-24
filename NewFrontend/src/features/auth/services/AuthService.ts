@@ -1711,4 +1711,18 @@ export class AuthService {
       );
     }
   }
+
+  private initializeServices() {
+    // Initialize CrossTabService using the getInstance method
+    this.crossTabService = CrossTabService.getInstance();
+
+    // Initialize TokenService with CrossTabService
+    this.tokenService = new TokenService({
+      // other options...
+      crossTabService: this.crossTabService,
+    });
+
+    // Set up event listeners after both services are initialized
+    this.tokenService.setupCrossTabListeners();
+  }
 }

@@ -1,4 +1,7 @@
+import EventEmitter from "eventemitter3";
 import { logger } from "@/utils/logger";
+import { TokenService } from "./TokenService";
+import { eventBus } from "../utils/EventBus";
 
 // Simple EventEmitter implementation
 class SimpleEventEmitter {
@@ -44,7 +47,7 @@ export enum MessageType {
   LEADER_PING = "LEADER_PING",
   LEADER_ELECTION = "LEADER_ELECTION",
   LOGIN_SUCCESS = "LOGIN_SUCCESS", // New message type
-  TAB_VISIBLE = "TAB_VISIBLE",     // New message type
+  TAB_VISIBLE = "TAB_VISIBLE", // New message type
 }
 
 // Cross-tab message interface
@@ -78,7 +81,7 @@ const DEFAULT_CONFIG: CrossTabConfig = {
   useSharedWorker: true, // Enable by default
 };
 
-export class CrossTabService {
+export class CrossTabService extends EventEmitter {
   private static instance: CrossTabService | null = null;
 
   private eventEmitter: SimpleEventEmitter = new SimpleEventEmitter();
@@ -111,6 +114,7 @@ export class CrossTabService {
   }
 
   private constructor(configOptions: Partial<CrossTabConfig> = {}) {
+    super(); // Initialize EventEmitter
     // Return existing instance if already created (for HMR safety)
     const w = typeof window !== "undefined" ? (window as any) : {};
     if (w.__crossTabServiceInstance) {
@@ -373,24 +377,13 @@ export class CrossTabService {
   }
 
   // Become the leader (for fallback)
-  private becomeLeader(): void {
-    try {
-      const leaderData = {
-        tabId: this.tabId,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem(this.leaderStorageKey, JSON.stringify(leaderData));
-      this.isLeaderTab = true;
-      logger.info("This tab is now the leader");
+  public becomeLeader(): void {
+    this.isLeaderTab = true;
+    logger.info("[CrossTabService] This tab has become the leader");
 
-      // Broadcast leader election result
-      this.broadcastMessage(MessageType.LEADER_ELECTION, {
-        tabId: this.tabId,
-        timestamp: Date.now(),
-      });
-    } catch (error) {
-      logger.error("Failed to become leader", error);
-    }
+    // Use eventBus instead of direct emit
+    eventBus.emit("leader:promoted");
+    logger.info("[CrossTabService] Emitted leader:promoted event");
   }
 
   // Update leader timestamp (for fallback)
@@ -530,6 +523,18 @@ export class CrossTabService {
     if (!message || !message.type) return;
 
     switch (message.type) {
+      case "BECOME_LEADER":
+        this.isLeaderTab = true;
+        logger.info(
+          "[CrossTabService] This tab has been promoted to leader by worker"
+        );
+
+        // Use eventBus instead of direct emit
+        eventBus.emit("leader:promoted");
+        logger.info("[CrossTabService] Emitted leader:promoted event");
+        break;
+
+      // Existing cases...
       case "AUTH_STATE_UPDATE":
         // Worker is sending updated auth state
         this.eventEmitter.emit(MessageType.AUTH_STATE_CHANGED, message.payload);
@@ -724,6 +729,21 @@ export class CrossTabService {
   public getLeaderStorageKey(): string {
     return this.leaderStorageKey;
   }
+
+  // Add this public method
+  public electLeader(): void {
+    if (this.workerAvailable && this.workerPort) {
+      this.workerPort.postMessage({
+        type: "REQUEST_LEADER_ELECTION",
+        payload: { timestamp: Date.now() },
+        tabId: this.tabId,
+        timestamp: Date.now(),
+      });
+    } else {
+      // Fallback to local leader election
+      this.attemptLeaderElection();
+    }
+  }
 }
 
 // Export singleton getter
@@ -731,4 +751,9 @@ export function getCrossTabService(
   config: Partial<CrossTabConfig> = {}
 ): CrossTabService {
   return CrossTabService.getInstance(config);
+}
+
+export interface CrossTabOptions {
+  mode?: "worker" | "broadcast" | "storage";
+  // other existing options
 }

@@ -150,32 +150,6 @@ function handleTabDisconnect(tabId: string): void {
   }
 }
 
-// Elect a new leader if current leader disconnected
-function electNewLeader(): void {
-  // Get the first key from the Map if any exist
-  let newLeader: string | null = null;
-
-  // Iterate to find the first key
-  connectedPorts.forEach((_, tabId) => {
-    if (newLeader === null) {
-      newLeader = tabId;
-    }
-  });
-
-  if (newLeader) {
-    leaderTabId = newLeader;
-
-    broadcastToAllTabs({
-      type: "LEADER_ELECTED",
-      payload: { tabId: leaderTabId },
-      tabId: "worker",
-      timestamp: Date.now(),
-    });
-  } else {
-    leaderTabId = null;
-  }
-}
-
 // Handle auth state change
 function handleAuthStateChange(message: WorkerMessage): void {
   // Process auth state changes with priority flags
@@ -339,4 +313,34 @@ function relayMessageExcept(
       }
     }
   });
+}
+
+function electNewLeader() {
+  if (connectedPorts.size > 0) {
+    // Get the first available tab as the new leader
+    const newLeaderId = Array.from(connectedPorts.keys())[0];
+
+    leaderTabId = newLeaderId;
+
+    console.info(`[AuthSharedWorker] Elected new leader tab: ${leaderTabId}`);
+
+    // Notify all tabs about the new leader
+    broadcastToAllTabs({
+      type: "LEADER_ELECTED",
+      payload: { tabId: leaderTabId },
+      tabId: "worker",
+      timestamp: Date.now(),
+    });
+
+    // Notify the leader specifically to trigger token checks
+    const leaderPort = connectedPorts.get(leaderTabId);
+    if (leaderPort) {
+      leaderPort.postMessage({
+        type: "BECOME_LEADER",
+        payload: { timestamp: Date.now() },
+        tabId: "worker",
+        timestamp: Date.now(),
+      });
+    }
+  }
 }

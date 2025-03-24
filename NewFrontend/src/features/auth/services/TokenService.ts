@@ -12,6 +12,7 @@
  * - Advanced security measures
  */
 
+import { eventBus } from "../utils/EventBus";
 import { logger } from "@/utils/logger";
 import EventEmitter from "eventemitter3";
 import {
@@ -59,6 +60,7 @@ export interface TokenServiceConfig {
   refreshTokenName: string;
   csrfTokenName: string;
   tokenExpiryThreshold: number;
+  crossTabService?: CrossTabService; // Add this line
 }
 
 const defaultConfig: TokenServiceConfig = {
@@ -2381,13 +2383,17 @@ export class TokenService {
    * Check if this tab can refresh the token
    */
   private _canRefreshToken(): boolean {
-    // Only leader should refresh unless forced
-    if (
-      this.crossTabService &&
-      !this.crossTabService.isLeader() &&
-      !this.forceNextRefresh
-    ) {
-      return false;
+    // If we're using cross-tab service (SharedWorker, BroadcastChannel, etc.)
+    if (this.crossTabService) {
+      // Only leader should refresh unless forced
+      if (!this.crossTabService.isLeader() && !this.forceNextRefresh) {
+        logger.debug(
+          "[TokenService] Not the leader tab, skipping token refresh"
+        );
+        return false;
+      }
+
+      logger.debug("[TokenService] Leader tab handling token refresh");
     }
 
     // Check if another tab is already refreshing
@@ -2396,14 +2402,38 @@ export class TokenService {
       if (lockData) {
         const lock = JSON.parse(lockData);
 
-        // Lock is valid if it's less than 10 seconds old
+        // Check if lock is still valid (less than 10 seconds old)
         if (lock && lock.timestamp > Date.now() - 10000) {
+          logger.debug(
+            "[TokenService] Another tab is already refreshing the token"
+          );
           return false;
+        } else {
+          // Lock is stale, we can refresh
+          logger.debug(
+            "[TokenService] Found stale refresh lock, proceeding with refresh"
+          );
         }
       }
+
+      // Set our own lock when we decide to refresh
+      localStorage.setItem(
+        "token_refresh_lock",
+        JSON.stringify({
+          tabId: this.crossTabService
+            ? this.crossTabService.getTabId()
+            : "unknown",
+          timestamp: Date.now(),
+        })
+      );
+
       return true;
     } catch (error) {
       // On error, assume we can refresh
+      logger.warn(
+        "[TokenService] Error checking refresh lock, assuming we can refresh",
+        error
+      );
       return true;
     }
   }
@@ -2435,6 +2465,32 @@ export class TokenService {
       logger.error("Failed to clear token refresh lock:", error);
     }
   }
+
+  // Add this to your TokenService class:
+
+  /**
+   * Sets up listeners for cross-tab events
+   */
+  public setupCrossTabListeners(): void {
+    // Listen for leader promotion events using eventBus
+    eventBus.on("leader:promoted", () => {
+      logger.info("[TokenService] Received leader:promoted event");
+
+      try {
+        logger.info("[TokenService] New leader forcing token status check");
+        this.checkTokenStatus();
+        this.startTokenHeartbeat(); // Restart the token refresh cycle
+      } catch (error) {
+        logger.error(
+          "[TokenService] Error checking token status after leader promotion",
+          error
+        );
+      }
+    });
+  }
+
+  // Make sure to call this in your constructor or initialization
+  // this.setupCrossTabListeners();
 }
 
 // Export a singleton instance
