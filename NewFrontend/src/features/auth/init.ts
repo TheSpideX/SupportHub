@@ -6,6 +6,7 @@ import { setAuthState, clearAuthState } from './store/authSlice';
 import { AuthInitOptions, SecurityLevel, ErrorHandlingConfig } from './types/auth.types';
 import { logger } from '@/utils/logger';
 import { AUTH_CONSTANTS } from './constants/auth.constants';
+import { initializeSessionSocket } from '@/services/socket/socket';
 
 // Define AuthInstance interface
 interface AuthInstance {
@@ -175,6 +176,11 @@ export function initAuth(config: Partial<ExtendedAuthInitOptions> = {}): AuthIns
         sessionExpiry: currentState.sessionExpiry,
         isInitialized: true // Make sure to set this flag
       }));
+    }
+
+    // Initialize socket if user is authenticated
+    if (authService.getAuthState().isAuthenticated) {
+      initializeSessionSocket();
     }
   });
 

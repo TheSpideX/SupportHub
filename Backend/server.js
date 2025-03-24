@@ -16,7 +16,7 @@ EventEmitter.defaultMaxListeners = 15;
 const { connectDB } = require("./src/config/db");
 const logger = require("./src/utils/logger");
 const { auth } = require("./src/modules");
-const setupSocketIO = require("./src/config/socket");
+const socketIO = require("./src/config/socket");
 const corsConfig = require("./src/config/cors.config");
 const cors = require("cors");
 const {
@@ -182,7 +182,7 @@ const startServer = async () => {
     }
 
     // Setup Socket.IO
-    const io = await setupSocketIO(httpServer);
+    const io = await socketIO.setupSocketIO(httpServer);
     app.set('io', io);
 
     // Start HTTP server

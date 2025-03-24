@@ -2040,11 +2040,12 @@ export class TokenService {
    * Get session information safely for HTTP-only cookie implementation
    * This centralizes all session data access
    */
-  private getSessionInfo(): {
+  public getSessionInfo(): {
     isValid: boolean;
     userId?: string;
     expiresAt?: Date;
     tokenVersion?: number;
+    id?: string; // Add the id property
   } {
     try {
       // For HTTP-only cookies, we rely on session metadata
@@ -2078,7 +2079,8 @@ export class TokenService {
         isValid: true,
         userId: sessionData.userId,
         expiresAt: expiresAt,
-        tokenVersion: tokenVersion, // Use the tokenVersion from class property or localStorage
+        tokenVersion: tokenVersion,
+        id: sessionData.id // Include the session ID from sessionData
       };
     } catch (error) {
       logger.error("Error getting session info:", error);

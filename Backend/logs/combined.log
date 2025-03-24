@@ -13118,3 +13118,987 @@
 {"command":{"args":["session:67e18261d8e84c67f2c84eb1","{\"userId\":\"67d4a0b43019eebd5829ef34\",\"isActive\":true,\"expiresAt\":\"2025-03-31T16:03:45.509Z\",\"lastActivity\":\"2025-03-24T16:03:45.509Z\",\"markedForCleanup\":true,\"markedAt\":1742832266868}","EX","NaN"],"name":"set"},"level":"error","message":"Redis set error, using fallback: ERR value is not an integer or out of range","service":"tech-support-crm","stack":"ReplyError: ERR value is not an integer or out of range\n    at parseError (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:179:12)\n    at parseType (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:302:14)","timestamp":"2025-03-24 21:34:26"}
 {"command":{"args":["session:67e18291d8e84c67f2c84ed9","{\"userId\":\"67d4a0b43019eebd5829ef34\",\"isActive\":true,\"expiresAt\":\"2025-03-31T16:04:33.898Z\",\"lastActivity\":\"2025-03-24T16:04:33.898Z\",\"markedForCleanup\":true,\"markedAt\":1742832295777}","EX","NaN"],"name":"set"},"level":"error","message":"Redis set error, using fallback: ERR value is not an integer or out of range","service":"tech-support-crm","stack":"ReplyError: ERR value is not an integer or out of range\n    at parseError (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:179:12)\n    at parseType (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:302:14)","timestamp":"2025-03-24 21:34:55"}
 {"command":{"args":["session:67e182add8e84c67f2c84eef","{\"userId\":\"67d4a0b43019eebd5829ef34\",\"isActive\":true,\"expiresAt\":\"2025-03-31T16:05:01.040Z\",\"lastActivity\":\"2025-03-24T16:05:01.040Z\",\"markedForCleanup\":true,\"markedAt\":1742832378602}","EX","NaN"],"name":"set"},"level":"error","message":"Redis set error, using fallback: ERR value is not an integer or out of range","service":"tech-support-crm","stack":"ReplyError: ERR value is not an integer or out of range\n    at parseError (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:179:12)\n    at parseType (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:302:14)","timestamp":"2025-03-24 21:36:18"}
+{"level":"info","message":"Initiating graceful shutdown...","service":"tech-support-crm","timestamp":"2025-03-24 21:48:09"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 21:56:11"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:01:34"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:01:40"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:02:14"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:02:39"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:10:49"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:10:51"}
+{"level":"info","message":"Initiating graceful shutdown...","service":"tech-support-crm","timestamp":"2025-03-24 22:13:55"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:13:56"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:13:57"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:407:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:18:56"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:407:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:18:56"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:21:12"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:21:15"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:21:41"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:20"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:21"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:22"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:25"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:29"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:34"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:407:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:26:41"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:407:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:26:41"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:43"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:26:55"}
+{"level":"error","message":"Socket authentication error cookie is not defined","service":"tech-support-crm","stack":"ReferenceError: cookie is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:683:29)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:660:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:13"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:27:21"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:25"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:26"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:28"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:31"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:35"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:40"}
+{"level":"error","message":"Socket authentication error cookieConfig is not defined","service":"tech-support-crm","stack":"ReferenceError: cookieConfig is not defined\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:685:41)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at /Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:138:17\n    at Array.<anonymous> (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:661:7)\n    at run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:130:19)\n    at Namespace.run (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:141:9)\n    at Namespace._add (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/socket.io/dist/namespace.js:218:14)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:27:48"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e18e930ba3ac99543dcf05","socketId":"sJZ5qpy1qZUHzvoTAAAB","timestamp":"2025-03-24 22:27:49","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: sJZ5qpy1qZUHzvoTAAAB","service":"tech-support-crm","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:27:49"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e18e930ba3ac99543dcf05","socketId":"PAhq4qA3IuqG0bD6AAAD","timestamp":"2025-03-24 22:29:04","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: PAhq4qA3IuqG0bD6AAAD","service":"tech-support-crm","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:29:04"}
+{"command":{"args":["session:67e18fa0918af1fbada910c6","{\"userId\":\"67d4a0b43019eebd5829ef34\",\"isActive\":true,\"expiresAt\":\"2025-03-31T17:00:16.174Z\",\"lastActivity\":\"2025-03-24T17:00:16.174Z\",\"markedForCleanup\":true,\"markedAt\":1742835621165}","EX","NaN"],"name":"set"},"level":"error","message":"Redis set error, using fallback: ERR value is not an integer or out of range","service":"tech-support-crm","stack":"ReplyError: ERR value is not an integer or out of range\n    at parseError (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:179:12)\n    at parseType (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:302:14)","timestamp":"2025-03-24 22:30:21"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:409:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:32:48"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:409:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:32:48"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:33:51"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:37:57"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:37:59"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:39:38"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:39:41"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:39:42"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:39:46"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:39:48"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:41:07"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:41:09"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"krObtg-ROfee8tYEAAAB","timestamp":"2025-03-24 22:41:43","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: krObtg-ROfee8tYEAAAB","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:41:43","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:42:46"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"yUkPUznAyWwk_vwPAAAB","timestamp":"2025-03-24 22:42:48","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: yUkPUznAyWwk_vwPAAAB","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:42:48","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"inx7CPlIo-YEDNSuAAAD","timestamp":"2025-03-24 22:42:57","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: inx7CPlIo-YEDNSuAAAD","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:42:57","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"5lPz7ePjvY6twN7rAAAF","timestamp":"2025-03-24 22:43:05","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: 5lPz7ePjvY6twN7rAAAF","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742836385411_75pzaashx","timestamp":"2025-03-24 22:43:05","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"YGVe45w1k2pRporjAAAH","timestamp":"2025-03-24 22:43:06","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: YGVe45w1k2pRporjAAAH","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742836386393_z2zdxdrvw","timestamp":"2025-03-24 22:43:06","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"W6BVAgcGezKOfCoOAAAJ","timestamp":"2025-03-24 22:43:11","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: W6BVAgcGezKOfCoOAAAJ","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742836391674_f4vp15mkd","timestamp":"2025-03-24 22:43:11","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:43:59"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"vhvYkAnhhxgC0MYMAAAB","timestamp":"2025-03-24 22:44:00","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: vhvYkAnhhxgC0MYMAAAB","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742836391674_f4vp15mkd","timestamp":"2025-03-24 22:44:00","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"mBsABK9csatB3wpAAAAD","timestamp":"2025-03-24 22:44:01","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: mBsABK9csatB3wpAAAAD","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:44:01","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","socketId":"dL3XYNlS5cQWijxtAAAF","timestamp":"2025-03-24 22:44:04","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: dL3XYNlS5cQWijxtAAAF","service":"tech-support-crm","sessionId":"67e190bb185731873e92b8b8","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:44:04","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:44:50"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:45:47"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:49"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:45:50"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e19345465d6cd47f6d4510","socketId":"2QznG1CzJc0zHBB5AAAB","timestamp":"2025-03-24 22:45:51","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: 2QznG1CzJc0zHBB5AAAB","service":"tech-support-crm","sessionId":"67e19345465d6cd47f6d4510","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:45:51","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e19345465d6cd47f6d4510","socketId":"yWehqFUk_bKC99w9AAAD","timestamp":"2025-03-24 22:46:33","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: yWehqFUk_bKC99w9AAAD","service":"tech-support-crm","sessionId":"67e19345465d6cd47f6d4510","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:46:33","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e19345465d6cd47f6d4510","socketId":"3NCTnu_x1NlC8FtQAAAF","timestamp":"2025-03-24 22:46:38","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: 3NCTnu_x1NlC8FtQAAAF","service":"tech-support-crm","sessionId":"67e19345465d6cd47f6d4510","tabId":"tab_1742836391674_f4vp15mkd","timestamp":"2025-03-24 22:46:38","userId":"67d4a0b43019eebd5829ef34"}
+{"command":{"args":["session:67e19345465d6cd47f6d4510","{\"userId\":\"67d4a0b43019eebd5829ef34\",\"isActive\":true,\"expiresAt\":\"2025-03-31T17:15:49.388Z\",\"lastActivity\":\"2025-03-24T17:15:49.388Z\",\"markedForCleanup\":true,\"markedAt\":1742836606339}","EX","NaN"],"name":"set"},"level":"error","message":"Redis set error, using fallback: ERR value is not an integer or out of range","service":"tech-support-crm","stack":"ReplyError: ERR value is not an integer or out of range\n    at parseError (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:179:12)\n    at parseType (/Users/kumarsatyam/Desktop/SupportHub/Backend/node_modules/redis-parser/lib/parser.js:302:14)","timestamp":"2025-03-24 22:46:46"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:47:22"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e193aa3f293b3479d2c5b6","socketId":"HEEV8QItwM7Qb9hUAAAB","timestamp":"2025-03-24 22:47:31","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: HEEV8QItwM7Qb9hUAAAB","service":"tech-support-crm","sessionId":"67e193aa3f293b3479d2c5b6","tabId":"tab_1742836391674_f4vp15mkd","timestamp":"2025-03-24 22:47:31","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e193aa3f293b3479d2c5b6","socketId":"hT9czUy6XqfV1whaAAAD","timestamp":"2025-03-24 22:47:52","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: hT9czUy6XqfV1whaAAAD","service":"tech-support-crm","sessionId":"67e193aa3f293b3479d2c5b6","tabId":"tab_1742836391674_f4vp15mkd","timestamp":"2025-03-24 22:47:52","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e193e43f293b3479d2c5de","socketId":"B8QdWD9fVoaK3M4QAAAF","timestamp":"2025-03-24 22:48:29","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: B8QdWD9fVoaK3M4QAAAF","service":"tech-support-crm","sessionId":"67e193e43f293b3479d2c5de","tabId":"tab_1742836391674_f4vp15mkd","timestamp":"2025-03-24 22:48:29","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"warn","message":"Terminating inactive session socket: B8QdWD9fVoaK3M4QAAAF","service":"tech-support-crm","timestamp":"2025-03-24 22:49:22"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:414:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:52:22"}
+{"level":"error","message":"Error cleaning up connection throttling data: connectionThrottling is not defined","service":"tech-support-crm","stack":"ReferenceError: connectionThrottling is not defined\n    at Timeout._onTimeout (/Users/kumarsatyam/Desktop/SupportHub/Backend/src/modules/auth/services/session.service.js:414:59)\n    at listOnTimeout (node:internal/timers:594:17)\n    at process.processTimers (node:internal/timers:529:7)","timestamp":"2025-03-24 22:52:22"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:54:00"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Token service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Initializing Auth Module","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Setting up token cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Token cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Initializing session service","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Setting up session cleanup schedule","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Session cleanup schedule established","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Session service initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Security audits scheduled to run every 24 hours","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Suspicious activity detection initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Security event listeners set up","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Security monitoring initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Auth Module Initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Redis connected to localhost:6379 DB:0","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"MongoDB Connected: localhost","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"MongoDB connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Redis connected successfully","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Socket.IO Redis adapter configured","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Setting up session WebSocket handlers","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Session WebSocket namespace initialized","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Server running in development mode on port 4290","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"API Documentation available at http://localhost:4290/api-docs","service":"tech-support-crm","timestamp":"2025-03-24 22:54:01"}
+{"level":"info","message":"Socket authentication successful","service":"tech-support-crm","sessionId":"67e195428d300698f12004d7","socketId":"8HmB9_Td9AI9RMbyAAAB","timestamp":"2025-03-24 22:54:19","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"info","message":"Client connected to session WebSocket: 8HmB9_Td9AI9RMbyAAAB","service":"tech-support-crm","sessionId":"67e195428d300698f12004d7","tabId":"tab_1742834469283_45bdnr2ql","timestamp":"2025-03-24 22:54:19","userId":"67d4a0b43019eebd5829ef34"}
+{"level":"warn","message":"Terminating inactive session socket: 8HmB9_Td9AI9RMbyAAAB","service":"tech-support-crm","timestamp":"2025-03-24 22:55:01"}

@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "jsx": "react-jsx",
@@ -6,6 +5,9 @@
     "paths": {
       "@/*": ["src/*"]
     },
+    "module": "esnext",
+    "moduleResolution": "node",
+    "types": ["vite/client"]
     // ... other options
   }
 }

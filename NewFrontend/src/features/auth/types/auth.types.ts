@@ -30,7 +30,7 @@ export enum UserRole {
   ADMIN = "ADMIN",
   USER = "USER",
   MANAGER = "MANAGER",
-  GUEST = "GUEST"
+  GUEST = "GUEST",
 }
 
 // Authentication state
@@ -47,12 +47,16 @@ export interface AuthState {
 }
 
 // Storage types
-export type StorageType = 'localStorage' | 'sessionStorage' | 'cookie' | 'memory';
+export type StorageType =
+  | "localStorage"
+  | "sessionStorage"
+  | "cookie"
+  | "memory";
 
 export interface StorageOptions {
   httpOnly?: boolean;
   secure?: boolean;
-  sameSite?: 'strict' | 'lax' | 'none';
+  sameSite?: "strict" | "lax" | "none";
   path?: string;
   domain?: string;
   maxAge?: number;
@@ -61,7 +65,7 @@ export interface StorageOptions {
 
 // Circuit breaker pattern
 export interface CircuitBreakerState {
-  status: 'open' | 'closed' | 'half-open';
+  status: "open" | "closed" | "half-open";
   failures: number;
   lastFailure: number;
   nextRetry: number;
@@ -95,11 +99,12 @@ export interface SessionData {
   metrics?: {
     [key: string]: any;
   };
+  _source?: "server" | "tab" | "local"; // Track the origin of session data
 }
 
 // Offline auth queue
 export interface OfflineAuthAction {
-  type: 'login' | 'logout' | 'refresh' | 'update';
+  type: "login" | "logout" | "refresh" | "update";
   payload: any;
   timestamp: number;
   id: string;
@@ -161,16 +166,16 @@ export interface SessionInfo {
 }
 
 // Auth events
-export type AuthEventType = 
-  | 'login:success'
-  | 'login:failure'
-  | 'logout'
-  | 'session:expired'
-  | 'token:refreshed'
-  | 'token:refresh:failed'
-  | 'security:violation'
-  | 'user:updated'
-  | 'cross-tab:sync';
+export type AuthEventType =
+  | "login:success"
+  | "login:failure"
+  | "logout"
+  | "session:expired"
+  | "token:refreshed"
+  | "token:refresh:failed"
+  | "security:violation"
+  | "user:updated"
+  | "cross-tab:sync";
 
 export interface AuthEvent {
   type: AuthEventType;
@@ -190,13 +195,13 @@ export interface AuthInitOptions {
 }
 
 // Security level type
-export type SecurityLevel = 'low' | 'medium' | 'high';
+export type SecurityLevel = "low" | "medium" | "high";
 
 // Error handling config
 export interface ErrorHandlingConfig {
-  retryStrategy: 'none' | 'linear' | 'exponential';
+  retryStrategy: "none" | "linear" | "exponential";
   maxRetries: number;
-  notificationLevel: 'silent' | 'user-friendly' | 'detailed';
+  notificationLevel: "silent" | "user-friendly" | "detailed";
 }
 
 // User data
@@ -226,7 +231,7 @@ export interface SecurityContext {
   userAgent?: string;
   geoLocation?: GeoLocation;
   riskScore?: number;
-  trustLevel?: 'high' | 'medium' | 'low';
+  trustLevel?: "high" | "medium" | "low";
   lastActivity?: number;
 }
 
@@ -252,26 +257,26 @@ export interface SessionMetadata {
 
 // Add missing constants and functions
 export enum AUTH_ERROR_CODES {
-  INVALID_CREDENTIALS = 'INVALID_CREDENTIALS',
-  SESSION_EXPIRED = 'SESSION_EXPIRED',
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  UNAUTHORIZED = 'UNAUTHORIZED',
-  FORBIDDEN = 'FORBIDDEN',
-  RATE_LIMITED = 'RATE_LIMITED',
-  INVALID_TOKEN = 'INVALID_TOKEN',
-  REFRESH_FAILED = 'REFRESH_FAILED',
-  SESSION_INVALID = 'SESSION_INVALID', 
-  UNKNOWN = 'UNKNOWN',
-  INITIALIZATION_FAILED = 'INITIALIZATION_FAILED',
-  LOGIN_FAILED = 'LOGIN_FAILED',
-  LOGOUT_FAILED = 'LOGOUT_FAILED',
-  REGISTRATION_FAILED = 'REGISTRATION_FAILED',
-  PASSWORD_RESET_FAILED = 'PASSWORD_RESET_FAILED',
-  USER_DATA_REFRESH_FAILED = 'USER_DATA_REFRESH_FAILED',
-  SECURITY_VIOLATION = 'SECURITY_VIOLATION',
-  USER_DATA_FETCH_FAILED = 'USER_DATA_FETCH_FAILED',
-  AUTH_REFRESH_FAILED = 'AUTH_REFRESH_FAILED',
-  SERVER_ERROR = 'SERVER_ERROR'
+  INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
+  SESSION_EXPIRED = "SESSION_EXPIRED",
+  NETWORK_ERROR = "NETWORK_ERROR",
+  UNAUTHORIZED = "UNAUTHORIZED",
+  FORBIDDEN = "FORBIDDEN",
+  RATE_LIMITED = "RATE_LIMITED",
+  INVALID_TOKEN = "INVALID_TOKEN",
+  REFRESH_FAILED = "REFRESH_FAILED",
+  SESSION_INVALID = "SESSION_INVALID",
+  UNKNOWN = "UNKNOWN",
+  INITIALIZATION_FAILED = "INITIALIZATION_FAILED",
+  LOGIN_FAILED = "LOGIN_FAILED",
+  LOGOUT_FAILED = "LOGOUT_FAILED",
+  REGISTRATION_FAILED = "REGISTRATION_FAILED",
+  PASSWORD_RESET_FAILED = "PASSWORD_RESET_FAILED",
+  USER_DATA_REFRESH_FAILED = "USER_DATA_REFRESH_FAILED",
+  SECURITY_VIOLATION = "SECURITY_VIOLATION",
+  USER_DATA_FETCH_FAILED = "USER_DATA_FETCH_FAILED",
+  AUTH_REFRESH_FAILED = "AUTH_REFRESH_FAILED",
+  SERVER_ERROR = "SERVER_ERROR",
 }
 
 // Add this interface to your auth.types.ts file
@@ -282,7 +287,7 @@ export interface TokenRefreshQueueItem {
 }
 
 // Session status type
-export type SessionStatus = 'active' | 'inactive' | 'warning' | 'expired';
+export type SessionStatus = "active" | "inactive" | "warning" | "expired";
 
 // Add missing interfaces
 export interface LoginCredentials {
