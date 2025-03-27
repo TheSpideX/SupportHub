@@ -16,31 +16,56 @@ const setupSocketIO = async (httpServer) => {
       },
       // Add performance and security configuration
       connectTimeout: 10000,
-      pingTimeout: 30000,        // Increased to detect broken connections
-      pingInterval: 25000,       // Increased for better reliability
-      maxHttpBufferSize: 1e6,    // 1MB
-      transports: ["websocket"],
-      allowUpgrades: true,       // Allow transport upgrades
-      perMessageDeflate: {       // Enable compression
-        threshold: 1024          // Only compress data > 1KB
+      pingTimeout: 30000,
+      pingInterval: 25000,
+      maxHttpBufferSize: 1e6, // 1MB
+      transports: ["websocket", "polling"], // Support both but prefer websocket
+      allowUpgrades: true,
+      perMessageDeflate: {
+        threshold: 1024,
       },
       cookie: {
         name: "io",
-        httpOnly: true,          // HTTP-only cookie for security
-        path: "/"
-      }
+        httpOnly: true,
+        path: "/",
+        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production",
+      },
     });
 
-    // Set up Redis adapter for Socket.IO
+    // Set up Redis adapter for Socket.IO with better error handling
     try {
       const { redisPublisher, redisSubscriber } = require("./redis");
-      io.adapter(createAdapter(redisPublisher, redisSubscriber));
-      logger.info("Socket.IO Redis adapter configured");
+
+      if (redisPublisher && redisSubscriber) {
+        // Add a small delay to ensure Redis clients are ready
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Check that Redis clients are actually available
+        if (
+          redisPublisher.status === "ready" &&
+          redisSubscriber.status === "ready"
+        ) {
+          io.adapter(createAdapter(redisPublisher, redisSubscriber));
+          logger.info("Socket.IO Redis adapter configured successfully");
+
+          // Listen for adapter errors
+          const adapter = io.of("/").adapter;
+          adapter.on("error", (error) => {
+            logger.error("Socket.IO Redis adapter error:", error);
+          });
+        } else {
+          throw new Error("Redis clients not ready");
+        }
+      } else {
+        throw new Error("Redis clients not available");
+      }
     } catch (error) {
       logger.warn(
         "Failed to set up Redis adapter for Socket.IO, using in-memory adapter",
         error
       );
+      logger.info("Socket.IO using default in-memory adapter");
     }
 
     // Set up session namespace and handlers
@@ -52,10 +77,10 @@ const setupSocketIO = async (httpServer) => {
     // Handle connection to main namespace (mostly for debugging)
     io.on("connection", (socket) => {
       logger.info(`Client connected to main namespace: ${socket.id}`);
-      
+
       // Mark socket as alive for heartbeat
       socket.isAlive = true;
-      
+
       // Reset isAlive flag when pong is received
       socket.on("pong", () => {
         socket.isAlive = true;
@@ -65,34 +90,60 @@ const setupSocketIO = async (httpServer) => {
         logger.info(`Client disconnected from main namespace: ${socket.id}`);
       });
     });
-    
-    // Implement heartbeat interval to detect broken connections
+
+    // Implement adaptive heartbeat interval to detect broken connections
     const heartbeatInterval = setInterval(() => {
       // Check main namespace
-      io.sockets.sockets.forEach((socket) => {
+      const mainSockets = Array.from(io.sockets.sockets.values());
+      let activeCount = 0;
+      let terminatedCount = 0;
+
+      mainSockets.forEach((socket) => {
         if (socket.isAlive === false) {
           logger.warn(`Terminating inactive socket: ${socket.id}`);
-          return socket.disconnect(true);
-        }
-        
-        socket.isAlive = false;
-        socket.emit("ping");
-      });
-      
-      // Check session namespace
-      if (io.of('/session')) {
-        io.of('/session').sockets.forEach((socket) => {
-          if (socket.isAlive === false) {
-            logger.warn(`Terminating inactive session socket: ${socket.id}`);
-            return socket.disconnect(true);
-          }
-          
+          socket.disconnect(true);
+          terminatedCount++;
+        } else {
           socket.isAlive = false;
           socket.emit("ping");
+          activeCount++;
+        }
+      });
+
+      // Log heartbeat statistics if there are connections
+      if (activeCount > 0 || terminatedCount > 0) {
+        logger.debug(
+          `Heartbeat: ${activeCount} active, ${terminatedCount} terminated in main namespace`
+        );
+      }
+
+      // Check session namespace
+      if (io.of("/session")) {
+        const sessionSockets = Array.from(io.of("/session").sockets.values());
+        let sessionActiveCount = 0;
+        let sessionTerminatedCount = 0;
+
+        sessionSockets.forEach((socket) => {
+          if (socket.isAlive === false) {
+            logger.warn(`Terminating inactive session socket: ${socket.id}`);
+            socket.disconnect(true);
+            sessionTerminatedCount++;
+          } else {
+            socket.isAlive = false;
+            socket.emit("ping");
+            sessionActiveCount++;
+          }
         });
+
+        // Log heartbeat statistics if there are connections
+        if (sessionActiveCount > 0 || sessionTerminatedCount > 0) {
+          logger.debug(
+            `Heartbeat: ${sessionActiveCount} active, ${sessionTerminatedCount} terminated in session namespace`
+          );
+        }
       }
     }, 30000);
-    
+
     // Clean up interval on server close
     io.on("close", () => {
       clearInterval(heartbeatInterval);
@@ -105,8 +156,11 @@ const setupSocketIO = async (httpServer) => {
   }
 };
 
-// Get the IO instance for use in other modules
+// Get the IO instance
 const getIO = () => {
+  if (!io) {
+    throw new Error("Socket.IO not initialized");
+  }
   return io;
 };
 

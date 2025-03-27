@@ -27,10 +27,11 @@ export interface User {
 }
 
 export enum UserRole {
-  ADMIN = "ADMIN",
-  USER = "USER",
-  MANAGER = "MANAGER",
-  GUEST = "GUEST",
+  ADMIN = "admin",
+  CUSTOMER = "customer",
+  SUPPORT = "support",
+  TECHNICAL = "technical",
+  TEAM_LEAD = "team_lead"
 }
 
 // Authentication state

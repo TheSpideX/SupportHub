@@ -145,7 +145,7 @@ app.get('/api/health', apiRateLimit(), (req, res) => {
 tokenService.initialize();
 sessionService.initialize();
 
-// Initialize modules
+// Initialize modules - this will handle all initializations
 auth.initializeAuthModule(app);
 
 // Error handling middleware should be last
@@ -161,24 +161,24 @@ const startServer = async () => {
     await connectDB();
     logger.info("MongoDB connected successfully");
 
-    // Import Redis clients
+    // Import Redis clients and wait for them to initialize
     const {
       redisClient,
       redisPublisher,
       redisSubscriber,
+      waitForRedisReady
     } = require("./src/config/redis");
 
-    // Check Redis connections
+    // Wait for Redis to be ready or timeout
     try {
-      // The redisClient is a wrapper, not the actual Redis client
-      // We need to check Redis availability differently
+      await waitForRedisReady(5000); // Wait up to 5 seconds
       if (require("./src/config/redis").isRedisAvailable()) {
         logger.info("Redis connected successfully");
       } else {
         logger.warn("Redis not available, using in-memory fallback");
       }
     } catch (error) {
-      throw new Error(`Redis connection failed: ${error.message}`);
+      logger.warn(`Redis connection issue: ${error.message}`);
     }
 
     // Setup Socket.IO

@@ -420,7 +420,6 @@ class SecurityService {
 
   /**
    * Initialize security monitoring
-   * Sets up security monitoring tasks and event listeners
    */
   initializeSecurityMonitoring() {
     // Set up scheduled security audits

@@ -15,6 +15,11 @@ const cookieConfig = require('../config/cookie.config');
  */
 exports.validateSession = async (req, res, next) => {
   try {
+    // Set cache control headers to prevent caching
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    
     const userId = req.user._id;
     const sessionId = req.session.id;
     
@@ -30,21 +35,45 @@ exports.validateSession = async (req, res, next) => {
       return next(new AppError('Session expired', 401, 'SESSION_EXPIRED'));
     }
     
-    // Return session info
-    res.status(200).json({
-      status: 'success',
+    // Refresh tokens and set cookies
+    const { accessToken, refreshToken } = await tokenService.generateAuthTokens(
+      userId,
+      req.user.security.tokenVersion,
+      sessionId,
+      session.rememberMe || false
+    );
+    
+    // Add debug logging
+    console.log('Generated new tokens during session validation:', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken
+    });
+    
+    // Set both HTTP-only token cookies and non-HTTP-only flag cookies
+    tokenService.setTokenCookies(res, { accessToken, refreshToken });
+    
+    // Update session's lastActivity timestamp
+    session.lastActivity = new Date();
+    await session.save();
+    
+    // Return authenticated status with session info
+    return res.status(200).json({
+      success: true,
+      authenticated: true,
       data: {
+        user: {
+          id: userId
+        },
         session: {
           id: session._id,
-          createdAt: session.createdAt,
-          lastActivity: session.lastActivity,
           expiresAt: session.expiresAt,
-          device: session.deviceInfo
+          lastActivity: session.lastActivity
         }
       }
     });
   } catch (error) {
-    next(error);
+    console.error('Session validation error:', error);
+    return next(new AppError('Failed to validate session', 500, 'SESSION_VALIDATION_ERROR'));
   }
 };
 

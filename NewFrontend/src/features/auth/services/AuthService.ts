@@ -777,15 +777,15 @@ export class AuthService {
       this.userFetchInProgress ||
       now - this.lastFetchTimestamp < this.fetchCooldown
     ) {
-      return this.authState.user; // Return the current user from authState instead of calling getUser()
+      return this.authState.user;
     }
 
     try {
       this.userFetchInProgress = true;
       logger.debug("Fetching user data");
 
-      // Use apiClient directly instead of authApi
-      const response = await apiClient.get(this.config.userEndpoint);
+      // Use the correct endpoint from the backend: /api/auth/me
+      const response = await apiClient.get('/api/auth/me');
 
       this.lastFetchTimestamp = Date.now();
 
@@ -1118,35 +1118,95 @@ export class AuthService {
   }
 
   /**
-   * Validate current session
+   * Check if user has existing session
+   * @returns boolean indicating if session cookies exist
+   */
+  private hasSessionCookies(): boolean {
+    // Check for the existence flags which are readable by JavaScript
+    return document.cookie.includes("access_token_exists=true") || 
+           document.cookie.includes("app_session_exists=true");
+  }
+
+  /**
+   * Validate existing session
    */
   public async validateSession(): Promise<boolean> {
     try {
-      // Call validate session API using the correct endpoint
-      const response = await this.authApi.validateSession();
-
-      // If session is valid, update auth state
-      if (response && response.success && response.data) {
-        // Update auth state with user data
-        this.updateAuthState({
-          isAuthenticated: true,
-          user: response.data.user,
-          sessionExpiry: response.data.session?.expiresAt
-            ? new Date(response.data.session.expiresAt).getTime()
-            : Date.now() + 30 * 60 * 1000,
-        });
-
-        // Update Redux store
-        this.updateReduxStore(response.data.user);
-
-        return true;
+      // Check for session cookies first
+      const hasSession = this.hasSessionCookies();
+      
+      if (!hasSession) {
+        logger.debug("No session cookies found, skipping session validation");
+        return false;
       }
-
+      
+      logger.debug("Session cookies found, validating with server");
+      
+      // Make request to validate session endpoint
+      const response = await apiClient.get(
+        `/api/auth/session/status`,
+        { 
+          withCredentials: true,
+          headers: {
+            "X-CSRF-Token": this.getCsrfToken()
+          }
+        }
+      );
+      
+      if (response.data.authenticated) {
+        logger.info("Session validated successfully");
+        
+        // If authenticated, fetch complete user data
+        const userResponse = await apiClient.get('/api/auth/me', { 
+          withCredentials: true,
+          headers: {
+            "X-CSRF-Token": this.getCsrfToken()
+          }
+        });
+        
+        if (userResponse.data.success && userResponse.data.data) {
+          const userData = userResponse.data.data;
+          
+          // Update auth state with user data
+          this.updateAuthState({
+            isAuthenticated: true,
+            user: userData,
+            sessionExpiry: response.data.data?.session?.expiresAt 
+              ? new Date(response.data.data.session.expiresAt).getTime()
+              : this.calculateDefaultExpiry(false),
+            isLoading: false,
+            error: null,
+          });
+          
+          // Store session metadata
+          if (response.data.data?.session) {
+            this.storeSessionMetadata(response.data.data.session);
+            this.sessionService.startSessionTracking();
+          }
+          
+          return true;
+        }
+      }
+      
       return false;
     } catch (error) {
-      logger.error("Error validating session", { error });
+      logger.error("Session validation failed:", error);
       return false;
     }
+  }
+
+  /**
+   * Get CSRF token from cookie
+   */
+  private getCsrfToken(): string | null {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'csrf_token') {
+        return value;
+      }
+    }
+    return null;
   }
 
   /**
@@ -1188,51 +1248,22 @@ export class AuthService {
    */
   public async initialize(): Promise<boolean> {
     try {
-      logger.info(
-        "Initializing auth service and checking for existing session"
-      );
+      logger.info("Initializing auth service and checking for existing session");
 
-      // Check for cookies first
-      const hasCookies =
-        document.cookie.includes("access_token") ||
-        document.cookie.includes("app_session");
-      logger.info(
-        `Cookie check: ${
-          hasCookies ? "Found auth cookies" : "No auth cookies found"
-        }`
-      );
+      // Check for session cookies first
+      const hasSession = this.hasSessionCookies();
+      
+      logger.info(`Cookie check: ${hasSession ? "Found auth cookies" : "No auth cookies found"}`);
 
-      // Validate session with backend
-      logger.info("Attempting to validate session with backend");
-
-      // Check if we have tokens
-      const hasTokens = this.tokenService.hasTokens();
-
-      if (hasTokens) {
+      // If we have cookies, validate session with backend
+      if (hasSession) {
         try {
-          // Validate tokens
-          await this.tokenService.validateTokens();
-
-          // Fetch user data
-          const userData = await this.fetchUserData();
-
-          if (userData) {
-            logger.info("Valid session found, restoring user session", {
-              userId: userData.id,
-            });
-
-            // Update auth state with user data
-            this.updateAuthState({
-              isAuthenticated: true,
-              user: userData,
-              sessionExpiry: this.sessionService.getSessionExpiry(),
-              lastVerified: Date.now(),
-            });
-
+          // Validate session with backend
+          const isValid = await this.validateSession();
+          
+          if (isValid) {
             // Start session monitoring
             this.sessionService.startSessionTracking();
-
-            logger.info("Session restored successfully");
             return true;
           }
         } catch (error) {
@@ -1240,26 +1271,36 @@ export class AuthService {
         }
       }
 
+      // No valid session found
       logger.info("No valid session found, initializing as unauthenticated");
-
-      // Initialize with unauthenticated state
       this.updateAuthState({
         isAuthenticated: false,
         user: null,
         sessionExpiry: null,
+        isInitialized: true,
+        isLoading: false
       });
-
+      
       return false;
     } catch (error) {
-      logger.error("Auth service initialization failed:", error);
-
+      // Error handling...
+      logger.error("Error initializing auth service", {
+        component: "AuthService",
+        error: error.message || String(error)
+      });
+      
       // Initialize with unauthenticated state on error
       this.updateAuthState({
         isAuthenticated: false,
         user: null,
-        sessionExpiry: null,
+        isLoading: false,
+        isInitialized: true,
+        error: createAuthError(
+          AUTH_ERROR_CODES.UNKNOWN,
+          "Failed to initialize authentication"
+        )
       });
-
+      
       return false;
     }
   }
@@ -1337,26 +1378,28 @@ export class AuthService {
     }
   }
 
-  // Add this helper function to the AuthService class
+  /**
+   * Map string role from backend to frontend UserRole enum
+   * @param role - The role string from the backend
+   * @returns The corresponding UserRole enum value
+   */
   private mapStringToUserRole(role: string): UserRole {
+    if (!role) return UserRole.CUSTOMER;
+    
     switch (role.toUpperCase()) {
       case "ADMIN":
         return UserRole.ADMIN;
-      case "MANAGER":
-        return UserRole.MANAGER;
-      case "USER":
-        return UserRole.USER;
-      // Map backend roles to frontend roles
       case "CUSTOMER":
-        return UserRole.USER;
+        return UserRole.CUSTOMER;
       case "SUPPORT":
-        return UserRole.USER;
+        return UserRole.SUPPORT;
       case "TECHNICAL":
-        return UserRole.USER;
+        return UserRole.TECHNICAL;
       case "TEAM_LEAD":
-        return UserRole.MANAGER;
+        return UserRole.TEAM_LEAD;
       default:
-        return UserRole.GUEST;
+        logger.warn(`Unknown role type: ${role}, defaulting to CUSTOMER`);
+        return UserRole.CUSTOMER;
     }
   }
 

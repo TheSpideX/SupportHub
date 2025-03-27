@@ -320,12 +320,18 @@ class SessionSocketManager {
       clearTimeout(this.reconnectTimer);
     }
 
+    // Don't attempt to reconnect if we're already connected
+    if (this.status === "connected") {
+      return;
+    }
+
+    // Check if we should stop reconnection attempts
     if (
       this.reconnectAttempts >= this.maxReconnectAttempts ||
-      reason === "io server disconnect"
+      reason === "io client disconnect" // Only abort on client-initiated disconnect
     ) {
       logger.warn(
-        `Socket reconnection abandoned after ${this.reconnectAttempts} attempts or server-forced disconnect`
+        `Socket reconnection abandoned after ${this.reconnectAttempts} attempts or client-forced disconnect`
       );
       return;
     }

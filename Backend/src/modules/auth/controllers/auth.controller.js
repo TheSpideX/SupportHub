@@ -642,13 +642,27 @@ exports.validateSession = asyncHandler(async (req, res) => {
       });
     }
     
-    // Return successful validation
-    return res.status(200).json({
-      success: true,
-      valid: true,
-      userId: decoded.userId || decoded.sub,
-      sessionId: decoded.sessionId
-    });
+    // If session is valid, refresh the tokens and cookies
+    if (isValidSession) {
+      // Generate new tokens
+      const { accessToken, refreshToken } = await tokenService.generateAuthTokens(
+        decoded.userId || decoded.sub,
+        decoded.tokenVersion,
+        decoded.sessionId,
+        decoded.rememberMe
+      );
+      
+      // Set cookies using the standardized method
+      tokenService.setTokenCookies(res, { accessToken, refreshToken });
+      
+      // Return success response
+      return res.status(200).json({
+        success: true,
+        valid: true,
+        userId: decoded.userId || decoded.sub,
+        sessionId: decoded.sessionId
+      });
+    }
   } catch (error) {
     // Return invalid but with 200 status for client handling
     return res.status(200).json({ 

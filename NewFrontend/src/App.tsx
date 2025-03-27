@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { store } from "@/store";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
-import { DashboardPage } from "@/pages/dashboard/DashboardPage";
+import DashboardPage from "@/pages/dashboard/DashboardPage";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { Toaster } from "react-hot-toast";
@@ -31,9 +31,15 @@ import { getAuthService } from "./features/auth/services";
 // Import the toast service
 import { ToastService } from "./utils/toast.service";
 import AuthMonitorWidget from "./features/auth/components/AuthMonitorWidget";
+import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
+import TicketsPage from "./pages/tickets/TicketsPage";
+import ProfilePage from './pages/profile/ProfilePage';
 
 // Component name for logging
 const COMPONENT = "App";
+
+// Create a theme instance
+const muiTheme = createTheme();
 
 // Root layout with common UI elements
 const RootLayout = () => (
@@ -67,6 +73,46 @@ const routes = [
         element: (
           <AuthGuard>
             <DashboardPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'tickets',
+        element: (
+          <AuthGuard>
+            <TicketsPage view="all" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'tickets/all',
+        element: (
+          <AuthGuard>
+            <TicketsPage view="all" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'tickets/my-tickets',
+        element: (
+          <AuthGuard>
+            <TicketsPage view="my-tickets" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'tickets/create',
+        element: (
+          <AuthGuard>
+            <TicketsPage view="create" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: 'profile',
+        element: (
+          <AuthGuard>
+            <ProfilePage />
           </AuthGuard>
         ),
       },
@@ -199,15 +245,18 @@ export function App() {
   }, []);
 
   return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <ErrorBoundary>
-            <RouterProvider router={router} />
-          </ErrorBoundary>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <MuiThemeProvider theme={muiTheme}>
+              <RouterProvider router={router} />
+              <Toaster />
+            </MuiThemeProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </Provider>
+    </ErrorBoundary>
   );
 }
 

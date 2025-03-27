@@ -1,67 +1,129 @@
-Based on the provided files, I'll analyze the implementation of Phase 1 (Enhanced WebSocket Infrastructure) from the cross-tab synchronization plan.
+# Technical Support CRM Portal Architecture
 
-## Phase 1 Implementation Analysis
+## Logical View
+```mermaid
+graph TD
+    %% Main Components
+    subgraph "User Interfaces"
+        UI[Role-Based Dashboards]
+    end
+    
+    subgraph "Core Modules"
+        Core[Core Functionality]
+    end
+    
+    subgraph "Services Layer"
+        Services[Business Services]
+    end
+    
+    subgraph "Data Access Layer"
+        DataAccess[Data Repositories]
+    end
+    
+    subgraph "External Integrations"
+        Integrations[Third-Party Services]
+    end
+    
+    %% High-level connections
+    UI --> Core
+    Core --> Services
+    Services --> DataAccess
+    Services --> Integrations
+    
+    %% Detailed components with cleaner layout
+    subgraph "UI Details"
+        UI --> CustomerUI[Customer]
+        UI --> SupportUI[Support Team]
+        UI --> TechUI[Technical Team]
+        UI --> LeadUI[Team Lead]
+        UI --> AdminUI[Admin]
+    end
+    
+    subgraph "Core Details"
+        Core --> AuthModule[Authentication]
+        Core --> TicketModule[Ticket Management]
+        Core --> SLAModule[SLA Enforcement]
+        Core --> NotificationModule[Notifications]
+        Core --> TeamModule[Team Management]
+        Core --> ReportingModule[Reporting]
+    end
+    
+    subgraph "Services Details"
+        Services --> AuthService[Auth Service]
+        Services --> TicketService[Ticket Service]
+        Services --> NotificationService[Notification Service]
+        Services --> TeamService[Team Service]
+        Services --> SLAService[SLA Service]
+    end
+    
+    subgraph "Data Details"
+        DataAccess --> UserRepo[User Data]
+        DataAccess --> TicketRepo[Ticket Data]
+        DataAccess --> TeamRepo[Team Data]
+        DataAccess --> AuditRepo[Audit Logs]
+    end
+    
+    subgraph "Integration Details"
+        Integrations --> GitHubInt[GitHub]
+        Integrations --> SlackInt[Slack]
+    end
+```
 
-### 1. Socket.io Namespace Configuration
-
-**Requirements:**
-- Create `/session` namespace with multi-layer authentication
-- Set up Redis adapter with sharding
-- Implement circuit breakers
-
-**Implementation Status:**
-- ✅ The `/session` namespace is created in `session.service.js`
-- ❓ Redis adapter implementation is not visible in the provided excerpts
-- ✅ Circuit breaker pattern is implemented with connection limits
-
-````javascript path=Backend/src/modules/auth/services/session.service.js mode=EXCERPT
-// Create session namespace with authentication middleware
-const sessionNamespace = io.of("/session");
-
-// Circuit breaker pattern for connection protection
-let connectionCount = 0;
-const MAX_CONNECTIONS = process.env.MAX_SOCKET_CONNECTIONS || 1000;
-````
-
-### 2. Connection Authentication
-
-**Requirements:**
-- Multi-factor socket authentication (token + device fingerprint)
-- Connection throttling
-- Secure room isolation
-- Client metadata tracking
-
-**Implementation Status:**
-- ❓ Token authentication appears to be implemented but full details not visible
-- ✅ Connection throttling is implemented with IP-based limits
-- ❓ Room isolation implementation is not fully visible
-- ❓ Client metadata tracking implementation is not fully visible
-
-````javascript path=Backend/src/modules/auth/services/session.service.js mode=EXCERPT
-const THROTTLE_WINDOW_MS = 60000; // 1 minute
-const MAX_CONNECTIONS_PER_IP = 10;
-
-const connectionThrottling = new Map();
-````
-
-## Issues Identified
-
-1. **Connection Throttling Scope Issue**: The `connectionThrottling` Map was defined with function scope but accessed globally, causing the error you encountered.
-
-2. **Potential Redis Adapter Missing**: The plan mentions Redis adapter with sharding, but implementation details aren't visible in the provided excerpts.
-
-3. **Authentication Depth**: While authentication appears to be implemented, it's unclear if it includes all required factors (token + device fingerprint).
-
-## Recommendations
-
-1. **Fix Scope Issues**: Move variables like `connectionThrottling` to module scope when they're accessed by multiple functions or intervals.
-
-2. **Complete Redis Integration**: If not already implemented, add Redis adapter for Socket.io to enable horizontal scaling.
-
-3. **Enhance Authentication**: Ensure socket authentication includes both token validation and device fingerprinting.
-
-4. **Improve Client Metadata**: Implement comprehensive client metadata tracking including network quality and device information.
-
-5. **Documentation**: Add inline documentation explaining how each component of Phase 1 is implemented to make maintenance easier.
-
-The implementation appears to be partially complete with the core structure in place, but some elements may need further development to fully meet the requirements outlined in the plan.
+## Physical View
+```mermaid
+flowchart TD
+    %% Main Components with simplified connections
+    Client[Client Side] --> Server[Server Side]
+    Server --> Storage[Data Storage]
+    Server --> Deploy[Deployment]
+    
+    %% Client Side Details
+    subgraph "Client Details"
+        Client --> Browser[Web Browser]
+        Browser --> Frontend[React Frontend]
+        Frontend --> UI[UI Components]
+        Frontend --> ClientState[State Management]
+        Frontend --> RealTime[Real-time Updates]
+    end
+    
+    %% Server Side Details
+    subgraph "Server Details"
+        Server --> AppServer[Application Server]
+        Server --> WSServer[WebSocket Server]
+        Server --> TaskQueue[Task Processing]
+        
+        AppServer --> NodeJS[Node.js + Express]
+        AppServer --> API[REST API Layer]
+        AppServer --> CoreServices[Core Services]
+        AppServer --> Security[Security Components]
+        
+        WSServer --> SocketIO[Socket.io]
+        
+        TaskQueue --> BullMQ[BullMQ]
+    end
+    
+    %% Data Storage Details
+    subgraph "Storage Details"
+        Storage --> MongoDB[MongoDB]
+        Storage --> Redis[Redis]
+        
+        MongoDB --> Collections[Data Collections]
+        Redis --> Caching[Caching]
+        Redis --> Sessions[Sessions]
+        Redis --> Queues[Message Queues]
+    end
+    
+    %% Deployment Details
+    subgraph "Deployment Details"
+        Deploy --> Docker[Docker]
+        Deploy --> PM2[PM2]
+        Deploy --> Nginx[Nginx]
+        Deploy --> Cloud[Render Cloud]
+    end
+    
+    %% Key Security Components
+    Security --> HTTPCookies[HTTP-Only Cookies]
+    Security --> JWTAuth[JWT Auth]
+    Security --> CSRF[CSRF Protection]
+    Security --> RateLimiter[Rate Limiting]
+```

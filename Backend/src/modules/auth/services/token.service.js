@@ -13,6 +13,9 @@ const User = require('../models/user.model');
 // Store cleanup intervals for proper shutdown
 const cleanupIntervals = [];
 
+// Add initialization flag
+let isInitialized = false;
+
 /**
  * Generate token
  * @param {Object} payload
@@ -269,7 +272,8 @@ exports.blacklistToken = async (token, type = 'access') => {
     const tokenId = decoded.jti || crypto.createHash('sha256').update(token).digest('hex');
     
     // Add token to blacklist with expiry
-    await redisClient.set(`blacklist:${tokenId}`, '1', 'EX', ttl + 60); // Add 60s buffer
+    const ttlSeconds = Math.max(1, ttl + 60); // Add 60s buffer, ensure minimum 1 second
+    await redisClient.set(`blacklist:${tokenId}`, '1', 'EX', ttlSeconds);
     
     // Track blacklist size periodically
     if (Math.random() < 0.01) { // 1% chance to check size
@@ -366,49 +370,56 @@ exports.verifyCsrfToken = async (token, userId) => {
  * @param {Object} tokens - Access and refresh tokens
  */
 exports.setTokenCookies = (res, tokens) => {
-  // Ensure cookie config exists with defaults if not defined
-  const cookieSecure = cookieConfig?.accessTokenOptions?.secure ?? true;
-  const cookieSameSite = cookieConfig?.accessTokenOptions?.sameSite ?? 'strict';
-  const cookieMaxAge = cookieConfig?.accessTokenOptions?.maxAge ?? 900000; // 15 minutes default
+  // Get cookie config
+  const cookieNames = cookieConfig.names;
+  const baseOptions = cookieConfig.baseOptions;
   
-  // Set token existence flag for frontend detection
-  // This is not HTTP-only so frontend can detect authentication state
-  res.cookie(
-    'auth_token_exists', 
-    'true', 
-    {
-      httpOnly: false,
-      secure: cookieSecure,
-      sameSite: cookieSameSite,
-      path: '/',
-      maxAge: cookieMaxAge
-    }
-  );
+  // Ensure token config values are valid numbers
+  const accessTokenExpiry = parseInt(tokenConfig.ACCESS_TOKEN_EXPIRY, 10) || 3600; // Default 1 hour
+  const refreshTokenExpiry = parseInt(tokenConfig.REFRESH_TOKEN_EXPIRY, 10) || 604800; // Default 7 days
   
+  // Set access token cookie
   if (tokens.accessToken) {
     res.cookie(
-      cookieConfig?.names?.ACCESS_TOKEN || 'access_token', 
+      cookieNames.ACCESS_TOKEN, 
       tokens.accessToken, 
-      cookieConfig?.accessTokenOptions || {
-        httpOnly: true,
-        secure: cookieSecure,
-        sameSite: cookieSameSite,
-        path: '/',
-        maxAge: cookieMaxAge
+      {
+        ...baseOptions,
+        maxAge: accessTokenExpiry * 1000
+      }
+    );
+    
+    // Set non-httpOnly flag cookie for frontend detection
+    res.cookie(
+      'access_token_exists', 
+      'true', 
+      {
+        ...baseOptions,
+        httpOnly: false,
+        maxAge: accessTokenExpiry * 1000
       }
     );
   }
   
+  // Set refresh token cookie
   if (tokens.refreshToken) {
     res.cookie(
-      cookieConfig?.names?.REFRESH_TOKEN || 'refresh_token', 
+      cookieNames.REFRESH_TOKEN, 
       tokens.refreshToken, 
-      cookieConfig?.refreshTokenOptions || {
-        httpOnly: true,
-        secure: cookieSecure,
-        sameSite: cookieSameSite,
-        path: '/',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days default
+      {
+        ...baseOptions,
+        maxAge: refreshTokenExpiry * 1000
+      }
+    );
+    
+    // Set non-httpOnly flag cookie for frontend detection
+    res.cookie(
+      'app_session_exists', 
+      'true', 
+      {
+        ...baseOptions,
+        httpOnly: false,
+        maxAge: refreshTokenExpiry * 1000
       }
     );
   }
@@ -464,6 +475,12 @@ exports.clearTokenCookies = (res) => {
  * Sets up token cleanup and other initialization tasks
  */
 exports.initialize = function() {
+  // Prevent duplicate initialization
+  if (exports.isInitialized) {
+    logger.debug('Token service already initialized, skipping');
+    return;
+  }
+  
   // Set up scheduled cleanup of expired tokens
   exports.setupTokenCleanup();
   
@@ -472,8 +489,12 @@ exports.initialize = function() {
     initializeTokenBlacklist();
   }
   
+  exports.isInitialized = true;
   logger.info('Token service initialized');
 };
+
+// Export initialization status
+exports.isInitialized = isInitialized;
 
 /**
  * Set up scheduled cleanup of expired tokens

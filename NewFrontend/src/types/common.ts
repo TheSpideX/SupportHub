@@ -2,18 +2,20 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'team_lead' | 'support' | 'technical';
+  role: 'admin' | 'team_lead' | 'support' | 'technical' | 'customer';
 }
 
 export interface Ticket {
   id: string;
   title: string;
   description: string;
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high';
+  status: string;
+  priority: string;
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
+  subTickets?: number;
+  sharedWith?: string[];
 }
 
 export interface Team {

@@ -9,12 +9,14 @@ const crypto = require("crypto");
 // Store cleanup intervals for proper shutdown
 const cleanupIntervals = [];
 
+// Move connectionThrottling to module scope
+const connectionThrottling = new Map();
+const THROTTLE_WINDOW_MS = 60000; // 1 minute
+const MAX_CONNECTIONS_PER_IP = 10;
+
 const tokenService = require("./token.service");
 
-// Add this at the top level of the file, near other global variables
-const connectionThrottling = new Map();
-
-// Add at top of file with other constants
+// Room type constants
 const ROOM_TYPES = {
   USER: "user",
   DEVICE: "device",
@@ -126,11 +128,12 @@ exports.createSession = async ({
     });
 
     // Use the redisClient wrapper which handles fallback
+    const ttlSeconds = calculateTTLSeconds(session.expiresAt, Date.now(), Math.floor(sessionConfig.store.ttl));
     await redisClient.set(
       sessionKey,
       sessionValue,
       "EX",
-      Math.floor(sessionConfig.store.ttl)
+      ttlSeconds
     );
 
     return session;
@@ -313,30 +316,43 @@ exports.endAllUserSessionsExceptCurrent = async (userId, currentSessionId) => {
 };
 
 /**
- * Get session info for frontend
+ * Get session information for client
  * @param {string} sessionId
- * @param {Object} clientInfo - Client information
- * @returns {Object} Session info
+ * @param {Object} options
+ * @returns {Promise<Object>}
  */
-exports.getSessionInfo = async (sessionId, clientInfo = {}) => {
-  const session = await exports.getSessionById(sessionId);
-
-  // Calculate expiry times
-  const now = Date.now();
-  const timeRemaining = session.expiresAt - now;
-  const warningTime =
-    session.expiresAt - (sessionConfig.warningThreshold || 5 * 60 * 1000); // 5 minutes before expiry by default
-
-  return {
-    id: session.id,
-    createdAt: session.createdAt,
-    lastActiveAt: session.lastActiveAt,
-    expiresAt: session.expiresAt,
-    timeRemaining,
-    warningAt: warningTime,
-    deviceInfo: session.deviceInfo || {},
-    status: session.status,
-  };
+exports.getSessionInfo = async (sessionId, options = {}) => {
+  try {
+    const session = await exports.getSessionById(sessionId);
+    
+    if (!session) {
+      return null;
+    }
+    
+    // Calculate remaining time
+    const now = Date.now();
+    const expiresAt = session.expiresAt || now;
+    const remainingTime = Math.max(0, expiresAt - now);
+    
+    // Filter sensitive information
+    return {
+      sessionId,
+      userId: session.userId,
+      deviceId: session.deviceId,
+      activeTabs: session.activeTabs || [],
+      lastActiveAt: session.lastActiveAt || session.createdAt,
+      expiresAt: session.expiresAt,
+      remainingTime,
+      createdAt: session.createdAt,
+      warnings: session.warnings || []
+    };
+  } catch (error) {
+    logger.error("Failed to get session info", {
+      sessionId,
+      error: error.message,
+    });
+    return null;
+  }
 };
 
 /**
@@ -417,27 +433,38 @@ exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
  * Mark tab as inactive
  * @param {string} sessionId
  * @param {string} tabId
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
 exports.markTabInactive = async (sessionId, tabId) => {
   try {
+    const sessionKey = `session:${sessionId}`;
     const session = await exports.getSessionById(sessionId);
-
-    // Remove tab from active tabs
-    if (session.activeTabs) {
-      session.activeTabs = session.activeTabs.filter(
-        (tab) => tab.tabId !== tabId
-      );
-
-      // Update session
-      await redisClient.set(
-        `session:${sessionId}`,
-        JSON.stringify(session),
-        "EX",
-        Math.ceil(sessionConfig.maxAge / 1000)
-      );
+    
+    if (!session) {
+      logger.warn(`Cannot mark tab inactive: Session ${sessionId} not found`);
+      return false;
     }
-
+    
+    // Initialize activeTabs array if it doesn't exist
+    if (!session.activeTabs) {
+      session.activeTabs = [];
+      return true; // No tabs to mark inactive
+    }
+    
+    // Remove the tab from active tabs
+    session.activeTabs = session.activeTabs.filter(
+      (tab) => tab.tabId !== tabId
+    );
+    
+    // Update session
+    const now = Date.now();
+    await redisClient.set(
+      sessionKey,
+      JSON.stringify(session),
+      "EX",
+      Math.ceil((session.expiresAt - now) / 1000)
+    );
+    
     return true;
   } catch (error) {
     logger.error("Failed to mark tab as inactive", {
@@ -450,13 +477,158 @@ exports.markTabInactive = async (sessionId, tabId) => {
 };
 
 /**
- * Initialize session service
+ * Mark tab as active
+ * @param {string} sessionId
+ * @param {string} tabId
+ * @param {Object} data - Additional tab data
+ * @returns {Promise<boolean>}
+ */
+exports.markTabActive = async (sessionId, tabId, data = {}) => {
+  try {
+    const sessionKey = `session:${sessionId}`;
+    const session = await exports.getSessionById(sessionId);
+    
+    if (!session) {
+      logger.warn(`Cannot mark tab active: Session ${sessionId} not found`);
+      return false;
+    }
+    
+    // Initialize activeTabs array if it doesn't exist
+    if (!session.activeTabs) {
+      session.activeTabs = [];
+    }
+    
+    // Check if tab already exists
+    const existingTabIndex = session.activeTabs.findIndex(
+      (tab) => tab.tabId === tabId
+    );
+    
+    // Update or add tab
+    const now = Date.now();
+    const tabData = {
+      tabId,
+      lastActivity: now,
+      ...data,
+    };
+
+    if (existingTabIndex >= 0) {
+      session.activeTabs[existingTabIndex] = {
+        ...session.activeTabs[existingTabIndex],
+        ...tabData,
+      };
+    } else {
+      session.activeTabs.push(tabData);
+    }
+
+    // Update session lastActiveAt
+    session.lastActiveAt = now;
+
+    // Clean up inactive tabs (older than 5 minutes)
+    const fiveMinutesAgo = now - 5 * 60 * 1000;
+    session.activeTabs = session.activeTabs.filter(
+      (tab) => tab.lastActivity > fiveMinutesAgo || tab.tabId === tabId
+    );
+
+    // Update session
+    await redisClient.set(
+      sessionKey,
+      JSON.stringify(session),
+      "EX",
+      Math.ceil((session.expiresAt - now) / 1000)
+    );
+    
+    return true;
+  } catch (error) {
+    logger.error("Failed to mark tab as active", {
+      sessionId,
+      tabId,
+      error: error.message,
+    });
+    return false;
+  }
+};
+
+/**
+ * Update tab activity
+ * @param {string} sessionId
+ * @param {string} tabId
+ * @param {Object} clientInfo - Additional client information
+ * @returns {Promise<boolean>}
+ */
+exports.updateTabActivity = async (sessionId, tabId, clientInfo = {}) => {
+  try {
+    return await exports.markTabActive(sessionId, tabId, clientInfo);
+  } catch (error) {
+    logger.error("Failed to update tab activity", {
+      sessionId,
+      tabId,
+      error: error.message,
+    });
+    return false;
+  }
+};
+
+/**
+ * Update session activity timestamp
+ * @param {string} sessionId
+ * @param {number} timestamp
+ * @returns {Promise<boolean>}
+ */
+exports.updateSessionActivity = async (sessionId, timestamp = Date.now()) => {
+  try {
+    const sessionKey = `session:${sessionId}`;
+    const session = await exports.getSessionById(sessionId);
+    
+    if (!session) {
+      logger.warn(`Cannot update activity: Session ${sessionId} not found`);
+      return false;
+    }
+    
+    // Update last activity timestamp
+    session.lastActiveAt = timestamp;
+    
+    // Calculate expiration time in seconds, with validation
+    const expiresAt = session.expiresAt instanceof Date ? session.expiresAt.getTime() : 
+                      typeof session.expiresAt === 'string' ? new Date(session.expiresAt).getTime() : 
+                      typeof session.expiresAt === 'number' ? session.expiresAt : null;
+    
+    if (!expiresAt) {
+      logger.warn(`Invalid expiresAt value for session ${sessionId}: ${session.expiresAt}`);
+      // Use default expiration as fallback
+      const ttlSeconds = Math.ceil(sessionConfig.maxAge / 1000);
+      await redisClient.set(sessionKey, JSON.stringify(session), "EX", ttlSeconds);
+    } else {
+      const ttlSeconds = Math.max(1, Math.ceil((expiresAt - timestamp) / 1000));
+      await redisClient.set(sessionKey, JSON.stringify(session), "EX", ttlSeconds);
+    }
+    
+    return true;
+  } catch (error) {
+    logger.error("Failed to update session activity", {
+      sessionId,
+      error: error.message,
+    });
+    return false;
+  }
+};
+
+// Add initialization flag
+let isInitialized = false;
+
+/**
+ * Initialize the session service
  * @param {Object} options - Configuration options
  */
 exports.initialize = function (options = {}) {
+  // Prevent duplicate initialization
+  if (exports.isInitialized) {
+    logger.debug('Session service already initialized, skipping');
+    return;
+  }
+
   logger.info("Initializing session service");
 
-  // Apply configuration
+  // Apply configuration options
   if (options.store) {
     sessionConfig.store = options.store;
   }
@@ -478,6 +650,7 @@ exports.initialize = function (options = {}) {
   // Set up scheduled cleanup of expired sessions
   setupSessionCleanup();
 
+  exports.isInitialized = true;
   logger.info("Session service initialized");
 
   // Periodically clean up connection throttling map
@@ -504,7 +677,7 @@ exports.initialize = function (options = {}) {
 };
 
 /**
- * Set up scheduled cleanup of expired sessions
+ * Set up scheduled cleanup of expired sessions with improved efficiency
  */
 function setupSessionCleanup() {
   logger.info("Setting up session cleanup schedule");
@@ -512,13 +685,20 @@ function setupSessionCleanup() {
   // Set up interval to clean up expired sessions
   const cleanupInterval = setInterval(async () => {
     try {
+      logger.debug("Starting regular session cleanup");
       const now = Date.now();
 
-      // Use SCAN instead of KEYS
+      // Use SCAN instead of KEYS for production environments
       let sessionKeys = [];
       let cursor = "0";
+      let scanCount = 0;
+      let processedCount = 0;
+      let cleanedCount = 0;
+      let activeCount = 0;
 
       do {
+        scanCount++;
+        // Use scan instead of keys
         const [nextCursor, keys] = await redisClient.scan(
           cursor,
           "MATCH",
@@ -529,54 +709,32 @@ function setupSessionCleanup() {
 
         cursor = nextCursor;
         sessionKeys = sessionKeys.concat(keys);
+        processedCount += keys.length;
+
+        // Limit the number of scan operations per cleanup run
+        if (scanCount >= 10) break;
 
         // Process in batches to avoid memory issues
-        if (sessionKeys.length > 500) break;
+        if (sessionKeys.length >= 200) {
+          await processBatchCleanup(sessionKeys, now);
+          const results = await processBatchCleanup(sessionKeys, now);
+          cleanedCount += results.cleaned;
+          activeCount += results.active;
+          sessionKeys = []; // Reset batch
+        }
       } while (cursor !== "0");
 
-      logger.debug(`Session cleanup: checking ${sessionKeys.length} sessions`);
-
-      let cleanedCount = 0;
-      let activeCount = 0;
-      let idleCount = 0;
-
-      for (const key of sessionKeys) {
-        const sessionData = await redisClient.get(key);
-        if (!sessionData) continue;
-
-        try {
-          const session = JSON.parse(sessionData);
-
-          // Check absolute expiry
-          if (session.expiresAt < now) {
-            await redisClient.del(key);
-            cleanedCount++;
-            continue;
-          }
-
-          // Check idle timeout
-          const idleTimeout = sessionConfig.timeouts.idle * 1000;
-          if (now - session.lastActiveAt > idleTimeout) {
-            await redisClient.del(key);
-            idleCount++;
-            continue;
-          }
-
-          activeCount++;
-        } catch (error) {
-          // Invalid session data, clean it up
-          logger.error(`Invalid session data for ${key}, removing`, error);
-          await redisClient.del(key);
-          cleanedCount++;
-        }
+      // Process any remaining keys
+      if (sessionKeys.length > 0) {
+        const results = await processBatchCleanup(sessionKeys, now);
+        cleanedCount += results.cleaned;
+        activeCount += results.active;
       }
 
-      // Log cleanup results
-      logger.info(
-        `Session cleanup complete: ${cleanedCount} expired, ${idleCount} idle, ${activeCount} active`
+      logger.debug(
+        `Session cleanup complete: ${cleanedCount} expired sessions removed, ${activeCount} active sessions`
       );
 
-      // Monitor session count
       if (activeCount > 10000) {
         logger.warn(
           `High number of active sessions (${activeCount}), consider reviewing session management`
@@ -590,140 +748,147 @@ function setupSessionCleanup() {
   // Run more frequent lightweight cleanup
   const lightCleanupInterval = setInterval(async () => {
     try {
-      // Use SCAN instead of KEYS for production environments
+      logger.debug("Starting light session cleanup");
+      const now = Date.now();
+
+      // Sample a small number of keys to check
       let sessionKeys = [];
       let cursor = "0";
 
-      do {
-        // Use scan instead of keys
-        const [nextCursor, keys] = await redisClient.scan(
-          cursor,
-          "MATCH",
-          "session:*",
-          "COUNT",
-          100
-        );
+      const [nextCursor, keys] = await redisClient.scan(
+        cursor,
+        "MATCH",
+        "session:*",
+        "COUNT",
+        50
+      );
 
-        cursor = nextCursor;
-        sessionKeys = sessionKeys.concat(keys);
-
-        // Limit the number of keys to process in one batch
-        if (sessionKeys.length > 200) break;
-      } while (cursor !== "0" && sessionKeys.length < 200);
-
-      // Sample the keys if there are too many
-      const sampleSize = Math.min(100, sessionKeys.length);
-      const sampleKeys = sessionKeys
-        .sort(() => 0.5 - Math.random())
-        .slice(0, sampleSize);
-
-      let cleanedCount = 0;
-      const now = Date.now();
-
-      for (const key of sampleKeys) {
-        const sessionData = await redisClient.get(key);
-        if (!sessionData) continue;
-
-        try {
-          const session = JSON.parse(sessionData);
-          if (session.expiresAt < now) {
-            await redisClient.del(key);
-            cleanedCount++;
-          }
-        } catch (error) {
-          await redisClient.del(key);
-          cleanedCount++;
+      // Process this small batch for quick cleanup
+      if (keys.length > 0) {
+        const results = await processBatchCleanup(keys, now);
+        if (results.cleaned > 0) {
+          logger.debug(
+            `Light cleanup: removed ${results.cleaned} expired sessions`
+          );
         }
-      }
-
-      if (cleanedCount > 0) {
-        logger.debug(
-          `Light session cleanup: removed ${cleanedCount}/${sampleSize} sampled sessions`
-        );
       }
     } catch (error) {
       logger.error("Error during light session cleanup:", error);
     }
   }, 5 * 60 * 1000); // Run every 5 minutes
 
-  // Store interval references for cleanup
-  cleanupIntervals.push(cleanupInterval, lightCleanupInterval);
-
-  logger.info("Session cleanup schedule established");
+  // Store intervals for cleanup during shutdown
+  cleanupIntervals.push(cleanupInterval);
+  cleanupIntervals.push(lightCleanupInterval);
 }
 
 /**
- * Clean up expired sessions
+ * Process a batch of session keys for cleanup
+ * @param {Array} sessionKeys - Array of session keys to check
+ * @param {number} now - Current timestamp
+ * @returns {Object} - Count of cleaned and active sessions
  */
-async function cleanupExpiredSessions() {
-  // Implementation depends on your storage mechanism
-  // For Redis, you might use SCAN with pattern matching and check expiry
+async function processBatchCleanup(sessionKeys, now) {
+  let cleanedCount = 0;
+  let activeCount = 0;
 
-  logger.info("Cleaned up expired sessions");
+  for (const key of sessionKeys) {
+    try {
+      const sessionData = await redisClient.get(key);
+      if (!sessionData) {
+        // Clean up keys with no data
+        await redisClient.del(key);
+        cleanedCount++;
+        continue;
+      }
+
+      // Parse session data
+      const session = JSON.parse(sessionData);
+
+      // Check if session is expired
+      if (session.expiresAt < now) {
+        // Clean up expired session
+        await redisClient.del(key);
+        cleanedCount++;
+
+        // Clean up related data (tabs, etc.)
+        if (session.id) {
+          await redisClient.del(`session:${session.id}:tabs`);
+        }
+      } else {
+        activeCount++;
+
+        // Update TTL based on expiration if using Redis
+        const ttlSeconds = Math.ceil((session.expiresAt - now) / 1000);
+        if (ttlSeconds > 0) {
+          await redisClient.expireat(key, Math.floor((now + ttlSeconds * 1000) / 1000));
+        }
+      }
+    } catch (error) {
+      logger.error(`Error processing session key ${key}:`, error);
+      // Consider this a cleaned key since we tried to process it
+      cleanedCount++;
+    }
+  }
+
+  return { cleaned: cleanedCount, active: activeCount };
 }
 
 /**
- * Calculate session expiry times
- * @param {Object} session - Session object
- * @returns {Object} - Expiry times
+ * Clean up resources used by the session service
+ * Called during application shutdown
  */
-function calculateSessionExpiryTimes(session) {
-  const now = Date.now();
-  const expiresAt = session.expiresAt;
-  const warningThreshold = sessionConfig.warningThreshold || 5 * 60 * 1000; // 5 minutes
+exports.cleanup = async function () {
+  logger.info("Cleaning up session service resources");
 
-  return {
-    absolute: expiresAt,
-    idle: session.lastActiveAt + sessionConfig.maxAge,
-    warning: expiresAt - warningThreshold,
-  };
-}
+  // Clear all cleanup intervals
+  cleanupIntervals.forEach((interval) => {
+    clearInterval(interval);
+  });
+
+  // Clean up any other resources
+  try {
+    // Close any open connections or release resources
+
+    logger.info("Session service resources cleaned up successfully");
+  } catch (error) {
+    logger.error("Error cleaning up session service resources:", error);
+  }
+};
+
 
 /**
- * Initialize WebSocket for session synchronization
- * @param {Object} io - Socket.io server instance
- * @returns {Object} Session namespace object
+ * Set up WebSocket handlers for session namespace
  */
 exports.setupSessionWebSockets = function (io) {
   if (!io) {
-    logger.error("Socket.IO instance not available for session WebSockets");
+    logger.warn("Cannot set up session WebSockets: io instance not provided");
     return null;
   }
 
-  logger.info("Setting up session WebSocket handlers");
+  // Initialize connection counter
+  let connectionCount = 0;
 
-  // Create session namespace with authentication middleware
+  // Create session namespace
   const sessionNamespace = io.of("/session");
 
-  // Circuit breaker pattern for connection protection
-  let connectionCount = 0;
-  const MAX_CONNECTIONS = process.env.MAX_SOCKET_CONNECTIONS || 1000;
-  const THROTTLE_WINDOW_MS = 60000; // 1 minute
-  const MAX_CONNECTIONS_PER_IP = 10;
-
-  // Connection middleware with circuit breaker and throttling
-  sessionNamespace.use(async (socket, next) => {
+  // Throttling middleware
+  sessionNamespace.use((socket, next) => {
     try {
-      // Circuit breaker pattern - prevent too many overall connections
-      if (connectionCount > MAX_CONNECTIONS) {
-        logger.warn("Circuit breaker activated, too many connections");
-        return next(new Error("Too many connections, please try again later"));
-      }
+      // Get client IP
+      const clientIp =
+        socket.handshake.headers["x-forwarded-for"] || socket.handshake.address;
 
-      // Connection throttling by IP
-      const clientIp = socket.handshake.address;
+      // Get current timestamp
       const now = Date.now();
 
-      if (!connectionThrottling.has(clientIp)) {
-        connectionThrottling.set(clientIp, []);
-      }
+      // Get connection history for this IP
+      let ipHistory = connectionThrottling.get(clientIp) || [];
 
-      // Get connection history for this IP and clean old entries
-      const ipHistory = connectionThrottling
-        .get(clientIp)
-        .filter((timestamp) => now - timestamp < THROTTLE_WINDOW_MS);
+      // Remove connections outside of the throttle window
+      ipHistory = ipHistory.filter((time) => time > now - THROTTLE_WINDOW_MS);
 
-      // Check if too many connections from this IP
+      // Check if connection limit is exceeded
       if (ipHistory.length >= MAX_CONNECTIONS_PER_IP) {
         logger.warn(`Connection throttled for IP: ${clientIp}`);
         return next(
@@ -743,138 +908,183 @@ exports.setupSessionWebSockets = function (io) {
     }
   });
 
-  // Socket authentication middleware
+  // Socket authentication middleware with improved error handling
   sessionNamespace.use(async (socket, next) => {
     try {
       logger.debug("Socket authentication attempt", {
         socketId: socket.id,
         hasAuthCookies: !!socket.request.headers.cookie,
-        headers: Object.keys(socket.request.headers),
-        query: socket.handshake.query,
-        auth: socket.handshake.auth,
       });
 
       // Extract cookies from socket request
       const cookies = socket.request.headers.cookie;
       if (!cookies) {
-        logger.warn("Socket connection rejected: No cookies found", {
-          headers: Object.keys(socket.request.headers),
-        });
+        logger.warn("Socket connection rejected: No cookies found");
         return next(new Error("Authentication required"));
       }
 
       // Parse cookies
       const parsedCookies = cookie.parse(cookies);
-      const accessToken = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
+      const accessToken = parsedCookies.access_token;
+      const refreshToken = parsedCookies.refresh_token;
 
       if (!accessToken) {
-        logger.warn("Socket connection rejected: No access token cookie");
+        logger.warn("Socket connection rejected: No access token found");
         return next(new Error("Authentication required"));
       }
 
-      // Verify the access token
+      // Verify access token
       try {
         const decoded = await tokenService.verifyAccessToken(accessToken);
 
-        // Extract user and session info
-        const userId = decoded.userId || decoded.sub;
+        // Get session info
         const sessionId = decoded.sessionId;
+        const session = await exports.getSessionById(sessionId);
 
-        if (!userId || !sessionId) {
-          logger.warn("Socket connection rejected: Invalid token payload", {
-            userId,
-            sessionId,
-          });
-          return next(new Error("Invalid authentication"));
+        if (!session) {
+          logger.warn(
+            `Socket connection rejected: Session ${sessionId} not found`
+          );
+          return next(new Error("Session not found"));
         }
 
-        // Attach user and session data to socket
-        socket.data.userId = userId;
-        socket.data.sessionId = sessionId;
-        socket.data.tabId =
-          socket.handshake.query.tabId || `unknown_${Date.now()}`;
+        // Store session info in socket for future use
+        socket.data = {
+          userId: decoded.userId || decoded.sub,
+          sessionId: sessionId,
+          deviceId: session.deviceId || socket.handshake.query.deviceId,
+          tabId: socket.handshake.query.tabId,
+        };
 
-        logger.info("Socket authentication successful", {
-          userId,
-          sessionId,
-          socketId: socket.id,
-        });
-
-        return next();
-      } catch (error) {
-        logger.error(
-          "Socket connection rejected: Token verification failed",
-          error
+        logger.debug(
+          `Socket authenticated: ${socket.id} for session ${sessionId}`
         );
-        return next(new Error("Authentication failed"));
+        next();
+      } catch (error) {
+        if (error.name === "TokenExpiredError" && refreshToken) {
+          try {
+            // Try to refresh the token if access token is expired
+            const refreshResult = await tokenService.refreshAuthTokens(
+              refreshToken
+            );
+
+            if (refreshResult && refreshResult.accessToken) {
+              const decoded = await tokenService.verifyAccessToken(
+                refreshResult.accessToken
+              );
+
+              // Get session info
+              const sessionId = decoded.sessionId;
+              const session = await exports.getSessionById(sessionId);
+              
+              if (!session) {
+                logger.warn(
+                  `Socket connection rejected after refresh: Session ${sessionId} not found`
+                );
+                return next(new Error("Session not found"));
+              }
+
+              // Store session info in socket
+              socket.data = {
+                userId: decoded.userId || decoded.sub,
+                sessionId: sessionId,
+                deviceId: session.deviceId || socket.handshake.query.deviceId,
+                tabId: socket.handshake.query.tabId,
+              };
+
+              logger.debug(
+                `Socket authenticated after token refresh: ${socket.id}`
+              );
+              return next();
+            } else {
+              logger.warn("Token refresh returned invalid result");
+              return next(new Error("Authentication failed"));
+            }
+          } catch (refreshError) {
+            logger.error(
+              "Token refresh failed during socket auth:",
+              refreshError
+            );
+            return next(new Error("Authentication failed"));
+          }
+        }
+
+        logger.warn(`Socket auth failed: ${error.message}`);
+        next(new Error("Authentication failed"));
       }
     } catch (error) {
-      logger.error("Socket authentication error", error);
-      return next(new Error("Authentication error"));
+      logger.error("Error in socket authentication middleware:", error);
+      next(new Error("Authentication error"));
     }
   });
 
-  // Authentication middleware
-  sessionNamespace.use(async (socket, next) => {
-    try {
-      // Existing authentication code...
-
-      // Extract device fingerprint
-      const deviceFingerprint = socket.handshake.auth.deviceFingerprint;
-      const deviceId = crypto
-        .createHash("sha256")
-        .update(
-          `${socket.handshake.headers["user-agent"]}:${deviceFingerprint || ""}`
-        )
-        .digest("hex");
-
-      // Store device info
-      socket.deviceId = deviceId;
-
-      next();
-    } catch (error) {
-      next(new Error("Authentication failed"));
-    }
-  });
-
-  // Connection event handler
+  // Handle connections with room management and heartbeat
   sessionNamespace.on("connection", async (socket) => {
     try {
-      // Set up room hierarchy
-      const rooms = await manageSocketRooms(socket, {
-        userId: socket.data.userId,
-        deviceId: socket.deviceId,
-        sessionId: socket.data.sessionId,
-        tabId: socket.handshake.query.tabId,
+      // Increment connection counter
+      connectionCount++;
+
+      // Set isAlive property for heartbeat
+      socket.isAlive = true;
+
+      // Handle pong messages
+      socket.on("pong", () => {
+        socket.isAlive = true;
       });
 
-      // Track client metadata with room context
-      const clientMetadata = {
-        userAgent: socket.handshake.headers["user-agent"],
-        ip: socket.handshake.address,
-        transport: socket.conn.transport.name,
-        query: socket.handshake.query,
-        rooms,
-        timestamp: new Date(),
+      // Add socket to rooms based on session data
+      const rooms = {
+        userRoom: createRoomName(ROOM_TYPES.USER, socket.data.userId),
+        deviceRoom: createRoomName(ROOM_TYPES.DEVICE, socket.data.deviceId),
+        sessionRoom: createRoomName(ROOM_TYPES.SESSION, socket.data.sessionId),
+        tabRoom: socket.data.tabId
+          ? createRoomName(ROOM_TYPES.TAB, socket.data.tabId)
+          : null,
       };
 
-      // Store metadata in Redis
-      const metadataKey = `socket:metadata:${socket.id}`;
-      await redisClient.set(
-        metadataKey,
-        JSON.stringify(clientMetadata),
-        "EX",
-        60 * 60 // 1 hour expiry
-      );
+      // Join appropriate rooms
+      Object.values(rooms).forEach((room) => {
+        if (room) socket.join(room);
+      });
 
-      // Broadcast connection to device room
-      socket.to(rooms.deviceRoom).emit("device:connection", {
+      logger.info("Client connected to session WebSocket", {
+        socketId: socket.id,
+        userId: socket.data.userId,
         sessionId: socket.data.sessionId,
-        tabId: socket.handshake.query.tabId,
+        deviceId: socket.data.deviceId,
+        tabId: socket.data.tabId,
+        rooms: Object.values(rooms).filter(Boolean),
+      });
+
+      // Record tab as active if tabId is provided
+      if (socket.data.tabId) {
+        await exports.markTabActive(
+          socket.data.sessionId,
+          socket.data.tabId,
+          socket.handshake.query
+        );
+      }
+
+      // Update session activity
+      await exports.updateSessionActivity(socket.data.sessionId);
+
+      // Emit connected event to client with session info
+      const sessionInfo = await exports.getSessionInfo(socket.data.sessionId);
+      socket.emit("connected", {
+        socketId: socket.id,
+        sessionId: socket.data.sessionId,
+        timestamp: Date.now(),
+        sessionInfo,
+      });
+
+      // Broadcast connection to other tabs on same device
+      socket.to(rooms.deviceRoom).emit("tab:connect", {
+        sessionId: socket.data.sessionId,
+        tabId: socket.data.tabId,
         timestamp: Date.now(),
       });
 
-      // Handle session sync
+      // Handle session sync requests
       socket.on("sync", async (data) => {
         try {
           if (!socket.data.sessionId) {
@@ -910,42 +1120,16 @@ exports.setupSessionWebSockets = function (io) {
           } else if (data.scope === "user") {
             socket.to(rooms.userRoom).emit("session-update", sessionData);
           } else {
-            // Default to session scope
-            socket.to(rooms.sessionRoom).emit("session-update", sessionData);
+            // Default to tab scope
+            socket.emit("session-update", sessionData);
           }
         } catch (error) {
-          logger.error("Error in session sync:", error);
+          logger.error("Error handling sync request:", error);
           socket.emit("error", { message: "Failed to sync session" });
         }
       });
 
-      // Handle user activity updates
-      socket.on("activity", async (data) => {
-        try {
-          if (!socket.data.sessionId) {
-            return socket.emit("error", { message: "Not authenticated" });
-          }
-
-          // Update session activity
-          await exports.updateSessionActivity(
-            socket.data.sessionId,
-            data.timestamp || Date.now()
-          );
-
-          // Broadcast to other tabs of the same user
-          socket.to(`user:${socket.data.userId}`).emit("activity-update", {
-            userId: socket.data.userId,
-            sessionId: socket.data.sessionId,
-            tabId: data.tabId,
-            timestamp: data.timestamp || Date.now(),
-          });
-        } catch (error) {
-          logger.error("Error handling activity update:", error);
-          socket.emit("error", { message: "Failed to update activity" });
-        }
-      });
-
-      // Handle heartbeat responses
+      // Handle heartbeat responses with activity tracking
       socket.on("heartbeat:response", async (data) => {
         try {
           if (!socket.data.sessionId) {
@@ -957,7 +1141,7 @@ exports.setupSessionWebSockets = function (io) {
             socket.data.sessionId,
             data.timestamp || Date.now()
           );
-          
+
           // Mark socket as alive
           socket.isAlive = true;
         } catch (error) {
@@ -987,9 +1171,9 @@ exports.setupSessionWebSockets = function (io) {
           }
 
           // Broadcast disconnect to device room
-          socket.to(rooms.deviceRoom).emit("device:disconnect", {
+          socket.to(rooms.deviceRoom).emit("tab:disconnect", {
             sessionId: socket.data.sessionId,
-            tabId: socket.handshake.query.tabId,
+            tabId: socket.data.tabId,
             timestamp: Date.now(),
           });
 
@@ -1110,5 +1294,35 @@ exports.cleanup = async function () {
   }
 };
 
+// Export initialization status
+exports.isInitialized = isInitialized;
+
 // Export the module
 module.exports = exports;
+
+/**
+ * Helper function to safely calculate TTL in seconds for Redis
+ * @param {Date|string|number} expiresAt - Expiration timestamp
+ * @param {number} now - Current timestamp
+ * @param {number} defaultTTL - Default TTL in seconds if calculation fails
+ * @returns {number} - TTL in seconds (always >= 1)
+ */
+const calculateTTLSeconds = (expiresAt, now = Date.now(), defaultTTL = 3600) => {
+  try {
+    // Convert expiresAt to milliseconds timestamp
+    const expiryTime = expiresAt instanceof Date ? expiresAt.getTime() : 
+                      typeof expiresAt === 'string' ? new Date(expiresAt).getTime() : 
+                      typeof expiresAt === 'number' ? expiresAt : null;
+    
+    // If conversion failed or result is invalid, use default
+    if (!expiryTime || isNaN(expiryTime)) {
+      return defaultTTL;
+    }
+    
+    // Calculate TTL in seconds, with minimum of 1 second
+    return Math.max(1, Math.ceil((expiryTime - now) / 1000));
+  } catch (error) {
+    logger.warn(`TTL calculation error: ${error.message}. Using default: ${defaultTTL}s`);
+    return defaultTTL;
+  }
+};
