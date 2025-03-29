@@ -68,6 +68,22 @@ const MemoryStore = {
     return "OK";
   },
   flushall: async () => MemoryStore.data.clear(),
+  expire: async (key, seconds) => {
+    const item = MemoryStore.data.get(key);
+    if (item) {
+      item.expiry = Date.now() + (seconds * 1000);
+      return 1;
+    }
+    return 0;
+  },
+  expireat: async (key, timestamp) => {
+    const item = MemoryStore.data.get(key);
+    if (item) {
+      item.expiry = timestamp * 1000;
+      return 1;
+    }
+    return 0;
+  },
 };
 
 // Create Redis client with fallback and health monitoring
@@ -260,6 +276,36 @@ const redisWrapper = {
       return await MemoryStore.hmset(key, obj);
     }
   },
+  // For EXPIRE command (sets TTL in seconds)
+  expire: async (key, seconds) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.expire(key, seconds);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.expire(key, seconds);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis expire error, using fallback:", error);
+      return await MemoryStore.expire(key, seconds);
+    }
+  },
+  // For EXPIREAT command (sets expiration to absolute Unix timestamp)
+  expireat: async (key, timestamp) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.expireat(key, timestamp);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.expire(key, Math.max(1, Math.floor(timestamp - Date.now()/1000)));
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis expireat error, using fallback:", error);
+      return await MemoryStore.expire(key, Math.max(1, Math.floor(timestamp - Date.now()/1000)));
+    }
+  }
 };
 
 // Initialize the Redis clients

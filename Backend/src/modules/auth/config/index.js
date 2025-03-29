@@ -17,13 +17,22 @@ function validateConfig() {
   }
   
   // Ensure CSRF token expiry matches in all places
-  if (tokenConfig.csrf.expiresInSeconds !== (cookieConfig.csrfOptions?.maxAge || 0) / 1000) {
+  const csrfExpiryInSeconds = tokenConfig.csrf.expiresIn 
+    ? (typeof tokenConfig.csrf.expiresIn === 'string' 
+      ? parseDuration(tokenConfig.csrf.expiresIn) 
+      : tokenConfig.csrf.expiresIn)
+    : 3600; // Default to 1 hour
+    
+  const cookieCsrfMaxAge = cookieConfig.csrfOptions?.maxAge || 0;
+  
+  if (csrfExpiryInSeconds * 1000 !== cookieCsrfMaxAge) {
     console.warn('WARNING: CSRF token expiry times are not consistent');
     // Align them
     if (!cookieConfig.csrfOptions) {
       cookieConfig.csrfOptions = {};
     }
-    cookieConfig.csrfOptions.maxAge = tokenConfig.csrf.expiresInSeconds * 1000;
+    cookieConfig.csrfOptions.maxAge = csrfExpiryInSeconds * 1000;
+    tokenConfig.csrf.expiresInSeconds = csrfExpiryInSeconds;
   }
   
   // Ensure cookie domains match if specified
@@ -69,3 +78,26 @@ const config = normalizeConfig();
 validateConfig();
 
 module.exports = config;
+
+/**
+ * Helper function to parse duration strings like '1h' into seconds
+ * @param {string} durationStr - Duration string (e.g., '1h', '30m', '1d')
+ * @returns {number} Duration in seconds
+ */
+function parseDuration(durationStr) {
+  if (typeof durationStr !== 'string') return 3600; // Default to 1 hour
+  
+  const match = durationStr.match(/^(\d+)([smhd])$/);
+  if (!match) return 3600; // Default to 1 hour if format is invalid
+  
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  
+  switch (unit) {
+    case 's': return value;
+    case 'm': return value * 60;
+    case 'h': return value * 60 * 60;
+    case 'd': return value * 24 * 60 * 60;
+    default: return 3600;
+  }
+}

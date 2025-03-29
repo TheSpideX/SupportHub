@@ -50,18 +50,21 @@ module.exports = {
   access: {
     secret: process.env.ACCESS_TOKEN_SECRET || DEFAULT_ACCESS_SECRET,
     expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m',
+    expiresInSeconds: parseInt(process.env.ACCESS_TOKEN_EXPIRY || '15') * 60, // 15 minutes in seconds
     algorithm: 'HS256'
   },
   
   refresh: {
     secret: process.env.REFRESH_TOKEN_SECRET || DEFAULT_REFRESH_SECRET,
     expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d',
+    expiresInSeconds: parseInt(process.env.REFRESH_TOKEN_EXPIRY || '7') * 24 * 60 * 60, // 7 days in seconds
     algorithm: 'HS256'
   },
   
   csrf: {
     secret: process.env.CSRF_TOKEN_SECRET || DEFAULT_CSRF_SECRET,
-    expiresIn: '1h'
+    expiresIn: '1h',
+    expiresInSeconds: 60 * 60 // 1 hour in seconds
   },
   
   // Cookie settings for HTTP-only cookies

@@ -129,12 +129,7 @@ exports.createSession = async ({
 
     // Use the redisClient wrapper which handles fallback
     const ttlSeconds = calculateTTLSeconds(session.expiresAt, Date.now(), Math.floor(sessionConfig.store.ttl));
-    await redisClient.set(
-      sessionKey,
-      sessionValue,
-      "EX",
-      ttlSeconds
-    );
+    await setWithExpiry(sessionKey, sessionValue, ttlSeconds);
 
     return session;
   } catch (error) {
@@ -180,10 +175,9 @@ exports.updateSessionActivity = async (sessionId) => {
   session.expiresAt = Date.now() + sessionConfig.maxAge;
 
   // Store updated session
-  await redisClient.set(
+  await setWithExpiry(
     `session:${sessionId}`,
     JSON.stringify(session),
-    "EX",
     Math.ceil(sessionConfig.maxAge / 1000)
   );
 
@@ -206,10 +200,9 @@ exports.endSession = async (sessionId, reason = "user_logout") => {
     session.endReason = reason;
 
     // Store updated session with shorter TTL for audit purposes
-    await redisClient.set(
+    await setWithExpiry(
       `session:${sessionId}`,
       JSON.stringify(session),
-      "EX",
       sessionConfig.endedSessionTtl || 86400 // Default 24 hours
     );
 
@@ -242,10 +235,9 @@ exports.markSessionForCleanup = async (sessionId) => {
       ? Math.ceil(sessionConfig.maxAge / 1000)
       : 3600; // 1 hour default
 
-    await redisClient.set(
+    await setWithExpiry(
       `session:${sessionId}`,
       JSON.stringify(session),
-      "EX",
       expirySeconds
     );
 
@@ -411,10 +403,9 @@ exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
     );
 
     // Update session
-    await redisClient.set(
+    await setWithExpiry(
       sessionKey,
       JSON.stringify(session),
-      "EX",
       Math.ceil((session.expiresAt - now) / 1000)
     );
 
@@ -458,10 +449,9 @@ exports.markTabInactive = async (sessionId, tabId) => {
     
     // Update session
     const now = Date.now();
-    await redisClient.set(
+    await setWithExpiry(
       sessionKey,
       JSON.stringify(session),
-      "EX",
       Math.ceil((session.expiresAt - now) / 1000)
     );
     
@@ -530,10 +520,9 @@ exports.markTabActive = async (sessionId, tabId, data = {}) => {
     );
 
     // Update session
-    await redisClient.set(
+    await setWithExpiry(
       sessionKey,
       JSON.stringify(session),
-      "EX",
       Math.ceil((session.expiresAt - now) / 1000)
     );
     
@@ -596,10 +585,10 @@ exports.updateSessionActivity = async (sessionId, timestamp = Date.now()) => {
       logger.warn(`Invalid expiresAt value for session ${sessionId}: ${session.expiresAt}`);
       // Use default expiration as fallback
       const ttlSeconds = Math.ceil(sessionConfig.maxAge / 1000);
-      await redisClient.set(sessionKey, JSON.stringify(session), "EX", ttlSeconds);
+      await setWithExpiry(sessionKey, JSON.stringify(session), ttlSeconds);
     } else {
       const ttlSeconds = Math.max(1, Math.ceil((expiresAt - timestamp) / 1000));
-      await redisClient.set(sessionKey, JSON.stringify(session), "EX", ttlSeconds);
+      await setWithExpiry(sessionKey, JSON.stringify(session), ttlSeconds);
     }
     
     return true;
@@ -819,9 +808,9 @@ async function processBatchCleanup(sessionKeys, now) {
         activeCount++;
 
         // Update TTL based on expiration if using Redis
-        const ttlSeconds = Math.ceil((session.expiresAt - now) / 1000);
+        const ttlSeconds = calculateTTLSeconds(session.expiresAt, now, 3600);
         if (ttlSeconds > 0) {
-          await redisClient.expireat(key, Math.floor((now + ttlSeconds * 1000) / 1000));
+          await redisClient.expire(key, ttlSeconds);
         }
       }
     } catch (error) {
@@ -1325,4 +1314,19 @@ const calculateTTLSeconds = (expiresAt, now = Date.now(), defaultTTL = 3600) => 
     logger.warn(`TTL calculation error: ${error.message}. Using default: ${defaultTTL}s`);
     return defaultTTL;
   }
+};
+
+/**
+ * Helper function to set Redis key with expiration
+ * @param {string} key - Redis key
+ * @param {string} value - Value to store
+ * @param {number} ttlSeconds - TTL in seconds
+ */ 
+const setWithExpiry = async (key, value, ttlSeconds) => {
+  // Ensure ttlSeconds is valid
+  const validTtl = Number.isFinite(ttlSeconds) && ttlSeconds > 0 
+    ? ttlSeconds 
+    : Math.ceil(sessionConfig.store.ttl);
+    
+  await redisClient.set(key, value, "EX", validTtl);
 };
