@@ -6,6 +6,7 @@ const authConfig = require('../config');
 const { token: tokenConfig, cookie: cookieConfig } = authConfig;
 const logger = require('../../../utils/logger');
 const jwt = require('jsonwebtoken');
+const crossTabService = require('../services/cross-tab.service');
 
 /**
  * Refresh tokens
@@ -14,6 +15,7 @@ const jwt = require('jsonwebtoken');
 exports.refreshTokens = asyncHandler(async (req, res) => {
   // Get refresh token from cookie
   const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+  const { deviceId, tabId, isLeaderTab = false } = req.body;
   
   if (!refreshToken) {
     return res.status(401).json({
@@ -25,27 +27,28 @@ exports.refreshTokens = asyncHandler(async (req, res) => {
   
   try {
     // Refresh tokens and update session
-    const result = await tokenService.refreshTokens(refreshToken);
-
-    // Create tokens object with the correct structure for setTokenCookies
-    const tokens = {
-      accessToken: result.accessToken, 
-      refreshToken: result.refreshToken
-    };
+    const result = await tokenService.refreshTokens(refreshToken, { deviceId, tabId });
     
     // Set cookies
-    tokenService.setTokenCookies(res, tokens);
+    tokenService.setTokenCookies(res, {
+      accessToken: result.accessToken, 
+      refreshToken: result.refreshToken
+    });
     
-    // Return session metadata for frontend session monitoring
+    // Notify other tabs/devices about token refresh via WebSocket
+    if (req.io && result.session.userId) {
+      tokenService.notifyTokenRefresh(req.io, result.session, { tabId, isLeaderTab, deviceId });
+    }
+    
     return res.status(200).json({
       success: true,
       message: 'Tokens refreshed successfully',
       data: {
         session: {
-          id: session._id,
-          expiresAt: session.expiresAt,
-          lastActivity: session.lastActiveAt,
-          idleTimeout: session.idleTimeout
+          id: result.session._id,
+          expiresAt: result.session.expiresAt,
+          lastActivity: result.session.lastActiveAt,
+          idleTimeout: result.session.idleTimeout
         }
       }
     });
@@ -71,7 +74,6 @@ exports.refreshTokens = asyncHandler(async (req, res) => {
       });
     }
     
-    // For other errors
     logger.error('Token refresh error:', error);
     return res.status(500).json({
       success: false,
@@ -122,34 +124,8 @@ exports.validateToken = asyncHandler(async (req, res) => {
   }
   
   try {
-    // Validate token based on type
-    const decoded = type === 'access'
-      ? await tokenService.verifyAccessToken(tokenToValidate)
-      : await tokenService.verifyRefreshToken(tokenToValidate);
-    
-    // Get session information if available
-    let sessionData = null;
-    if (decoded.sessionId) {
-      try {
-        const session = await sessionService.getSessionById(decoded.sessionId);
-        if (session) {
-          sessionData = {
-            id: session.id,
-            expiresAt: session.expiresAt,
-            lastActivity: session.lastActiveAt
-          };
-        }
-      } catch (err) {
-        logger.warn('Session lookup failed during token validation', { error: err.message });
-      }
-    }
-    
-    return res.status(200).json({
-      valid: true,
-      userId: decoded.sub || decoded.userId,
-      sessionId: decoded.sessionId,
-      session: sessionData
-    });
+    const result = await tokenService.validateToken(tokenToValidate, type);
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(200).json({
       valid: false,
@@ -163,82 +139,286 @@ exports.validateToken = asyncHandler(async (req, res) => {
  * @route POST /api/auth/token/revoke
  */
 exports.revokeToken = asyncHandler(async (req, res) => {
-  const { type = 'all', sessionId } = req.body;
+  const { type = 'all', sessionId, deviceId, tabId } = req.body;
+  const cookies = {
+    refresh: req.cookies[cookieConfig.names.REFRESH_TOKEN],
+    access: req.cookies[cookieConfig.names.ACCESS_TOKEN]
+  };
   
-  if (type === 'refresh' || type === 'all') {
-    const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
-    if (refreshToken) {
-      await tokenService.revokeToken(refreshToken, 'refresh');
+  try {
+    const result = await tokenService.revokeTokens({
+      type,
+      sessionId,
+      deviceId,
+      tabId,
+      tokens: cookies
+    });
+    
+    // Clear cookies based on revoked token types
+    if (result.tokensRevoked.includes('refresh') || type === 'all') {
       res.clearCookie(cookieConfig.names.REFRESH_TOKEN, cookieConfig.refreshTokenOptions);
     }
-  }
-  
-  if (type === 'access' || type === 'all') {
-    const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
-    if (accessToken) {
-      await tokenService.revokeToken(accessToken, 'access');
+    
+    if (result.tokensRevoked.includes('access') || type === 'all') {
       res.clearCookie(cookieConfig.names.ACCESS_TOKEN, cookieConfig.accessTokenOptions);
     }
+    
+    if (result.tokensRevoked.includes('csrf') || type === 'all') {
+      res.clearCookie(cookieConfig.names.CSRF_TOKEN, cookieConfig.csrfTokenOptions);
+    }
+    
+    // Notify other tabs/devices about session termination via WebSocket
+    if (req.io && result.sessionTerminated && result.userId) {
+      tokenService.notifySessionTermination(req.io, {
+        userId: result.userId,
+        sessionId,
+        deviceId,
+        reason: 'user_logout'
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: `${type} token(s) revoked successfully`
+    });
+  } catch (error) {
+    logger.error('Token revocation error:', error);
+    return res.status(500).json({
+      success: false,
+      code: 'TOKEN_REVOCATION_ERROR',
+      message: 'Failed to revoke token(s)'
+    });
   }
-  
-  if (type === 'csrf' || type === 'all') {
-    res.clearCookie(cookieConfig.names.CSRF_TOKEN, cookieConfig.csrfTokenOptions);
-  }
-  
-  // End session if sessionId is provided
-  if (sessionId && type === 'all') {
-    await sessionService.endSession(sessionId, 'user_logout');
-  }
-  
-  return res.status(200).json({
-    success: true,
-    message: `${type} token(s) revoked successfully`
-  });
 });
 
 /**
  * Get token status
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * @route GET /api/auth/token/status
  */
-exports.getTokenStatus = async (req, res) => {
-  try {
-    // Get the access token from the cookie
-    const accessToken = req.cookies.access_token;
-    
-    if (!accessToken) {
-      return res.status(401).json({
-        status: 'error',
-        message: 'No access token found'
-      });
-    }
-    
-    // Verify the token without throwing an error
-    try {
-      const decoded = jwt.verify(accessToken, tokenConfig.access.secret);
-      
-      // Calculate time until expiry in seconds
-      const expiresIn = Math.floor((decoded.exp * 1000 - Date.now()) / 1000);
-      
-      return res.status(200).json({
-        status: 'success',
-        data: {
-          expiresIn,
-          isValid: expiresIn > 0
-        }
-      });
-    } catch (error) {
-      // If token verification fails, return 401
-      return res.status(401).json({
-        status: 'error',
-        message: 'Invalid or expired token'
-      });
-    }
-  } catch (error) {
-    logger.error('Error checking token status:', error);
-    return res.status(500).json({
+exports.getTokenStatus = asyncHandler(async (req, res) => {
+  // Get the access token from the cookie
+  const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+  
+  if (!accessToken) {
+    return res.status(401).json({
       status: 'error',
-      message: 'Internal server error'
+      code: 'ACCESS_TOKEN_MISSING',
+      message: 'No access token found'
+    });
+  }
+  
+  try {
+    const statusResult = await tokenService.getTokenStatus(accessToken);
+    return res.status(200).json(statusResult);
+  } catch (error) {
+    // If token verification fails, return 401
+    return res.status(401).json({
+      status: 'error',
+      code: error.name === 'TokenExpiredError' ? 'ACCESS_TOKEN_EXPIRED' : 'ACCESS_TOKEN_INVALID',
+      message: error.name === 'TokenExpiredError' ? 'Access token has expired' : 'Invalid access token'
+    });
+  }
+});
+
+/**
+ * Generate WebSocket token
+ * @route POST /api/auth/token/ws-auth
+ */
+exports.generateWebSocketToken = asyncHandler(async (req, res) => {
+  const { deviceId, tabId } = req.body;
+  const userId = req.user?._id;
+  
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      code: 'UNAUTHORIZED',
+      message: 'Authentication required'
+    });
+  }
+  
+  if (!deviceId) {
+    return res.status(400).json({
+      success: false,
+      code: 'MISSING_DEVICE_ID',
+      message: 'Device ID is required'
+    });
+  }
+  
+  try {
+    const result = await tokenService.generateWebSocketToken(userId, {
+      deviceId,
+      tabId,
+      sessionId: req.sessionId
+    });
+    
+    return res.status(200).json({
+      success: true,
+      token: result.token,
+      rooms: result.rooms
+    });
+  } catch (error) {
+    logger.error('Error generating WebSocket token:', error);
+    return res.status(500).json({
+      success: false,
+      code: 'WS_TOKEN_ERROR',
+      message: 'Failed to generate WebSocket token'
+    });
+  }
+});
+
+/**
+ * Send token expiration warning
+ * @route POST /api/auth/token/expiration-warning
+ * @private Internal use only
+ */
+exports.sendTokenExpirationWarning = asyncHandler(async (req, res) => {
+  const { sessionId, userId, deviceId, warningThreshold = 60 } = req.body;
+  
+  if (!sessionId || !userId) {
+    return res.status(400).json({
+      success: false,
+      code: 'MISSING_PARAMETERS',
+      message: 'Session ID and User ID are required'
+    });
+  }
+  
+  try {
+    const result = await tokenService.sendExpirationWarning({
+      sessionId,
+      userId,
+      deviceId,
+      warningThreshold,
+      io: req.io
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Token expiration warning sent'
+    });
+  } catch (error) {
+    logger.error('Error sending token expiration warning:', error);
+    return res.status(500).json({
+      success: false,
+      code: 'WARNING_SEND_ERROR',
+      message: 'Failed to send token expiration warning'
+    });
+  }
+});
+
+/**
+ * Broadcast security event
+ * @route POST /api/auth/token/security-event
+ * @private Internal use only
+ */
+exports.broadcastSecurityEvent = asyncHandler(async (req, res) => {
+  const { userId, eventType, data = {} } = req.body;
+  
+  if (!userId || !eventType) {
+    return res.status(400).json({
+      success: false,
+      code: 'MISSING_PARAMETERS',
+      message: 'User ID and event type are required'
+    });
+  }
+  
+  try {
+    const result = await tokenService.broadcastSecurityEvent(req.io, userId, eventType, data);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Security event broadcasted'
+    });
+  } catch (error) {
+    logger.error('Error broadcasting security event:', error);
+    return res.status(500).json({
+      success: false,
+      code: 'BROADCAST_ERROR',
+      message: 'Failed to broadcast security event'
+    });
+  }
+});
+
+/**
+ * Validate WebSocket token
+ */
+exports.validateWebSocketToken = async (req, res) => {
+  const { token } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      message: 'Token not provided'
+    });
+  }
+  
+  try {
+    const decoded = await tokenService.verifyToken(token, 'ws');
+    
+    return res.status(200).json({
+      success: true,
+      valid: true,
+      userId: decoded.sub,
+      deviceId: decoded.deviceId,
+      tabId: decoded.tabId
+    });
+  } catch (error) {
+    return res.status(200).json({
+      success: true,
+      valid: false,
+      reason: error.message
+    });
+  }
+};
+
+/**
+ * Get token expiration
+ */
+exports.getTokenExpiration = async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      message: 'Token not provided'
+    });
+  }
+  
+  try {
+    const timeRemaining = tokenService.getTokenTimeRemaining(token);
+    
+    return res.status(200).json({
+      success: true,
+      expiresIn: timeRemaining,
+      isExpiringSoon: timeRemaining < 300 // 5 minutes
+    });
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+};
+
+/**
+ * Send refresh notification
+ */
+exports.sendRefreshNotification = async (req, res) => {
+  const userId = req.user._id;
+  const sessionId = req.session?.id;
+  
+  try {
+    // Use socket service to notify other tabs/devices
+    const io = req.app.get('io');
+    tokenService.notifyTokenRefresh(io, userId, sessionId);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Refresh notification sent'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to send refresh notification'
     });
   }
 };

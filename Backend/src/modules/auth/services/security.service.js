@@ -9,6 +9,7 @@
  */
 const securityConfig = require('../config/security.config');
 const cookieConfig = require('../config/cookie.config');
+const roomRegistryConfig = require('../config/room-registry.config');
 const { AuthError } = require('../../../utils/errors');
 const logger = require('../../../utils/logger');
 const tokenService = require('./token.service');
@@ -16,6 +17,9 @@ const sessionService = require('./session.service');
 const User = require('../models/user.model');
 const SecurityEvent = require('../models/security-event.model');
 const DeviceInfo = require('../models/device-info.model');
+const socketService = require('./socket.service');
+const config = require('../config');
+const { roomRegistry, eventPropagation } = config;
 
 class SecurityService {
   constructor() {
@@ -168,15 +172,53 @@ class SecurityService {
   generateCsrfToken(res) {
     const csrfToken = this.tokenService.generateCsrfToken();
     
-    // Set CSRF token in cookie using the correct config
-    res.cookie(cookieConfig.names.CSRF_TOKEN, csrfToken, {
-      httpOnly: false, // Must be accessible to JavaScript
+    // Set CSRF token in cookie using the centralized config
+    res.cookie(
+      cookieConfig.names.CSRF_TOKEN, 
+      csrfToken, 
+      cookieConfig.getCsrfTokenOptions()
+    );
+    
+    return csrfToken;
+  }
+
+  /**
+   * Set authentication tokens in cookies
+   * @param {Object} res - Express response object
+   * @param {Object} tokens - Token data (access and refresh tokens)
+   * @param {Boolean} rememberMe - Whether to extend cookie lifetime
+   */
+  setAuthCookies(res, tokens, rememberMe = false) {
+    // Delegate to token service for consistent implementation
+    this.tokenService.setTokenCookies(res, tokens, rememberMe);
+  }
+
+  /**
+   * Clear authentication cookies
+   * @param {Object} res - Express response object
+   */
+  clearAuthCookies(res) {
+    res.clearCookie(cookieConfig.names.ACCESS_TOKEN, {
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/'
     });
     
-    return csrfToken;
+    res.clearCookie(cookieConfig.names.REFRESH_TOKEN, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+    
+    // Also clear CSRF token cookie
+    res.clearCookie(cookieConfig.names.CSRF_TOKEN, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
   }
 
   /**
@@ -186,34 +228,99 @@ class SecurityService {
    * @returns {Boolean} Validation result
    */
   validateCsrfToken(token, cookieToken) {
-    if (!token || !cookieToken) {
-      return false;
+    // Delegate to token service for consistent implementation
+    return this.tokenService.validateCsrfToken(token, cookieToken);
+  }
+
+  /**
+   * Verify CSRF token
+   * @param {String} token - CSRF token from request
+   * @param {String} cookieToken - CSRF token from cookie
+   * @returns {Boolean} Verification result
+   */
+  verifyCsrfToken(token, userId) {
+    // Delegate to token service for consistent implementation
+    return this.tokenService.verifyCsrfToken(token, userId);
+  }
+
+  /**
+   * Create security context for user
+   * @param {String} userId - User ID
+   * @param {Object} deviceInfo - Device information
+   * @returns {Promise<Object>} Security context
+   */
+  async createSecurityContext(userId, deviceInfo) {
+    try {
+      // Create security context
+      const contextId = this.tokenService.generateSecureToken();
+      
+      // Log security event for context creation
+      await this.logSecurityEvent(userId, 'security_context_created', {
+        contextId,
+        deviceInfo
+      });
+      
+      // Return security context
+      return {
+        id: contextId,
+        userId,
+        createdAt: new Date(),
+        deviceFingerprint: deviceInfo.fingerprint,
+        ipHash: deviceInfo.ipHash,
+        userAgent: deviceInfo.userAgent
+      };
+    } catch (error) {
+      logger.error('Security context creation error:', error);
+      throw new AuthError('Failed to create security context', 'SECURITY_CONTEXT_ERROR');
+    }
+  }
+
+  /**
+   * Check if user account is locked
+   * @param {Object} user - User object
+   * @returns {Object} Lock status
+   */
+  checkAccountLock(user) {
+    if (!user.isLocked) {
+      return { locked: false };
     }
     
-    return token === cookieToken;
+    // Check if lock period has expired
+    const now = new Date();
+    if (user.lockUntil && user.lockUntil < now) {
+      // Lock has expired, reset lock
+      return { locked: false, wasLocked: true };
+    }
+    
+    // Account is locked
+    return { 
+      locked: true, 
+      until: user.lockUntil,
+      remainingMs: user.lockUntil ? user.lockUntil - now : 0
+    };
   }
 
   /**
    * Log security event
    * @param {String} userId - User ID
    * @param {String} eventType - Event type
-   * @param {Object} details - Event details
+   * @param {Object} data - Event data
    * @returns {Promise<Object>} Created event
    */
-  async logSecurityEvent(userId, eventType, details = {}) {
+  async logSecurityEvent(userId, eventType, data = {}) {
     try {
       const event = new SecurityEvent({
         userId,
         eventType,
-        details,
-        timestamp: new Date(),
-        contextId: details.contextId || undefined
+        data,
+        timestamp: new Date()
       });
       
       await event.save();
       return event;
     } catch (error) {
       logger.error('Security event logging error:', error);
+      // Don't throw - logging should not interrupt flow
       return null;
     }
   }
@@ -431,6 +538,9 @@ class SecurityService {
     // Set up event listeners for security events
     this.setupSecurityEventListeners();
     
+    // Initialize WebSocket security handlers
+    this.initializeWebSocketSecurity();
+    
     logger.info('Security monitoring initialized');
   }
 
@@ -478,8 +588,241 @@ class SecurityService {
    * Initialize suspicious activity detection
    */
   initializeSuspiciousActivityDetection() {
-    // Implementation depends on your security strategy
+    this.suspiciousActivityRules = {
+      multipleFailedLogins: {
+        threshold: 5,
+        timeWindow: 10 * 60 * 1000, // 10 minutes
+        action: 'temporaryLock'
+      },
+      rapidDeviceChanges: {
+        threshold: 3,
+        timeWindow: 60 * 60 * 1000, // 1 hour
+        action: 'notify'
+      },
+      unusualLocationLogin: {
+        enabled: true,
+        distanceThreshold: 500, // km
+        action: 'verify'
+      },
+      multipleTabsAccess: {
+        threshold: 20,
+        timeWindow: 5 * 60 * 1000, // 5 minutes
+        action: 'monitor'
+      }
+    };
+    
+    // Initialize detection counters
+    this.detectionCounters = new Map();
+    
     logger.info('Suspicious activity detection initialized');
+  }
+
+  /**
+   * Check for suspicious activity
+   * @param {String} userId - User ID
+   * @param {String} activityType - Activity type
+   * @param {Object} data - Activity data
+   * @returns {Promise<Object>} Detection result
+   */
+  async checkSuspiciousActivity(userId, activityType, data = {}) {
+    try {
+      if (!this.suspiciousActivityRules[activityType]) {
+        return { suspicious: false };
+      }
+      
+      const rule = this.suspiciousActivityRules[activityType];
+      
+      // Get or initialize counter for this user and activity
+      const counterKey = `${userId}:${activityType}`;
+      if (!this.detectionCounters.has(counterKey)) {
+        this.detectionCounters.set(counterKey, {
+          count: 0,
+          firstOccurrence: Date.now(),
+          lastOccurrence: Date.now(),
+          data: []
+        });
+      }
+      
+      const counter = this.detectionCounters.get(counterKey);
+      
+      // Check if we're still in the time window
+      if (Date.now() - counter.firstOccurrence > rule.timeWindow) {
+        // Reset counter if outside time window
+        counter.count = 0;
+        counter.firstOccurrence = Date.now();
+        counter.data = [];
+      }
+      
+      // Increment counter
+      counter.count++;
+      counter.lastOccurrence = Date.now();
+      counter.data.push(data);
+      
+      // Check if threshold exceeded
+      if (counter.count >= rule.threshold) {
+        // Take action based on rule
+        await this.takeSuspiciousActivityAction(userId, activityType, rule.action, counter);
+        
+        return { suspicious: true, action: rule.action };
+      }
+      
+      return { suspicious: false };
+    } catch (error) {
+      logger.error('Suspicious activity check error:', error);
+      return { suspicious: false };
+    }
+  }
+
+  /**
+   * Take action for suspicious activity
+   * @param {String} userId - User ID
+   * @param {String} activityType - Activity type
+   * @param {String} action - Action to take
+   * @param {Object} counter - Detection counter
+   */
+  async takeSuspiciousActivityAction(userId, activityType, action, counter) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) return;
+      
+      switch (action) {
+        case 'temporaryLock':
+          // Lock account temporarily
+          await User.findByIdAndUpdate(userId, {
+            'securityProfile.temporaryLock': {
+              locked: true,
+              until: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes
+              reason: `Suspicious activity: ${activityType}`
+            }
+          });
+          
+          // Log the action
+          logger.warn(`User account temporarily locked due to suspicious activity`, {
+            userId,
+            activityType,
+            occurrences: counter.count,
+            timeWindow: counter.lastOccurrence - counter.firstOccurrence
+          });
+          break;
+          
+        case 'notify':
+          // Send notification to user
+          // This would integrate with your notification system
+          logger.info(`Notification sent to user about suspicious activity`, {
+            userId,
+            activityType
+          });
+          break;
+          
+        case 'verify':
+          // Require additional verification
+          await User.findByIdAndUpdate(userId, {
+            'securityProfile.requiresVerification': true,
+            'securityProfile.verificationReason': `Suspicious activity: ${activityType}`
+          });
+          
+          logger.info(`Additional verification required for user`, {
+            userId,
+            activityType
+          });
+          break;
+          
+        case 'monitor':
+          // Just log for monitoring
+          logger.info(`Suspicious activity detected and being monitored`, {
+            userId,
+            activityType,
+            occurrences: counter.count
+          });
+          break;
+      }
+      
+      // Reset counter after taking action
+      this.detectionCounters.set(`${userId}:${activityType}`, {
+        count: 0,
+        firstOccurrence: Date.now(),
+        lastOccurrence: Date.now(),
+        data: []
+      });
+      
+      return true;
+    } catch (error) {
+      logger.error(`Error taking action for suspicious activity`, {
+        userId,
+        activityType,
+        error: error.message
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Handle temporary account lock
+   * @param {String} userId - User ID
+   * @param {Object} counter - Detection counter
+   */
+  async handleTemporaryLock(userId, counter) {
+    try {
+      const user = await User.findById(userId);
+      if (user) {
+        user.isLocked = true;
+        user.lockUntil = new Date(Date.now() + securityConfig.lockout.durationMinutes * 60 * 1000);
+        await user.save();
+        
+        await this.logSecurityEvent(userId, 'account_locked', {
+          reason: 'suspicious_activity',
+          lockUntil: user.lockUntil
+        });
+      }
+    } catch (error) {
+      logger.error('Error locking account:', error);
+    }
+  }
+
+  /**
+   * Notify admins of suspicious activity
+   * @param {String} userId - User ID
+   * @param {String} activityType - Activity type
+   * @param {Object} counter - Detection counter
+   */
+  async notifyAdmins(userId, activityType, counter) {
+    try {
+      // Implement notification logic here
+      // This could involve sending an email or SMS to admins
+      logger.info(`Notifying admins of suspicious activity: ${activityType} for user ${userId}`);
+    } catch (error) {
+      logger.error('Error notifying admins:', error);
+    }
+  }
+
+  /**
+   * Request device verification
+   * @param {String} userId - User ID
+   * @param {Object} counter - Detection counter
+   */
+  async requestDeviceVerification(userId, counter) {
+    try {
+      // Implement device verification request logic here
+      // This could involve sending a verification code to the user's device
+      logger.info(`Requesting device verification for user ${userId}`);
+    } catch (error) {
+      logger.error('Error requesting device verification:', error);
+    }
+  }
+
+  /**
+   * Monitor user activity
+   * @param {String} userId - User ID
+   * @param {Object} counter - Detection counter
+   */
+  async monitorUserActivity(userId, counter) {
+    try {
+      // Implement monitoring logic here
+      // This could involve logging the activity or setting up alerts
+      logger.info(`Monitoring user activity for user ${userId}`);
+    } catch (error) {
+      logger.error('Error monitoring user activity:', error);
+    }
   }
 
   /**
@@ -512,6 +855,244 @@ class SecurityService {
   async checkBruteForceAttempts() {
     // Implementation depends on your security strategy
     logger.debug('Checked for brute force attempts');
+  }
+
+  /**
+   * Broadcast security event to user's devices via WebSocket
+   * @param {String} userId - User ID
+   * @param {String} eventType - Security event type
+   * @param {Object} data - Event data
+   * @returns {Promise<Boolean>} Success status
+   */
+  async broadcastSecurityEvent(userId, eventType, data = {}) {
+    try {
+      // Log the security event first
+      await this.logSecurityEvent(userId, eventType, data);
+      
+      // Get socket.io instance from app
+      const io = require('../../../socket').getIO();
+      if (!io) {
+        logger.warn('Socket.io not initialized, cannot broadcast security event');
+        return false;
+      }
+      
+      // Create user room name using config
+      const userRoom = `${roomRegistryConfig.roomTypes.user.prefix}${userId}`;
+      
+      // Broadcast to all user's devices
+      io.to(userRoom).emit(`security:${eventType}`, {
+        timestamp: new Date(),
+        type: eventType,
+        ...data
+      });
+      
+      logger.info(`Security event ${eventType} broadcasted to user ${userId}`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to broadcast security event ${eventType}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Handle password change security event
+   * @param {String} userId - User ID
+   * @param {String} sessionId - Current session ID (to exclude from logout)
+   * @returns {Promise<Boolean>} Success status
+   */
+  async handlePasswordChanged(userId, sessionId = null) {
+    try {
+      // Log the event
+      await this.logSecurityEvent(userId, 'password_changed', {
+        timestamp: new Date(),
+        sessionId
+      });
+      
+      // Broadcast to all user's devices
+      await this.broadcastSecurityEvent(userId, 'password_changed', {
+        keepSession: sessionId
+      });
+      
+      return true;
+    } catch (error) {
+      logger.error('Password change handling error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Handle suspicious activity detection
+   * @param {String} userId - User ID
+   * @param {Object} activityData - Suspicious activity data
+   * @returns {Promise<Boolean>} Success status
+   */
+  async handleSuspiciousActivity(userId, activityData) {
+    try {
+      // Log the suspicious activity
+      await this.logSecurityEvent(userId, 'suspicious_activity', activityData);
+      
+      // Broadcast to all user's devices
+      await this.broadcastSecurityEvent(userId, 'suspicious_activity', {
+        activityType: activityData.type,
+        riskLevel: activityData.riskLevel,
+        timestamp: new Date()
+      });
+      
+      return true;
+    } catch (error) {
+      logger.error('Suspicious activity handling error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Initialize WebSocket security handlers
+   */
+  initializeWebSocketSecurity() {
+    try {
+      const io = require('../../../socket').getIO();
+      if (!io) {
+        logger.warn('Socket.io not initialized, skipping WebSocket security setup');
+        return;
+      }
+      
+      // Get the auth namespace
+      const authNamespace = io.of('/auth');
+      
+      // Set up middleware for authentication
+      authNamespace.use(socketService.authMiddleware.bind(socketService));
+      
+      // Handle connection
+      authNamespace.on('connection', (socket) => {
+        // Join rooms using centralized method
+        socketService.joinHierarchicalRooms(socket);
+        
+        // Handle security events
+        this.setupSocketSecurityHandlers(socket);
+        
+        logger.debug(`User ${socket.data.userId} connected to security WebSocket`);
+      });
+      
+      logger.info('WebSocket security handlers initialized');
+    } catch (error) {
+      logger.error('Failed to initialize WebSocket security:', error);
+    }
+  }
+
+  /**
+   * Set up socket security event handlers
+   * @param {Object} socket - Socket.io socket
+   */
+  setupSocketSecurityHandlers(socket) {
+    // Handle client-side security events
+    socket.on('security:report', async (data) => {
+      try {
+        await this.logSecurityEvent(socket.data.userId, 'client_report', data);
+        logger.info(`Security report received from user ${socket.data.userId}`);
+      } catch (error) {
+        logger.error('Error handling security report:', error);
+      }
+    });
+    
+    // Handle disconnect
+    socket.on('disconnect', () => {
+      logger.debug(`User ${socket.data.userId} disconnected from security WebSocket`);
+    });
+  }
+
+  /**
+   * Extract tokens from cookies
+   * @param {Object} req - Express request object
+   * @returns {Object|null} Tokens or null if not found
+   */
+  extractTokensFromCookies(req) {
+    try {
+      const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+      const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+      
+      if (!accessToken && !refreshToken) {
+        return null;
+      }
+      
+      return {
+        accessToken,
+        refreshToken
+      };
+    } catch (error) {
+      logger.error('Extract tokens from cookies error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract CSRF token from request
+   * @param {Object} req - Express request object
+   * @returns {String|null} CSRF token or null if not found
+   */
+  extractCsrfToken(req) {
+    try {
+      // Check header first
+      const headerToken = req.headers[securityConfig.csrf.headerName.toLowerCase()];
+      if (headerToken) {
+        return headerToken;
+      }
+      
+      // Check cookie
+      const cookieToken = req.cookies[cookieConfig.names.CSRF_TOKEN];
+      if (cookieToken) {
+        return cookieToken;
+      }
+      
+      // Check body
+      if (req.body && req.body._csrf) {
+        return req.body._csrf;
+      }
+      
+      return null;
+    } catch (error) {
+      logger.error('Extract CSRF token error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Record security event and broadcast to appropriate rooms
+   * @param {string} userId - User ID
+   * @param {string} eventType - Security event type
+   * @param {Object} data - Event data
+   */
+  async recordSecurityEvent(userId, eventType, data = {}) {
+    try {
+      // Create security event record
+      const event = new SecurityEvent({
+        userId,
+        eventType,
+        data,
+        timestamp: new Date()
+      });
+      
+      await event.save();
+      
+      // Create room name using socket service
+      const userRoom = socketService.createRoomName('user', userId);
+      
+      // Determine propagation direction based on event type
+      const propagationConfig = eventPropagation.events[`security:${eventType}`] || 
+                               eventPropagation.defaultBehavior;
+      
+      // Emit event with proper propagation
+      socketService.emitWithPropagation(userRoom, `security:${eventType}`, {
+        timestamp: new Date(),
+        type: eventType,
+        ...data
+      }, propagationConfig);
+      
+      logger.info(`Security event ${eventType} recorded and broadcasted for user ${userId}`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to record security event ${eventType}:`, error);
+      return false;
+    }
   }
 }
 

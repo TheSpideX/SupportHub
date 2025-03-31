@@ -9,6 +9,10 @@ const logger = require('../../../utils/logger');
 const sessionService = require('./session.service');
 const Token = require('../models/token.model');
 const User = require('../models/user.model');
+const socketService = require('./socket.service');
+const config = require('../config');
+const { roomRegistry } = config;
+const authErrorHandler = require('../utils/errorHandler');
 
 // Store cleanup intervals for proper shutdown
 const cleanupIntervals = [];
@@ -114,10 +118,22 @@ exports.generateAuthTokens = async (user, sessionData = {}) => {
   // Generate tokens
   const accessToken = generateToken(basePayload, 'access');
   const refreshToken = generateToken(basePayload, 'refresh');
+  
+  // Generate CSRF token for protection against CSRF attacks
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  
+  // Store CSRF token in Redis with user ID association
+  await redisClient.set(
+    `csrf:${csrfToken}`, 
+    user._id.toString(),
+    'EX',
+    tokenConfig.access.expiresIn
+  );
 
   return {
     accessToken,
     refreshToken,
+    csrfToken,
     session
   };
 };
@@ -372,11 +388,12 @@ exports.verifyCsrfToken = async (token, userId) => {
 exports.setTokenCookies = (res, tokens) => {
   // Get cookie config
   const cookieNames = cookieConfig.names;
-  const baseOptions = cookieConfig.baseOptions;
-  
-  // Ensure token config values are valid numbers
-  const accessTokenExpiry = parseInt(tokenConfig.ACCESS_TOKEN_EXPIRY, 10) || 3600; // Default 1 hour
-  const refreshTokenExpiry = parseInt(tokenConfig.REFRESH_TOKEN_EXPIRY, 10) || 604800; // Default 7 days
+  const baseOptions = {
+    httpOnly: true, // Ensure HTTP-only for security
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/'
+  };
   
   // Set access token cookie
   if (tokens.accessToken) {
@@ -385,18 +402,7 @@ exports.setTokenCookies = (res, tokens) => {
       tokens.accessToken, 
       {
         ...baseOptions,
-        maxAge: accessTokenExpiry * 1000
-      }
-    );
-    
-    // Set non-httpOnly flag cookie for frontend detection
-    res.cookie(
-      'access_token_exists', 
-      'true', 
-      {
-        ...baseOptions,
-        httpOnly: false,
-        maxAge: accessTokenExpiry * 1000
+        maxAge: tokenConfig.access.expiresIn * 1000
       }
     );
   }
@@ -408,18 +414,19 @@ exports.setTokenCookies = (res, tokens) => {
       tokens.refreshToken, 
       {
         ...baseOptions,
-        maxAge: refreshTokenExpiry * 1000
+        maxAge: tokenConfig.refresh.expiresIn * 1000
       }
     );
-    
-    // Set non-httpOnly flag cookie for frontend detection
+  }
+  
+  // Set CSRF token if provided
+  if (tokens.csrfToken) {
     res.cookie(
-      'app_session_exists', 
-      'true', 
+      cookieNames.CSRF_TOKEN,
+      tokens.csrfToken,
       {
         ...baseOptions,
-        httpOnly: false,
-        maxAge: refreshTokenExpiry * 1000
+        httpOnly: false // CSRF token must be accessible to JavaScript
       }
     );
   }
@@ -430,44 +437,18 @@ exports.setTokenCookies = (res, tokens) => {
  * @param {Object} res - Express response object
  */
 exports.clearTokenCookies = (res) => {
-  // Ensure cookie config exists with defaults if not defined
-  const cookieSecure = cookieConfig?.accessTokenOptions?.secure ?? true;
-  const cookieSameSite = cookieConfig?.accessTokenOptions?.sameSite ?? 'strict';
-  
-  // Default cookie names if config is missing
-  const accessTokenName = cookieConfig?.names?.ACCESS_TOKEN || 'access_token';
-  const refreshTokenName = cookieConfig?.names?.REFRESH_TOKEN || 'refresh_token';
-  const csrfTokenName = cookieConfig?.names?.CSRF_TOKEN || 'csrf_token';
-  
-  // Clear cookies with fallback options
-  res.clearCookie(accessTokenName, {
+  const cookieNames = cookieConfig.names;
+  const baseOptions = {
     httpOnly: true,
-    secure: cookieSecure,
-    sameSite: cookieSameSite,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
     path: '/'
-  });
+  };
   
-  res.clearCookie(refreshTokenName, {
-    httpOnly: true,
-    secure: cookieSecure,
-    sameSite: cookieSameSite,
-    path: '/'
-  });
-  
-  res.clearCookie(csrfTokenName, {
-    httpOnly: true,
-    secure: cookieSecure,
-    sameSite: cookieSameSite,
-    path: '/'
-  });
-  
-  // Clear the token existence flag
-  res.clearCookie('auth_token_exists', {
-    httpOnly: false,
-    secure: cookieSecure,
-    sameSite: cookieSameSite,
-    path: '/'
-  });
+  // Clear all auth cookies
+  res.clearCookie(cookieNames.ACCESS_TOKEN, baseOptions);
+  res.clearCookie(cookieNames.REFRESH_TOKEN, baseOptions);
+  res.clearCookie(cookieNames.CSRF_TOKEN, {...baseOptions, httpOnly: false});
 };
 
 /**
@@ -610,4 +591,299 @@ exports.cleanup = function() {
     logger.error('Error during token service cleanup:', error);
     return false;
   }
+};
+
+/**
+ * Get token expiration time
+ * @param {string} token - JWT token
+ * @returns {number} Expiration time in seconds
+ */
+exports.getTokenExpiration = (token) => {
+  try {
+    const decoded = jwt.decode(token);
+    if (!decoded || !decoded.exp) {
+      return 0;
+    }
+    return decoded.exp;
+  } catch (error) {
+    logger.error('Failed to get token expiration', error);
+    return 0;
+  }
+};
+
+/**
+ * Check if token is about to expire
+ * @param {string} token - JWT token
+ * @param {number} thresholdSeconds - Seconds threshold before expiration
+ * @returns {boolean} True if token is about to expire
+ */
+exports.isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
+  try {
+    const expTime = exports.getTokenExpiration(token);
+    if (!expTime) return true;
+    
+    const currentTime = Math.floor(Date.now() / 1000);
+    return expTime - currentTime < thresholdSeconds;
+  } catch (error) {
+    logger.error('Failed to check token expiration', error);
+    return true; // Assume token is expiring if we can't check
+  }
+};
+
+/**
+ * Send token expiration warning via WebSocket
+ * @param {Object} socket - WebSocket connection
+ * @param {string} userId - User ID
+ * @param {number} expiresIn - Seconds until expiration
+ */
+exports.sendTokenExpirationWarning = (socket, userId, expiresIn) => {
+  if (!socket) return;
+  
+  try {
+    socket.to(`user:${userId}`).emit('token:expiring', {
+      expiresIn,
+      timestamp: Date.now()
+    });
+    
+    logger.debug(`Sent token expiration warning to user ${userId}, expires in ${expiresIn}s`);
+  } catch (error) {
+    logger.error('Failed to send token expiration warning', error);
+  }
+};
+
+/**
+ * Notify connected clients about token refresh
+ * @param {Object} io - Socket.io instance
+ * @param {string} userId - User ID
+ * @param {string} sessionId - Session ID that performed the refresh
+ */
+exports.notifyTokenRefresh = (io, userId, sessionId) => {
+  if (!io) return;
+  
+  try {
+    io.to(`user:${userId}`).emit('token:refreshed', {
+      sessionId,
+      timestamp: Date.now()
+    });
+    
+    logger.debug(`Notified token refresh to user ${userId} sessions`);
+  } catch (error) {
+    logger.error('Failed to notify token refresh', error);
+  }
+};
+
+/**
+ * Schedule token expiration check and warning
+ * @param {Object} io - Socket.io instance
+ * @param {string} userId - User ID
+ * @param {string} token - JWT token
+ * @param {number} warningThreshold - Seconds before expiration to send warning
+ */
+exports.scheduleTokenExpirationCheck = (io, userId, token, warningThreshold = 300) => {
+  try {
+    const expTime = exports.getTokenExpiration(token);
+    if (!expTime) return;
+    
+    const currentTime = Math.floor(Date.now() / 1000);
+    const timeUntilExpiry = expTime - currentTime;
+    const timeUntilWarning = timeUntilExpiry - warningThreshold;
+    
+    if (timeUntilWarning <= 0) {
+      // Already within warning period, send immediately
+      exports.sendTokenExpirationWarning(io, userId, timeUntilExpiry);
+      return;
+    }
+    
+    // Schedule warning
+    setTimeout(() => {
+      exports.sendTokenExpirationWarning(io, userId, warningThreshold);
+    }, timeUntilWarning * 1000);
+    
+    logger.debug(`Scheduled token expiration warning for user ${userId} in ${timeUntilWarning}s`);
+  } catch (error) {
+    logger.error('Failed to schedule token expiration check', error);
+  }
+};
+
+/**
+ * Get time remaining until token expires
+ * @param {string} token - JWT token
+ * @returns {number} Seconds until expiration, 0 if expired or invalid
+ */
+exports.getTokenTimeRemaining = (token) => {
+  try {
+    const expTime = exports.getTokenExpiration(token);
+    if (!expTime) return 0;
+    
+    const currentTime = Math.floor(Date.now() / 1000);
+    return Math.max(0, expTime - currentTime);
+  } catch (error) {
+    logger.error('Failed to get token time remaining', error);
+    return 0;
+  }
+};
+
+/**
+ * Notify security event to connected clients
+ * @param {Object} io - Socket.io instance
+ * @param {string} userId - User ID
+ * @param {string} eventType - Type of security event
+ * @param {Object} data - Additional event data
+ */
+exports.notifySecurityEvent = (io, userId, eventType, data = {}) => {
+  if (!io) return;
+  
+  try {
+    io.to(`user:${userId}`).emit(`token:${eventType}`, {
+      ...data,
+      timestamp: Date.now()
+    });
+    
+    logger.debug(`Sent security event ${eventType} to user ${userId}`);
+  } catch (error) {
+    logger.error(`Failed to send security event ${eventType}`, error);
+  }
+};
+
+/**
+ * Register socket connection with user session
+ * @param {Object} socket - Socket.io socket
+ * @param {string} userId - User ID
+ * @param {string} sessionId - Session ID
+ */
+exports.registerSocketConnection = async (socket, userId, sessionId) => {
+  try {
+    // No need to join rooms here as it's handled by socketService.joinHierarchicalRooms
+    
+    // Update session with socket ID
+    if (sessionId) {
+      const sessionService = require('./session.service');
+      await sessionService.updateSession(sessionId, {
+        lastSocketId: socket.id,
+        lastSocketConnected: new Date()
+      });
+    }
+    
+    logger.debug(`Socket ${socket.id} registered for user ${userId}`);
+    return true;
+  } catch (error) {
+    logger.error('Error registering socket connection:', error);
+    return false;
+  }
+}
+
+/**
+ * Validate socket connection using HTTP-only cookie
+ * @param {Object} socket - Socket.io socket
+ * @returns {Object} Validation result with user data
+ */
+exports.validateSocketConnection = async (socket) => {
+  try {
+    const cookies = socket.request.headers.cookie;
+    if (!cookies) {
+      return { valid: false };
+    }
+    
+    const cookie = require('cookie');
+    const parsedCookies = cookie.parse(cookies);
+    const token = parsedCookies[config.token.cookieName];
+    
+    if (!token) {
+      return { valid: false };
+    }
+    
+    // Verify token
+    const decoded = await this.verifyToken(token);
+    
+    return {
+      valid: true,
+      userData: {
+        userId: decoded.sub,
+        sessionId: decoded.sessionId,
+        deviceId: decoded.deviceId,
+        tabId: decoded.tabId || null
+      }
+    };
+  } catch (error) {
+    logger.error('Error validating socket connection:', error);
+    return { valid: false, error: error.message };
+  }
+}
+
+/**
+ * Get all active sessions for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} List of active sessions
+ */
+exports.getActiveUserSessions = async (userId) => {
+  try {
+    return await sessionService.getActiveSessions(userId);
+  } catch (error) {
+    logger.error('Failed to get active user sessions', error);
+    return [];
+  }
+};
+
+/**
+ * Validate if socket session is still valid
+ * @param {Object} socket - Socket.io socket
+ * @returns {Promise<boolean>} True if session is valid
+ */
+exports.validateSocketSession = async (socket) => {
+  try {
+    const user = socket.user;
+    const sessionId = socket.sessionId;
+    
+    if (!user || !sessionId) {
+      return false;
+    }
+    
+    // Check if session exists and is active
+    const session = await sessionService.getSessionById(sessionId);
+    if (!session || !session.isActive) {
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    logger.error('Failed to validate socket session', error);
+    return false;
+  }
+};
+
+/**
+ * Validate session timeouts
+ * @param {Object} session - Session object
+ * @returns {Object} Validation result
+ */
+exports.validateSessionTimeouts = (session) => {
+  const now = new Date();
+  
+  // Check absolute timeout
+  if (session.expiresAt && now > session.expiresAt) {
+    return {
+      valid: false,
+      error: {
+        message: 'Session expired',
+        code: 'SESSION_EXPIRED'
+      }
+    };
+  }
+  
+  // Check idle timeout
+  const lastActivity = session.lastActiveAt || session.createdAt;
+  const idleTimeout = session.idleTimeout || sessionConfig.timeouts.idle;
+  const idleExpiresAt = new Date(lastActivity.getTime() + idleTimeout * 1000);
+  
+  if (now > idleExpiresAt) {
+    return {
+      valid: false,
+      error: {
+        message: 'Session idle timeout',
+        code: 'SESSION_IDLE_TIMEOUT'
+      }
+    };
+  }
+  
+  return { valid: true };
 };

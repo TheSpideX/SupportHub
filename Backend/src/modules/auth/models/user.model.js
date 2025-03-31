@@ -93,6 +93,23 @@ const UserSchema = new mongoose.Schema(
       },
       lockUntil: {
         type: Date,
+      },
+      activeSessions: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session'
+      }],
+      deviceHierarchy: {
+        type: Map,
+        of: {
+          deviceId: String,
+          sessions: [String],
+          lastActive: Date,
+          isVerified: Boolean
+        }
+      },
+      tokenVersion: {
+        type: Number,
+        default: 0
       }
     },
     role: {
@@ -157,6 +174,23 @@ const UserSchema = new mongoose.Schema(
       customerSatisfactionScore: Number,
       lastMetricsUpdate: Date,
     },
+    // WebSocket-specific fields
+    activeSessions: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Session'
+    }],
+    activeDevices: [{
+      type: String,
+      ref: 'Device'
+    }],
+    tokenVersion: {
+      type: Number,
+      default: 0
+    },
+    lastSocketActivity: {
+      type: Date,
+      default: Date.now
+    }
   },
   {
     timestamps: true,
@@ -572,6 +606,49 @@ UserSchema.statics.checkUserExists = async function(id) {
     console.error('Error checking user existence:', error);
     return { exists: false, error: error.message };
   }
+};
+
+// Add WebSocket-related methods
+UserSchema.methods.getRoomId = function() {
+  return `user:${this._id}`;
+};
+
+UserSchema.methods.propagateSecurityEvent = async function(eventType, eventData) {
+  const Room = mongoose.model('Room');
+  const userRoom = await Room.findOne({ roomId: this.getRoomId() });
+  
+  if (!userRoom) return null;
+  
+  // Create security event
+  const SecurityEvent = mongoose.model('SecurityEvent');
+  const event = new SecurityEvent({
+    userId: this._id,
+    eventType,
+    metadata: eventData,
+    roomId: userRoom.roomId,
+    propagationPath: [userRoom.roomId]
+  });
+  
+  await event.save();
+  
+  // Return event for further propagation
+  return event;
+};
+
+UserSchema.methods.invalidateAllTokens = async function() {
+  this.tokenVersion += 1;
+  await this.save();
+  
+  // Propagate token invalidation event
+  return this.propagateSecurityEvent('token_invalidated', {
+    tokenVersion: this.tokenVersion,
+    reason: 'user_initiated'
+  });
+};
+
+UserSchema.methods.updateSocketActivity = function() {
+  this.lastSocketActivity = new Date();
+  return this.save();
 };
 
 const User = mongoose.model("User", UserSchema);

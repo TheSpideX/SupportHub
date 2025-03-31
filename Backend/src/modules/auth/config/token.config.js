@@ -25,58 +25,60 @@ const sessionConfig = require('./session.config');
 
 const tokenConfig = {
   // Token secrets - use environment variables or defaults for development
-  ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET || DEFAULT_ACCESS_SECRET,
-  REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET || DEFAULT_REFRESH_SECRET,
-  CSRF_SECRET: process.env.CSRF_SECRET || DEFAULT_CSRF_SECRET,
+  secrets: {
+    access: process.env.ACCESS_TOKEN_SECRET || DEFAULT_ACCESS_SECRET,
+    refresh: process.env.REFRESH_TOKEN_SECRET || DEFAULT_REFRESH_SECRET,
+    csrf: process.env.CSRF_SECRET || DEFAULT_CSRF_SECRET
+  },
   
   // Token expiry times (in seconds)
-  ACCESS_TOKEN_EXPIRY: parseInt(process.env.ACCESS_TOKEN_EXPIRY || '15') * 60, // 15 minutes
-  REFRESH_TOKEN_EXPIRY: parseInt(process.env.REFRESH_TOKEN_EXPIRY || '7') * 24 * 60 * 60, // 7 days
-  
-  // Token refresh threshold (in seconds) - must match frontend
-  REFRESH_THRESHOLD: sessionConfig.syncInterval, // 5 minutes before expiry
-  
-  // Remember me multiplier - standardize to 7x
-  REMEMBER_ME_MULTIPLIER: 7,
-  
-  // Token types
-  TOKEN_TYPE: 'Bearer'
-};
-
-module.exports = {
-  // Existing config...
-  
-  // Token generation settings
-  access: {
-    secret: process.env.ACCESS_TOKEN_SECRET || DEFAULT_ACCESS_SECRET,
-    expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m',
-    expiresInSeconds: parseInt(process.env.ACCESS_TOKEN_EXPIRY || '15') * 60, // 15 minutes in seconds
-    algorithm: 'HS256'
+  expiry: {
+    access: parseInt(process.env.ACCESS_TOKEN_EXPIRY || '900'), // 15 minutes
+    refresh: parseInt(process.env.REFRESH_TOKEN_EXPIRY || '604800'), // 7 days
+    csrf: 3600 // 1 hour
   },
   
-  refresh: {
-    secret: process.env.REFRESH_TOKEN_SECRET || DEFAULT_REFRESH_SECRET,
-    expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d',
-    expiresInSeconds: parseInt(process.env.REFRESH_TOKEN_EXPIRY || '7') * 24 * 60 * 60, // 7 days in seconds
-    algorithm: 'HS256'
-  },
+  // Token refresh threshold (in seconds)
+  refreshThreshold: 300, // 5 minutes before expiry
   
-  csrf: {
-    secret: process.env.CSRF_TOKEN_SECRET || DEFAULT_CSRF_SECRET,
-    expiresIn: '1h',
-    expiresInSeconds: 60 * 60 // 1 hour in seconds
+  // Remember me multiplier
+  rememberMeMultiplier: 7, // Extend token lifetime by 7x
+  
+  // Token type
+  tokenType: 'Bearer',
+  
+  // JWT configuration
+  jwt: {
+    algorithms: {
+      access: 'HS256',
+      refresh: 'HS256',
+      csrf: 'HS256'
+    },
+    issuer: process.env.JWT_ISSUER || 'auth-service',
+    audience: process.env.JWT_AUDIENCE || 'app-client'
   },
   
   // Cookie settings for HTTP-only cookies
   cookie: {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     path: '/',
     domain: process.env.COOKIE_DOMAIN || undefined
   },
   
-  // Refresh mechanism
-  refreshThreshold: 5 * 60 * 1000, // 5 minutes before expiry
-  refreshQueueDelay: 100 // ms between concurrent refresh attempts
+  // CSRF configuration
+  csrf: {
+    headerName: 'X-CSRF-Token',
+    cookieName: 'csrf_token'
+  },
+  
+  // WebSocket notification settings
+  socket: {
+    notifyBeforeExpiry: true,
+    expiryWarningTime: 5 * 60, // 5 minutes before expiry
+    refreshQueueDelay: 100 // ms between concurrent refresh attempts
+  }
 };
+
+module.exports = tokenConfig;

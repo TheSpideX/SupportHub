@@ -10,8 +10,7 @@ const cookieConfig = {
     ACCESS_TOKEN: 'access_token',
     REFRESH_TOKEN: 'refresh_token',
     CSRF_TOKEN: 'csrf_token',
-    SESSION_ID: 'session_id',
-    CSRF_TOKEN: 'csrf_token'
+    SESSION_ID: 'session_id'
   },
   
   // Base cookie options
@@ -22,16 +21,14 @@ const cookieConfig = {
     path: '/'
   },
   
-  // CSRF cookie options (not httpOnly so JS can access it)
+  // CSRF cookie options
   csrfOptions: {
-    httpOnly: false,
+    httpOnly: true,
     secure: !isDevelopment,
     sameSite: 'strict',
-    path: '/'
-  },
-  
-  // Cookie expiry times (inherited from token config)
-  // These will be set dynamically based on token expiry times
+    path: '/',
+    maxAge: 3600 * 1000 // 1 hour in milliseconds (matches CSRF token expiry)
+  }
 };
 
 module.exports = cookieConfig;

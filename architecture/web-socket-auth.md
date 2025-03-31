@@ -5,45 +5,58 @@
 ### Room Hierarchy Design
 
 ```
-Organization
-    └── Team
-        └── User
-            └── Device
-                └── Session
-                    └── Tab
+User
+└── Device
+    └── Session
+        └── Tab
 ```
 
 ### Room Types & Purposes
 
-1. **Organization Room** (`organization:{orgId}`)
-   - Broadcasts organization-wide security events
-   - Distributes policy updates and permission changes
-   - Monitors active user counts and session statistics
-
-2. **Team Room** (`team:{teamId}`)
-   - Coordinates team-specific permission updates
-   - Shares team activity and presence information
-   - Distributes team-level notifications
-
-3. **User Room** (`user:{userId}`)
+1. **User Room** (`user:{userId}`)
    - Synchronizes user profile and permission changes
    - Broadcasts security events (password change, suspicious activity)
    - Tracks all active sessions for a single user
+   - Distributes role and permission updates
 
-4. **Device Room** (`device:{deviceId}`)
+2. **Device Room** (`device:{deviceId}`)
    - Groups all tabs/sessions from a single device
    - Manages device verification status
    - Coordinates device-specific security policies
+   - Handles trusted device operations
 
-5. **Session Room** (`session:{sessionId}`)
+3. **Session Room** (`session:{sessionId}`)
    - Contains all tabs sharing the same authentication session
    - Distributes token expiration notifications
    - Synchronizes session timeout warnings
+   - Manages session-level security events
 
-6. **Tab Room** (`tab:{tabId}`)
+4. **Tab Room** (`tab:{tabId}`)
    - Individual browser tab instance
    - Handles tab-specific state and focus events
    - Manages tab-level activity tracking
+   - Coordinates UI-specific authentication state
+
+## Authentication System Scope
+
+The WebSocket authentication system is designed to focus exclusively on authentication concerns:
+
+- User identity verification
+- Session management
+- Token lifecycle
+- Device verification
+- Cross-tab synchronization
+- Security event propagation
+
+Organizational structures (organizations, teams, roles) are handled by the application's authorization layer, not the authentication system. The authentication system verifies identity ("who you are"), while the authorization system determines access rights ("what you can do").
+
+When a user's permissions change within an organization or team, those changes are propagated through the User room as permission update events, but the authentication system itself doesn't need to maintain the organizational hierarchy.
+
+This separation of concerns:
+1. Keeps the authentication system modular and reusable
+2. Simplifies the WebSocket room structure
+3. Maintains a clear boundary between authentication and authorization
+4. Allows the authentication system to function independently of business logic
 
 ## Implementation Plan
 
@@ -166,5 +179,77 @@ Organization
 - **Event Logger**: Configurable logging of events for troubleshooting
 - **Connection Tracer**: Track individual connection lifecycle
 - **Replay Tool**: Reproduce event sequences for testing
+
+## Implementation Recommendations
+
+### 1. WebSocket Authentication Middleware
+- Implement middleware that validates the HTTP-only cookies during WebSocket handshake
+- Use the same validation logic as your API routes for consistency
+
+### 2. Cookie-Based Authentication Flow
+- During WebSocket connection, the browser will automatically send cookies
+- Server validates these cookies before allowing connection
+- No need to pass tokens in WebSocket messages, maintaining security
+
+### 3. Token Refresh Coordination
+- Designate a leader tab through the Cross-Tab Coordinator
+- Leader initiates HTTP request for token refresh
+- Server updates HTTP-only cookies
+- Server sends WebSocket notification to all tabs about the refresh
+
+### 4. Session Synchronization
+- Use the Session room to broadcast session state changes
+- Implement heartbeat mechanism to track active sessions
+- Provide session timeout warnings via WebSocket
+
+### 5. Security Event Propagation
+- Implement proper authorization checks before allowing room subscription
+- Use the hierarchical structure to propagate security events efficiently
+- Ensure sensitive data is never included in WebSocket payloads
+
+## Token Refresh Flow
+- **Server-Initiated Warnings**: Backend sends `token:expiring` event through WebSocket before token expiration
+- **Activity Check**: Client checks if user is active upon receiving expiration warning
+- **Conditional Refresh**: If user is active, client initiates token refresh; if inactive, allows session to terminate
+- **Refresh Coordination**: Only leader tab performs the actual HTTP refresh request to prevent duplicate refreshes
+- **Broadcast Confirmation**: After successful refresh, server broadcasts `token:refreshed` to all connected tabs
+- **Graceful Termination**: For inactive users, client sends `session:terminated` event before disconnecting
+
+## Potential Challenges and Mitigation Strategies
+
+### Connection Resilience
+- **Stateful Reconnection Protocol**: Implement a stateful reconnection protocol that preserves authentication context and room subscriptions
+- **Exponential Backoff with Jitter**: Use randomized exponential backoff to prevent thundering herd problems during service recovery
+- **Connection State Recovery**: Store connection state in IndexedDB to survive page refreshes and browser restarts
+- **Offline Mode Detection**: Implement network status detection to gracefully handle transitions between online and offline states
+- **Automatic Re-authentication**: Silently refresh authentication during reconnection without user intervention
+- **Connection Quality Monitoring**: Track connection quality metrics to proactively adjust behavior before disconnection occurs
+
+### Performance at Scale
+- **Dynamic Room Subscription**: Subscribe only to actively needed rooms based on current user context
+- **Hierarchical Event Filtering**: Implement server-side filtering to prevent unnecessary event propagation
+- **Lazy Loading Room Hierarchy**: Load organization and team rooms only when needed for specific operations
+- **Message Batching and Compression**: Batch related events and use binary compression for high-volume messages
+- **Selective Presence Updates**: Implement presence throttling for large rooms with many members
+- **Redis Cluster Configuration**: Use Redis cluster with sharding for horizontal scaling of room registries
+- **Adaptive Rate Limiting**: Implement dynamic rate limiting based on system load and user priority
+
+### Cross-Tab Coordination Complexity
+- **Consensus Algorithm**: Implement a lightweight consensus algorithm (like Raft) for reliable leader election
+- **Heartbeat Verification**: Use regular heartbeats with timestamp verification to detect stale leadership claims
+- **Leadership Transfer Protocol**: Develop a formal protocol for graceful leadership handover when the leader tab closes
+- **Shared State Versioning**: Implement a versioned state model with vector clocks to detect and resolve conflicts
+- **BroadcastChannel API Integration**: Use the BroadcastChannel API for efficient cross-tab communication
+- **Offline Leadership Delegation**: Automatically transfer leadership when a tab goes offline
+- **Split-Brain Detection**: Implement mechanisms to detect and resolve split-brain scenarios where multiple tabs claim leadership
+
+### Security Edge Cases
+- **Proactive Token Renewal**: Refresh tokens before expiration to prevent disruption during active connections
+- **Atomic Permission Updates**: Implement atomic updates for permission changes to prevent inconsistent states
+- **Room Subscription Auditing**: Periodically audit and verify room subscriptions against current permissions
+- **Connection Authentication Timeout**: Implement timeouts for authentication operations to prevent hanging connections
+- **Secure Cleanup Protocols**: Develop formal cleanup protocols for handling permission revocation events
+- **Distributed Lock Mechanism**: Use Redis-based distributed locks to prevent race conditions during critical state changes
+- **Event Replay Protection**: Implement nonce-based protection against replay attacks for authentication events
 
 This hierarchical WebSocket system provides a comprehensive solution for authentication state management, with efficient event propagation and robust security. The room-based architecture enables precise targeting of notifications while maintaining the scalability needed for large applications.

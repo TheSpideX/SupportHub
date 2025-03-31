@@ -3,22 +3,113 @@
  * Handles authentication operations and coordinates between token and session services
  */
 const bcrypt = require('bcryptjs');
-const User = require('../models/user.model'); // Updated path to user model
+const crypto = require('crypto');
+const User = require('../models/user.model');
 const tokenService = require('./token.service');
 const sessionService = require('./session.service');
-const { security: securityConfig } = require('../config');
+const securityService = require('./security.service');
+const socketService = require('./socket.service');
+const config = require('../config');
+const { security: securityConfig, cookie: cookieConfig } = config;
+const { roomRegistry } = config;
 const logger = require('../../../utils/logger');
 const { AuthError } = require('../../../utils/errors');
+const deviceService = require('./device.service');
 
 class AuthService {
+  constructor() {
+    // Cookie configuration
+    this.cookieConfig = {
+      cookieOptions: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/'
+      },
+      tokenCookieName: 'auth_token',
+      refreshCookieName: 'refresh_token',
+      csrfCookieName: 'csrf_token',
+      sessionCookieName: 'session_id'
+    };
+    
+    logger.info('Auth service initialized with cookie support');
+  }
+
   /**
-   * Login a user
+   * Set authentication cookies
+   * @param {Object} res - Express response object
+   * @param {Object} tokens - Token data
+   * @param {Object} options - Additional options
+   */
+  setAuthCookies(res, tokens, options = {}) {
+    const { accessToken, refreshToken, csrfToken, sessionId } = tokens;
+    const { maxAge, rememberMe } = options;
+    
+    // Calculate expiration times
+    const accessExpires = maxAge || config.auth.jwt.expiresIn * 1000;
+    const refreshExpires = rememberMe 
+      ? config.auth.jwt.refreshExpiresIn * 1000 
+      : accessExpires;
+    
+    // Set access token cookie
+    res.cookie(this.cookieConfig.tokenCookieName, accessToken, {
+      ...this.cookieConfig.cookieOptions,
+      maxAge: accessExpires
+    });
+    
+    // Set refresh token cookie
+    res.cookie(this.cookieConfig.refreshCookieName, refreshToken, {
+      ...this.cookieConfig.cookieOptions,
+      maxAge: refreshExpires
+    });
+    
+    // Set CSRF token cookie (not httpOnly so JS can access it)
+    if (csrfToken) {
+      res.cookie(this.cookieConfig.csrfCookieName, csrfToken, {
+        ...this.cookieConfig.cookieOptions,
+        httpOnly: false,
+        maxAge: accessExpires
+      });
+    }
+    
+    // Set session ID cookie
+    if (sessionId) {
+      res.cookie(this.cookieConfig.sessionCookieName, sessionId, {
+        ...this.cookieConfig.cookieOptions,
+        maxAge: refreshExpires
+      });
+    }
+    
+    logger.debug('Auth cookies set successfully');
+  }
+
+  /**
+   * Clear authentication cookies
+   * @param {Object} res - Express response object
+   */
+  clearAuthCookies(res) {
+    // Clear all auth cookies
+    res.clearCookie(this.cookieConfig.tokenCookieName, this.cookieConfig.cookieOptions);
+    res.clearCookie(this.cookieConfig.refreshCookieName, this.cookieConfig.cookieOptions);
+    res.clearCookie(this.cookieConfig.csrfCookieName, {
+      ...this.cookieConfig.cookieOptions,
+      httpOnly: false
+    });
+    res.clearCookie(this.cookieConfig.sessionCookieName, this.cookieConfig.cookieOptions);
+    
+    logger.debug('Auth cookies cleared successfully');
+  }
+
+  /**
+   * Login a user with HTTP-only cookie support
    * @param {String} email - User email
    * @param {String} password - User password
    * @param {Object} deviceInfo - Device information
-   * @returns {Promise<Object>} User and tokens
+   * @param {Boolean} rememberMe - Whether to extend token lifetime
+   * @param {Object} res - Express response object for setting cookies
+   * @returns {Promise<Object>} User and session data (tokens handled via cookies)
    */
-  async login(email, password, deviceInfo = {}) {
+  async login(email, password, deviceInfo = {}, rememberMe = false, res) {
     try {
       // Find user by email - select the security.password field
       const user = await User.findOne({ email }).select('+security.password');
@@ -75,22 +166,54 @@ class AuthService {
       }
       await user.save();
       
-      // Generate tokens
-      const tokens = await tokenService.generateAuthTokens(user);
+      // Process device information - delegate to device service
+      let deviceSecurityContext = {};
+      if (deviceInfo) {
+        // Record device info for security tracking
+        const deviceRecord = await deviceService.recordDeviceInfo(user._id, deviceInfo);
+        
+        // Assess device security
+        deviceSecurityContext = await deviceService.assessDeviceSecurity(user._id, deviceInfo);
+        
+        // Add device info to the security context
+        deviceInfo.deviceId = deviceRecord.deviceId;
+        deviceInfo.securityContext = deviceSecurityContext;
+      }
+      
+      // Generate tokens with security context
+      const tokens = await tokenService.generateAuthTokens(user, {
+        rememberMe,
+        deviceInfo,
+        securityContext: {
+          device: deviceInfo,
+          ...deviceSecurityContext
+        }
+      });
       
       // Create session
       const session = await sessionService.createSession({
-        userId: user._id, // Ensure this is passed correctly
+        userId: user._id,
         userAgent: deviceInfo.userAgent || 'unknown',
         ipAddress: deviceInfo.ip || 'unknown',
-        deviceInfo: deviceInfo
+        deviceInfo: deviceInfo,
+        rememberMe
       });
       
-      // Return user data and tokens
+      // Set HTTP-only cookies with tokens
+      if (res) {
+        this.setAuthCookies(res, {
+          ...tokens,
+          sessionId: session.id
+        }, { rememberMe });
+      }
+
+      // Return user data and session info
       return {
         user: this.sanitizeUser(user),
-        tokens,
-        session
+        session: {
+          id: session.id,
+          expiresAt: session.expiresAt
+        }
       };
     } catch (error) {
       logger.error('Login error:', error);
@@ -99,94 +222,87 @@ class AuthService {
   }
 
   /**
-   * Register a new user
-   * @param {Object} userData - User data
-   * @returns {Promise<Object>} Created user
-   */
-  async register(userData) {
-    try {
-      // Check if email already exists
-      const existingUser = await User.findOne({ email: userData.email });
-      
-      if (existingUser) {
-        throw new AuthError('Email already in use', 'EMAIL_IN_USE');
-      }
-      
-      // Hash password
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
-      // Create user
-      const user = new User({
-        ...userData,
-        password: hashedPassword,
-        tokenVersion: 0,
-        failedLoginAttempts: 0,
-        isLocked: false,
-        isActive: true
-      });
-      
-      await user.save();
-      
-      return this.sanitizeUser(user);
-    } catch (error) {
-      logger.error('Registration error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Logout a user
-   * @param {String} refreshToken - Refresh token
+   * Validate session
    * @param {String} sessionId - Session ID
-   * @returns {Promise<Boolean>} Success status
-   */
-  async logout(refreshToken, sessionId) {
-    try {
-      // Delete refresh token
-      if (refreshToken) {
-        await tokenService.deleteRefreshToken(refreshToken);
-      }
-      
-      // End session
-      if (sessionId) {
-        await sessionService.endSession(sessionId, 'user_logout');
-      }
-      
-      return true;
-    } catch (error) {
-      logger.error('Logout error:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Logout from all devices
    * @param {String} userId - User ID
-   * @param {String} currentSessionId - Current session ID to exclude
-   * @returns {Promise<Boolean>} Success status
+   * @param {Object} deviceInfo - Current device information
+   * @returns {Promise<Object>} Session validation result
    */
-  async logoutAll(userId, currentSessionId = null) {
+  async validateSession(sessionId, userId, deviceInfo = {}) {
     try {
-      // Delete all refresh tokens
-      await tokenService.deleteAllUserTokens(userId);
+      if (!sessionId || !userId) {
+        throw new AuthError('Invalid session parameters', 'INVALID_SESSION');
+      }
       
-      // End all sessions except current
-      await sessionService.endAllUserSessions(userId, currentSessionId, 'user_logout_all');
+      // Get session
+      const session = await sessionService.getSessionById(sessionId);
       
-      return true;
+      if (!session) {
+        throw new AuthError('Session not found', 'SESSION_NOT_FOUND');
+      }
+      
+      // Verify session belongs to user
+      if (session.userId.toString() !== userId.toString()) {
+        throw new AuthError('Session user mismatch', 'SESSION_USER_MISMATCH');
+      }
+      
+      // Check if session is expired
+      if (sessionService.isSessionExpired(session)) {
+        await sessionService.endSession(sessionId, 'session_expired');
+        throw new AuthError('Session expired', 'SESSION_EXPIRED');
+      }
+      
+      // Verify device fingerprint if available
+      if (deviceInfo.fingerprint && session.deviceInfo && session.deviceInfo.fingerprint) {
+        if (deviceInfo.fingerprint !== session.deviceInfo.fingerprint) {
+          logger.warn(`Device fingerprint mismatch for session ${sessionId}`);
+          // Update security risk level but don't invalidate yet
+          await sessionService.updateSessionSecurityStatus(sessionId, {
+            riskLevel: 'medium',
+            riskFactors: ['device_fingerprint_changed']
+          });
+        }
+      }
+      
+      // Get user
+      const user = await User.findById(userId);
+      
+      if (!user) {
+        throw new AuthError('User not found', 'USER_NOT_FOUND');
+      }
+      
+      // Update session activity
+      await sessionService.updateSessionActivity(sessionId, deviceInfo);
+      
+      return {
+        isValid: true,
+        user: this.sanitizeUser(user),
+        session: {
+          id: session._id,
+          expiresAt: session.expiresAt,
+          lastActivity: session.lastActivity,
+          deviceId: session.deviceId,
+          securityStatus: session.securityStatus || { riskLevel: 'low' }
+        }
+      };
     } catch (error) {
-      logger.error('Logout all error:', error);
-      return false;
+      logger.error('Session validation error:', error);
+      return {
+        isValid: false,
+        error: error.code || 'VALIDATION_ERROR'
+      };
     }
   }
 
   /**
    * Refresh tokens
-   * @param {String} refreshToken - Refresh token
+   * @param {String} refreshToken - Refresh token (from cookie or request)
    * @param {String} sessionId - Session ID
+   * @param {Object} deviceInfo - Current device information
+   * @param {Object} res - Express response object for setting cookies
    * @returns {Promise<Object>} New tokens
    */
-  async refreshTokens(refreshToken, sessionId) {
+  async refreshTokens(refreshToken, sessionId, deviceInfo = {}, res) {
     try {
       // Verify refresh token
       const decoded = tokenService.verifyRefreshToken(refreshToken);
@@ -199,7 +315,7 @@ class AuthService {
       }
       
       // Verify token version
-      if (user.tokenVersion !== decoded.tokenVersion) {
+      if (user.security.tokenVersion !== decoded.tokenVersion) {
         throw new AuthError('Token revoked', 'TOKEN_REVOKED');
       }
       
@@ -216,17 +332,111 @@ class AuthService {
           throw new AuthError('Session expired', 'SESSION_EXPIRED');
         }
         
+        // Verify device fingerprint if available
+        if (deviceInfo.fingerprint && session.deviceInfo && session.deviceInfo.fingerprint) {
+          if (deviceInfo.fingerprint !== session.deviceInfo.fingerprint) {
+            logger.warn(`Device fingerprint mismatch during token refresh for session ${sessionId}`);
+            // Update security risk level
+            await sessionService.updateSessionSecurityStatus(sessionId, {
+              riskLevel: 'high',
+              riskFactors: ['device_fingerprint_changed_during_refresh']
+            });
+          }
+        }
+        
         // Update session activity
-        await sessionService.updateSessionActivity(sessionId);
+        await sessionService.updateSessionActivity(sessionId, deviceInfo);
       }
       
       // Rotate refresh token
       const tokens = await tokenService.rotateRefreshToken(refreshToken, user);
       
-      return { tokens, user: this.sanitizeUser(user) };
+      // Set HTTP-only cookies with new tokens
+      if (res) {
+        this.setAuthCookies(res, {
+          ...tokens,
+          sessionId: sessionId
+        }, { rememberMe: true });
+      }
+      
+      // Notify other sessions about the token refresh if WebSocket is enabled
+      if (sessionId && securityConfig.notifyTokenRefresh) {
+        await sessionService.notifyUserSessions(
+          user._id,
+          sessionId,
+          'token_refreshed',
+          { 
+            timestamp: new Date(),
+            deviceInfo: sessionService.sanitizeDeviceInfo(deviceInfo)
+          }
+        );
+      }
+      
+      return { 
+        // Only include tokens in response if no response object was provided
+        ...(res ? { csrfToken: tokens.csrfToken } : { tokens }),
+        user: this.sanitizeUser(user),
+        sessionUpdated: !!sessionId,
+        tokenRefreshedAt: new Date()
+      };
     } catch (error) {
       logger.error('Refresh tokens error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Logout a user
+   * @param {String} sessionId - Session ID
+   * @param {Object} options - Logout options
+   * @param {Object} res - Express response object for clearing cookies
+   * @returns {Promise<Boolean>} Success status
+   */
+  async logout(sessionId, options = {}, res) {
+    try {
+      if (!sessionId) {
+        return false;
+      }
+      
+      // Get session to verify it exists
+      const session = await sessionService.getSessionById(sessionId);
+      
+      if (!session) {
+        logger.warn(`Logout attempted for non-existent session: ${sessionId}`);
+        return false;
+      }
+      
+      // End session
+      await sessionService.endSession(sessionId, options.reason || 'user_logout');
+      
+      // Clear auth cookies if response object is provided
+      if (res) {
+        this.clearAuthCookies(res);
+      }
+      
+      // Notify other sessions if requested
+      if (options.notifyOtherSessions) {
+        await sessionService.notifyUserSessions(
+          session.userId, 
+          sessionId, 
+          'logout', 
+          { 
+            initiatedBy: sessionId,
+            timestamp: new Date(),
+            reason: options.reason || 'user_logout'
+          }
+        );
+      }
+      
+      // Invalidate refresh token if provided
+      if (options.refreshToken) {
+        await tokenService.revokeRefreshToken(options.refreshToken);
+      }
+      
+      return true;
+    } catch (error) {
+      logger.error('Logout error:', error);
+      return false;
     }
   }
 
@@ -255,18 +465,20 @@ class AuthService {
    * @param {String} userId - User ID
    * @param {String} currentPassword - Current password
    * @param {String} newPassword - New password
+   * @param {Object} options - Additional options
+   * @param {Object} res - Express response object for clearing cookies
    * @returns {Promise<Boolean>} Success status
    */
-  async changePassword(userId, currentPassword, newPassword) {
+  async changePassword(userId, currentPassword, newPassword, options = {}, res) {
     try {
-      const user = await User.findById(userId);
+      const user = await User.findById(userId).select('+security.password');
       
       if (!user) {
         throw new AuthError('User not found', 'USER_NOT_FOUND');
       }
       
       // Verify current password
-      const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      const isPasswordValid = await bcrypt.compare(currentPassword, user.security.password);
       
       if (!isPasswordValid) {
         throw new AuthError('Current password is incorrect', 'INVALID_PASSWORD');
@@ -276,15 +488,31 @@ class AuthService {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       
       // Update password and increment token version to invalidate existing tokens
-      user.password = hashedPassword;
-      user.tokenVersion = (user.tokenVersion || 0) + 1;
-      user.passwordChangedAt = new Date();
+      user.security.password = hashedPassword;
+      user.security.tokenVersion = (user.security.tokenVersion || 0) + 1;
+      user.security.passwordChangedAt = new Date();
       
       await user.save();
       
-      // Invalidate all tokens and sessions
+      // Invalidate all tokens and sessions except current one if keepCurrentSession is true
       await tokenService.deleteAllUserTokens(userId);
-      await sessionService.endAllUserSessions(userId, null, 'password_changed');
+      
+      if (options.keepCurrentSession && options.currentSessionId) {
+        await sessionService.endAllUserSessions(userId, options.currentSessionId, 'password_changed');
+      } else {
+        await sessionService.endAllUserSessions(userId, null, 'password_changed');
+        
+        // Clear auth cookies if response object is provided
+        if (res) {
+          this.clearAuthCookies(res);
+        }
+      }
+      
+      // Notify all user's devices about password change
+      await securityService.handlePasswordChanged(
+        userId,
+        options.keepCurrentSession ? options.currentSessionId : null
+      );
       
       return true;
     } catch (error) {
@@ -309,7 +537,7 @@ class AuthService {
       
       // Generate reset token
       const resetToken = crypto.randomBytes(32).toString('hex');
-      const resetTokenExpiry = Date.now() + 3600000; // 1 hour
+      const resetTokenExpiry = Date.now() + securityConfig.resetToken.expiryMinutes * 60 * 1000;
       
       // Hash token for storage
       const hashedResetToken = crypto
@@ -317,16 +545,26 @@ class AuthService {
         .update(resetToken)
         .digest('hex');
       
-      // Save to user
-      user.resetToken = hashedResetToken;
-      user.resetTokenExpiry = resetTokenExpiry;
+      // Update user with reset token
+      user.security = {
+        ...user.security,
+        resetToken: hashedResetToken,
+        resetTokenExpiry: new Date(resetTokenExpiry)
+      };
+      
       await user.save();
+      
+      // Log security event
+      await securityService.logSecurityEvent(user._id, 'password_reset_requested', {
+        timestamp: new Date(),
+        email: user.email
+      });
       
       return {
         success: true,
-        userId: user._id,
         resetToken,
-        expiry: resetTokenExpiry
+        userId: user._id,
+        expiresAt: new Date(resetTokenExpiry)
       };
     } catch (error) {
       logger.error('Request password reset error:', error);
@@ -350,8 +588,8 @@ class AuthService {
       
       // Find user with valid token
       const user = await User.findOne({
-        resetToken: hashedResetToken,
-        resetTokenExpiry: { $gt: Date.now() }
+        'security.resetToken': hashedResetToken,
+        'security.resetTokenExpiry': { $gt: Date.now() }
       });
       
       if (!user) {
@@ -362,17 +600,24 @@ class AuthService {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       
       // Update user
-      user.password = hashedPassword;
-      user.resetToken = undefined;
-      user.resetTokenExpiry = undefined;
-      user.tokenVersion = (user.tokenVersion || 0) + 1;
-      user.passwordChangedAt = new Date();
+      user.security.password = hashedPassword;
+      user.security.resetToken = undefined;
+      user.security.resetTokenExpiry = undefined;
+      user.security.tokenVersion = (user.security.tokenVersion || 0) + 1;
+      user.security.passwordChangedAt = new Date();
       
       await user.save();
       
       // Invalidate all tokens and sessions
       await tokenService.deleteAllUserTokens(user._id);
       await sessionService.endAllUserSessions(user._id, null, 'password_reset');
+      
+      // Notify all user's devices about password reset
+      await securityService.broadcastSecurityEvent(
+        user._id,
+        'password_reset_completed',
+        { timestamp: new Date() }
+      );
       
       return true;
     } catch (error) {
@@ -396,15 +641,108 @@ class AuthService {
       permissions: user.permissions || [],
       isActive: user.isActive,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      updatedAt: user.updatedAt,
+      lastLoginAt: user.lastLoginAt
     };
     
     // Add additional fields if they exist
     if (user.profileImage) sanitized.profileImage = user.profileImage;
-    if (user.lastLogin) sanitized.lastLogin = user.lastLogin;
     if (user.preferences) sanitized.preferences = user.preferences;
     
     return sanitized;
+  }
+
+  /**
+   * Extract authentication data from request
+   * @param {Object} req - Express request object
+   * @returns {Object} Authentication data
+   */
+  extractAuthFromRequest(req) {
+    // Extract tokens from cookies
+    const accessToken = req.cookies[this.cookieConfig.tokenCookieName];
+    const refreshToken = req.cookies[this.cookieConfig.refreshCookieName];
+    const csrfToken = req.cookies[this.cookieConfig.csrfCookieName] || 
+                      req.headers['x-csrf-token'];
+    const sessionId = req.cookies[this.cookieConfig.sessionCookieName] || 
+                      req.headers['x-session-id'];
+    
+    return {
+      tokens: { accessToken, refreshToken },
+      csrfToken,
+      sessionId
+    };
+  }
+
+  /**
+   * Validate request authentication
+   * @param {Object} req - Express request object
+   * @returns {Promise<Object>} Validation result
+   */
+  async validateRequestAuth(req) {
+    try {
+      const { tokens, sessionId } = this.extractAuthFromRequest(req);
+      
+      if (!tokens || !tokens.accessToken) {
+        return { isValid: false, error: 'NO_ACCESS_TOKEN' };
+      }
+      
+      // Verify access token
+      const decoded = await tokenService.verifyAccessToken(tokens.accessToken);
+      
+      if (!decoded) {
+        // Try to refresh using refresh token if available
+        if (tokens.refreshToken) {
+          return { 
+            isValid: false, 
+            error: 'ACCESS_TOKEN_EXPIRED',
+            canRefresh: true
+          };
+        }
+        
+        return { isValid: false, error: 'INVALID_ACCESS_TOKEN' };
+      }
+      
+      // Validate session if session ID is available
+      if (sessionId) {
+        const deviceInfo = {
+          userAgent: req.headers['user-agent'],
+          ip: req.ip,
+          fingerprint: req.headers['x-device-fingerprint']
+        };
+        
+        const sessionValidation = await this.validateSession(
+          sessionId,
+          decoded.sub,
+          deviceInfo
+        );
+        
+        if (!sessionValidation.isValid) {
+          return { 
+            isValid: false, 
+            error: sessionValidation.error || 'INVALID_SESSION'
+          };
+        }
+        
+        return {
+          isValid: true,
+          user: sessionValidation.user,
+          session: sessionValidation.session,
+          tokenData: decoded
+        };
+      }
+      
+      // If no session ID, just return the token data
+      const user = await this.getUserById(decoded.sub);
+      
+      return {
+        isValid: true,
+        user,
+        tokenData: decoded
+      };
+    } catch (error) {
+      logger.error('Validate request auth error:', error);
+      return { isValid: false, error: 'AUTH_VALIDATION_ERROR' };
+    }
   }
 }
 

@@ -37,26 +37,44 @@ module.exports = {
     // CSRF protection
     csrf: {
         enabled: true,
-        cookieName: 'csrf_token',       // Match the cookie name in cookie.config.js
-        headerName: 'X-CSRF-Token'      // Match the header name expected by frontend
+        cookieName: 'csrf_token',
+        headerName: 'X-CSRF-Token',
+        tokenTTL: 60 * 60 // 1 hour in seconds
     },
     
     // Security levels - reference session.config.js for timeout values
     levels: {
         low: {
             requireMFA: false,
-            sessionTimeout: sessionConfig.absoluteTimeout, // Use value from session.config.js
+            sessionTimeout: sessionConfig.timeouts.absolute, // 24 hours
             passwordExpiryDays: 180       // 6 months
         },
         medium: {
             requireMFA: false,
-            sessionTimeout: sessionConfig.absoluteTimeout / 3, // 8 hours
+            sessionTimeout: sessionConfig.timeouts.absolute / 3, // 8 hours
             passwordExpiryDays: 90        // 3 months
         },
         high: {
             requireMFA: true,
-            sessionTimeout: sessionConfig.absoluteTimeout / 24, // 1 hour
+            sessionTimeout: sessionConfig.timeouts.absolute / 24, // 1 hour
             passwordExpiryDays: 30        // 1 month
+        }
+    },
+    
+    // WebSocket security settings
+    socket: {
+        enforceOrigin: true,
+        allowedOrigins: [
+            process.env.FRONTEND_URL || 'http://localhost:5173'
+        ],
+        maxPayloadSize: 1024 * 1024, // 1MB
+        rateLimiting: {
+            messagesPerMinute: isDevelopment ? 300 : 100,
+            connectionsPerIP: isDevelopment ? 50 : 20
+        },
+        securityEvents: {
+            propagationDelay: 500, // ms delay between broadcasting security events
+            retryAttempts: 3 // Number of times to retry sending critical security events
         }
     }
 };

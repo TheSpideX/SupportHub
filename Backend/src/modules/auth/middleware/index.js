@@ -7,6 +7,7 @@
  * - Session validation
  * - CSRF protection
  * - Rate limiting
+ * - WebSocket authentication
  */
 
 // Authentication middleware
@@ -39,6 +40,14 @@ const {
   clearToken 
 } = require('./csrf');
 
+// WebSocket authentication middleware
+const {
+  authenticateSocket,
+  validateSocketSession,
+  authorizeRoomJoin,
+  handleTokenExpiration
+} = require('./websocket');
+
 // Import validation schemas directly
 const validationSchemas = require('../validations/schemas');
 
@@ -65,6 +74,12 @@ module.exports = {
   csrfProtection: validateToken,
   generateCsrfToken: generateToken,
   clearCsrfToken: clearToken,
+  
+  // WebSocket authentication
+  authenticateSocket,
+  validateSocketSession,
+  authorizeRoomJoin,
+  handleTokenExpiration,
   
   // Validation schemas
   validationSchemas

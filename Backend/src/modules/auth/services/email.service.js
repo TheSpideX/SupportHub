@@ -1,85 +1,115 @@
-const nodemailer = require('nodemailer');
-const { logger } = require('../../../utils/logger');
-const emailConfig = require('../config/email.config');
-
-// Create transporter
-const transporter = nodemailer.createTransport(emailConfig.transport);
+const logger = require('../../../utils/logger');
 
 /**
- * Send email
- * @param {Object} options - Email options
- * @returns {Promise}
+ * Simple email service with no third-party dependencies
+ * This is a placeholder implementation that logs email operations
+ * but doesn't actually send emails
  */
-const sendEmail = async (options) => {
-  try {
-    const mailOptions = {
-      from: emailConfig.from,
-      to: options.to,
-      subject: options.subject,
-      html: options.html
-    };
-    
-    return await transporter.sendMail(mailOptions);
-  } catch (error) {
-    logger.error('Email sending failed:', error);
-    throw error;
+class EmailService {
+  constructor() {
+    this.enabled = process.env.EMAIL_ENABLED === 'true';
+    logger.info('Email service initialized', {
+      enabled: this.enabled,
+      mode: 'development-only'
+    });
   }
-};
 
-/**
- * Send password reset email
- * @param {String} email - User email
- * @param {Object} data - Template data
- */
-exports.sendPasswordResetEmail = async (email, data) => {
-  return sendEmail({
-    to: email,
-    subject: 'Password Reset Request',
-    html: `
-      <h1>Password Reset</h1>
-      <p>Hello ${data.name},</p>
-      <p>You requested a password reset. Click the link below to reset your password:</p>
-      <a href="${data.resetUrl}">Reset Password</a>
-      <p>If you didn't request this, please ignore this email.</p>
-      <p>This link will expire in 1 hour.</p>
-    `
-  });
-};
+  /**
+   * Send verification email
+   * @param {string} email - Recipient email address
+   * @param {Object} data - Email template data
+   * @returns {Promise<Object>} - Result of the operation
+   */
+  async sendVerificationEmail(email, data) {
+    logger.info('Verification email requested', {
+      recipient: email,
+      verificationUrl: data.verificationUrl
+    });
 
-/**
- * Send email verification
- * @param {String} email - User email
- * @param {Object} data - Template data
- */
-exports.sendEmailVerification = async (email, data) => {
-  return sendEmail({
-    to: email,
-    subject: 'Verify Your Email',
-    html: `
-      <h1>Email Verification</h1>
-      <p>Hello ${data.name},</p>
-      <p>Please verify your email by clicking the link below:</p>
-      <a href="${data.verificationUrl}">Verify Email</a>
-      <p>This link will expire in 24 hours.</p>
-    `
-  });
-};
+    if (!this.enabled) {
+      logger.info('Email sending skipped (disabled in config)');
+      return { success: true, sent: false };
+    }
 
-/**
- * Send email change verification
- * @param {String} email - New email address
- * @param {Object} data - Template data
- */
-exports.sendEmailChangeVerification = async (email, data) => {
-  return sendEmail({
-    to: email,
-    subject: 'Verify Your New Email',
-    html: `
-      <h1>Email Change Verification</h1>
-      <p>Hello ${data.name},</p>
-      <p>Please verify your new email address by clicking the link below:</p>
-      <a href="${data.verificationUrl}">Verify New Email</a>
-      <p>This link will expire in 24 hours.</p>
-    `
-  });
-};
+    // In a real implementation, this would send an actual email
+    // For now, we just log the details
+    logger.info(`[DEV MODE] Verification email would be sent to ${email}`, {
+      subject: 'Verify Your Email Address',
+      name: data.name,
+      verificationUrl: data.verificationUrl
+    });
+
+    return {
+      success: true,
+      sent: false,
+      messageId: `dev-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+      message: 'Email would be sent in production mode'
+    };
+  }
+
+  /**
+   * Send password reset email
+   * @param {string} email - Recipient email address
+   * @param {Object} data - Email template data
+   * @returns {Promise<Object>} - Result of the operation
+   */
+  async sendPasswordResetEmail(email, data) {
+    logger.info('Password reset email requested', {
+      recipient: email,
+      resetUrl: data.resetUrl
+    });
+
+    if (!this.enabled) {
+      logger.info('Email sending skipped (disabled in config)');
+      return { success: true, sent: false };
+    }
+
+    // In a real implementation, this would send an actual email
+    // For now, we just log the details
+    logger.info(`[DEV MODE] Password reset email would be sent to ${email}`, {
+      subject: 'Reset Your Password',
+      name: data.name,
+      resetUrl: data.resetUrl
+    });
+
+    return {
+      success: true,
+      sent: false,
+      messageId: `dev-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+      message: 'Email would be sent in production mode'
+    };
+  }
+
+  /**
+   * Send welcome email
+   * @param {string} email - Recipient email address
+   * @param {Object} data - Email template data
+   * @returns {Promise<Object>} - Result of the operation
+   */
+  async sendWelcomeEmail(email, data) {
+    logger.info('Welcome email requested', {
+      recipient: email
+    });
+
+    if (!this.enabled) {
+      logger.info('Email sending skipped (disabled in config)');
+      return { success: true, sent: false };
+    }
+
+    // In a real implementation, this would send an actual email
+    // For now, we just log the details
+    logger.info(`[DEV MODE] Welcome email would be sent to ${email}`, {
+      subject: 'Welcome to Our Platform',
+      name: data.name
+    });
+
+    return {
+      success: true,
+      sent: false,
+      messageId: `dev-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+      message: 'Email would be sent in production mode'
+    };
+  }
+}
+
+module.exports = new EmailService();

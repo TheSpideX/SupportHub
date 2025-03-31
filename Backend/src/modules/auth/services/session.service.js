@@ -1,73 +1,25 @@
 const { redisClient } = require("../../../config/redis");
 const logger = require("../../../utils/logger");
 const Session = require("../models/session.model");
-const sessionConfig = require("../config/session.config");
+const config = require('../config');
+const { roomRegistry } = config;
+const socketService = require('./socket.service');
 const cookie = require("cookie");
-const cookieConfig = require("../config/cookie.config");
 const crypto = require("crypto");
-
-// Store cleanup intervals for proper shutdown
-const cleanupIntervals = [];
-
-// Move connectionThrottling to module scope
-const connectionThrottling = new Map();
-const THROTTLE_WINDOW_MS = 60000; // 1 minute
-const MAX_CONNECTIONS_PER_IP = 10;
-
 const tokenService = require("./token.service");
 
-// Room type constants
+// Room type constants from config
 const ROOM_TYPES = {
-  USER: "user",
-  DEVICE: "device",
-  SESSION: "session",
-  TAB: "tab",
+  USER: roomRegistry.roomTypes.user.prefix,
+  DEVICE: roomRegistry.roomTypes.device.prefix,
+  SESSION: roomRegistry.roomTypes.session.prefix,
+  TAB: roomRegistry.roomTypes.tab.prefix
 };
 
-// Add helper function for room management
-const createRoomName = (type, id) => `${type}:${id}`;
-
-// Add this function to manage room hierarchy
-const manageSocketRooms = async (socket, userData) => {
-  try {
-    const { userId, deviceId, sessionId, tabId } = userData;
-
-    // Create room names
-    const userRoom = createRoomName(ROOM_TYPES.USER, userId);
-    const deviceRoom = createRoomName(ROOM_TYPES.DEVICE, deviceId);
-    const sessionRoom = createRoomName(ROOM_TYPES.SESSION, sessionId);
-    const tabRoom = tabId ? createRoomName(ROOM_TYPES.TAB, tabId) : null;
-
-    // Join rooms in hierarchical order
-    await socket.join(userRoom);
-    await socket.join(deviceRoom);
-    await socket.join(sessionRoom);
-    if (tabRoom) await socket.join(tabRoom);
-
-    // Store room info in socket for cleanup
-    socket.userData = {
-      userId,
-      deviceId,
-      sessionId,
-      tabId,
-      rooms: {
-        userRoom,
-        deviceRoom,
-        sessionRoom,
-        tabRoom,
-      },
-    };
-
-    logger.debug("Socket joined rooms", {
-      socketId: socket.id,
-      rooms: socket.userData.rooms,
-    });
-
-    return socket.userData.rooms;
-  } catch (error) {
-    logger.error("Error managing socket rooms:", error);
-    throw error;
-  }
+// Helper function for room management using config
+const createRoomName = (type, id) => {
+  const prefix = type.endsWith(':') ? type : `${type}:`;
+  return `${prefix}${id}`;
 };
 
 // Add function to cleanup empty rooms
@@ -1184,82 +1136,460 @@ exports.setupSessionWebSockets = function (io) {
 };
 
 /**
- * Initialize WebSocket for session synchronization
+ * Initialize WebSocket for session management
+ * @param {Object} io - Socket.io instance
+ * @returns {Object} Configured session namespace
  */
-function initializeSessionWebSocket(io) {
+exports.initializeSessionWebSocket = (io) => {
+  if (!io) {
+    logger.error("Cannot initialize session WebSocket: io instance not provided");
+    return null;
+  }
+
+  // Create session namespace if it doesn't exist
   const sessionNamespace = io.of("/session");
-
-  sessionNamespace.on("connection", (socket) => {
-    logger.info("Client connected to session WebSocket");
-
-    // Authenticate the socket connection
-    socket.use(async (packet, next) => {
+  
+  // Apply rate limiting middleware
+  sessionNamespace.use(rateLimitMiddleware.socketRateLimit({
+    type: 'socketConnection',
+    windowMs: securityConfig.socket.rateLimiting.windowMs,
+    max: securityConfig.socket.rateLimiting.connectionsPerIP
+  }));
+  
+  // Apply message rate limiting
+  sessionNamespace.on('connection', (socket) => {
+    rateLimitMiddleware.socketMessageRateLimit(io, {
+      windowMs: 60000, // 1 minute
+      max: securityConfig.socket.rateLimiting.messagesPerMinute
+    })(socket);
+    
+    // Socket authentication middleware using HTTP-only cookies
+    sessionNamespace.use(async (socket, next) => {
       try {
-        const token = socket.handshake.auth.token;
-        if (!token) {
+        logger.debug("Socket authentication attempt", {
+          socketId: socket.id,
+          hasAuthCookies: !!socket.request.headers.cookie,
+        });
+
+        // Extract cookies from socket request
+        const cookies = socket.request.headers.cookie;
+        if (!cookies) {
+          logger.warn("Socket connection rejected: No cookies found");
           return next(new Error("Authentication required"));
         }
 
-        const decoded = await tokenService.verifyToken(token);
-        socket.userId = decoded.userId;
-        socket.sessionId = decoded.sessionId;
-        next();
-      } catch (error) {
-        next(new Error("Invalid authentication"));
-      }
-    });
-
-    // Handle session sync
-    socket.on("sync", async (data) => {
-      try {
-        if (!socket.sessionId) {
-          return socket.emit("error", { message: "Not authenticated" });
+        // Parse cookies
+        const parsedCookies = cookie.parse(cookies);
+        const accessToken = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
+        
+        if (!accessToken) {
+          logger.warn("Socket connection rejected: No access token found");
+          return next(new Error("Authentication required"));
         }
 
-        const session = await exports.getSessionById(socket.sessionId);
-        if (!session) {
-          return socket.emit("error", { message: "Session not found" });
-        }
+        // Verify access token
+        try {
+          const decoded = await tokenService.verifyAccessToken(accessToken);
 
-        // Update tab activity
-        if (data.tabId) {
-          await exports.updateTabActivity(socket.sessionId, data.tabId);
-        }
+          // Get session info
+          const sessionId = decoded.sessionId;
+          const session = await exports.getSessionById(sessionId);
 
-        // Send session data back to client
-        const sessionData = await exports.getSessionInfo(socket.sessionId, {
-          tabId: data.tabId,
-          clientInfo: data.clientInfo,
-        });
+          if (!session) {
+            logger.warn(`Socket connection rejected: Session ${sessionId} not found`);
+            return next(new Error("Session not found"));
+          }
 
-        socket.emit("session-update", sessionData);
-      } catch (error) {
-        logger.error("Error in session sync:", error);
-        socket.emit("error", { message: "Failed to sync session" });
-      }
-    });
+          // Store session info in socket for future use
+          socket.data = {
+            userId: decoded.userId || decoded.sub,
+            sessionId: sessionId,
+            deviceId: session.deviceId || socket.handshake.query.deviceId,
+            tabId: socket.handshake.query.tabId,
+          };
 
-    // Handle disconnect
-    socket.on("disconnect", async () => {
-      try {
-        if (socket.sessionId && socket.userId) {
-          logger.info("Client disconnected from session WebSocket");
-          // Mark tab as inactive
-          if (socket.handshake.query.tabId) {
-            await exports.markTabInactive(
-              socket.sessionId,
-              socket.handshake.query.tabId
-            );
+          // Register socket connection with token service
+          await tokenService.registerSocketConnection(socket, socket.data.userId, sessionId);
+
+          // Schedule token expiration check
+          tokenService.scheduleTokenExpirationCheck(
+            io, 
+            socket.data.userId, 
+            accessToken, 
+            sessionConfig.tokenWarningThreshold || 300
+          );
+
+          logger.debug(`Socket authenticated: ${socket.id} for session ${sessionId}`);
+          next();
+        } catch (error) {
+          // Try to refresh token if access token is expired
+          if (error.name === "TokenExpiredError" && parsedCookies[cookieConfig.names.REFRESH_TOKEN]) {
+            try {
+              const refreshToken = parsedCookies[cookieConfig.names.REFRESH_TOKEN];
+              const refreshResult = await tokenService.refreshAccessToken(refreshToken);
+
+              if (refreshResult && refreshResult.accessToken) {
+                const decoded = await tokenService.verifyAccessToken(refreshResult.accessToken);
+
+                // Get session info
+                const sessionId = decoded.sessionId;
+                const session = await exports.getSessionById(sessionId);
+                
+                if (!session) {
+                  logger.warn(`Socket connection rejected after refresh: Session ${sessionId} not found`);
+                  return next(new Error("Session not found"));
+                }
+
+                // Store session info in socket
+                socket.data = {
+                  userId: decoded.userId || decoded.sub,
+                  sessionId: sessionId,
+                  deviceId: session.deviceId || socket.handshake.query.deviceId,
+                  tabId: socket.handshake.query.tabId,
+                };
+
+                // Register socket connection with token service
+                await tokenService.registerSocketConnection(socket, socket.data.userId, sessionId);
+
+                logger.debug(`Socket authenticated after token refresh: ${socket.id}`);
+                next();
+              } else {
+                logger.warn("Socket connection rejected: Token refresh failed");
+                return next(new Error("Authentication failed"));
+              }
+            } catch (refreshError) {
+              logger.warn("Socket connection rejected: Token refresh error", refreshError);
+              return next(new Error("Authentication failed"));
+            }
+          } else {
+            logger.warn("Socket connection rejected: Token verification failed", error);
+            return next(new Error("Authentication failed"));
           }
         }
       } catch (error) {
-        logger.error("Error handling socket disconnect:", error);
+        logger.error("Socket authentication error", error);
+        return next(new Error("Authentication failed"));
       }
     });
+
+    // Handle connections with room management and heartbeat
+    sessionNamespace.on("connection", async (socket) => {
+      try {
+        // Increment connection counter
+        connectionCount++;
+
+        // Set isAlive property for heartbeat
+        socket.isAlive = true;
+
+        // Handle pong messages
+        socket.on("pong", () => {
+          socket.isAlive = true;
+        });
+
+        // Add socket to rooms based on session data
+        const rooms = {
+          userRoom: createRoomName(ROOM_TYPES.USER, socket.data.userId),
+          deviceRoom: createRoomName(ROOM_TYPES.DEVICE, socket.data.deviceId),
+          sessionRoom: createRoomName(ROOM_TYPES.SESSION, socket.data.sessionId),
+          tabRoom: socket.data.tabId
+            ? createRoomName(ROOM_TYPES.TAB, socket.data.tabId)
+            : null,
+        };
+
+        // Join appropriate rooms
+        Object.values(rooms).forEach((room) => {
+          if (room) socket.join(room);
+        });
+
+        logger.info("Client connected to session WebSocket", {
+          socketId: socket.id,
+          userId: socket.data.userId,
+          sessionId: socket.data.sessionId,
+          deviceId: socket.data.deviceId,
+          tabId: socket.data.tabId,
+          rooms: Object.values(rooms).filter(Boolean),
+        });
+
+        // Record tab as active if tabId is provided
+        if (socket.data.tabId) {
+          await exports.markTabActive(
+            socket.data.sessionId,
+            socket.data.tabId,
+            socket.handshake.query
+          );
+        }
+
+        // Update session activity
+        await exports.updateSessionActivity(socket.data.sessionId);
+
+        // Emit connected event to client with session info
+        const sessionInfo = await exports.getSessionInfo(socket.data.sessionId);
+        socket.emit("connected", {
+          socketId: socket.id,
+          sessionId: socket.data.sessionId,
+          timestamp: Date.now(),
+          sessionInfo,
+        });
+
+        // Handle token status check
+        socket.on("token:check", async () => {
+          try {
+            const cookies = socket.request.headers.cookie;
+            if (!cookies) {
+              return socket.emit("token:status", { valid: false });
+            }
+
+            const parsedCookies = cookie.parse(cookies);
+            const accessToken = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
+            
+            if (!accessToken) {
+              return socket.emit("token:status", { valid: false });
+            }
+
+            const timeRemaining = tokenService.getTokenTimeRemaining(accessToken);
+            
+            socket.emit("token:status", {
+              valid: timeRemaining > 0,
+              expiresIn: timeRemaining,
+              warningThreshold: sessionConfig.tokenWarningThreshold || 300
+            });
+          } catch (error) {
+            logger.error("Error checking token status:", error);
+            socket.emit("token:status", { valid: false, error: "Failed to check token status" });
+          }
+        });
+
+        // Handle token refresh notification
+        socket.on("token:refreshed", async (data) => {
+          try {
+            // Validate the session
+            const isValid = await tokenService.validateSocketSession(socket);
+            if (!isValid) {
+              return socket.emit("error", { message: "Invalid session" });
+            }
+
+            // Broadcast to all user's devices that token was refreshed
+            socket.to(rooms.userRoom).emit("token:refreshed", {
+              timestamp: Date.now(),
+              sessionId: socket.data.sessionId,
+              deviceId: socket.data.deviceId
+            });
+          } catch (error) {
+            logger.error("Error handling token refresh notification:", error);
+          }
+        });
+
+        // Handle session sync requests
+        socket.on("sync", async (data) => {
+          try {
+            if (!socket.data.sessionId) {
+              return socket.emit("error", { message: "Not authenticated" });
+            }
+
+            const session = await exports.getSessionById(socket.data.sessionId);
+            if (!session) {
+              return socket.emit("error", { message: "Session not found" });
+            }
+
+            // Update tab activity
+            if (data.tabId) {
+              await exports.updateTabActivity(
+                socket.data.sessionId,
+                data.tabId,
+                data.clientInfo || {}
+              );
+            }
+
+            // Send session data back to client
+            const sessionData = await exports.getSessionInfo(
+              socket.data.sessionId,
+              {
+                tabId: data.tabId,
+                clientInfo: data.clientInfo,
+              }
+            );
+
+            // Broadcast updates to appropriate rooms based on scope
+            if (data.scope === "device") {
+              socket.to(rooms.deviceRoom).emit("session-update", sessionData);
+            } else if (data.scope === "user") {
+              socket.to(rooms.userRoom).emit("session-update", sessionData);
+            } else {
+              // Default to tab scope
+              socket.emit("session-update", sessionData);
+            }
+          } catch (error) {
+            logger.error("Error handling sync request:", error);
+            socket.emit("error", { message: "Failed to sync session" });
+          }
+        });
+
+        // Handle heartbeat responses with activity tracking
+        socket.on("heartbeat:response", async (data) => {
+          try {
+            if (!socket.data.sessionId) {
+              return socket.emit("error", { message: "Not authenticated" });
+            }
+
+            // Update session activity
+            await exports.updateSessionActivity(
+              socket.data.sessionId,
+              data.timestamp || Date.now()
+            );
+
+            // Mark socket as alive
+            socket.isAlive = true;
+          } catch (error) {
+            logger.error("Error handling heartbeat response:", error);
+          }
+        });
+
+        // Handle disconnect
+        socket.on("disconnect", async () => {
+          try {
+            // Decrement connection counter
+            connectionCount = Math.max(0, connectionCount - 1);
+
+            if (socket.data.sessionId && socket.data.tabId) {
+              logger.info("Client disconnected from session WebSocket", {
+                socketId: socket.id,
+                userId: socket.data.userId,
+                sessionId: socket.data.sessionId,
+                tabId: socket.data.tabId,
+              });
+
+              // Mark tab as inactive
+              await exports.markTabInactive(
+                socket.data.sessionId,
+                socket.data.tabId
+              );
+            }
+
+            // Broadcast disconnect to device room
+            socket.to(rooms.deviceRoom).emit("tab:disconnect", {
+              sessionId: socket.data.sessionId,
+              tabId: socket.data.tabId,
+              timestamp: Date.now(),
+            });
+
+            // Clean up empty rooms after a delay
+            setTimeout(() => {
+              cleanupEmptyRooms(io, "/session");
+            }, 5000); // 5 second delay to handle rapid reconnects
+          } catch (error) {
+            logger.error("Error handling socket disconnect:", error);
+          }
+        });
+      } catch (error) {
+        logger.error("Error setting up socket connection:", error);
+        socket.disconnect(true);
+      }
+    });
+
+    // Set up heartbeat interval
+    const heartbeatInterval = setInterval(() => {
+      sessionNamespace.sockets.forEach((socket) => {
+        if (!socket.isAlive) {
+          logger.debug(`Terminating inactive socket: ${socket.id}`);
+          return socket.disconnect(true);
+        }
+
+        socket.isAlive = false;
+        socket.emit("heartbeat:ping", { timestamp: Date.now() });
+      });
+    }, sessionConfig.heartbeatInterval || 30000);
+
+    // Add to cleanup intervals
+    cleanupIntervals.push(heartbeatInterval);
+
+    return sessionNamespace;
   });
 
+  // Set up heartbeat interval
+  const heartbeatInterval = setInterval(() => {
+    sessionNamespace.sockets.forEach((socket) => {
+      if (!socket.isAlive) {
+        logger.debug(`Terminating inactive socket: ${socket.id}`);
+        return socket.disconnect(true);
+      }
+
+      socket.isAlive = false;
+      socket.emit("heartbeat:ping", { timestamp: Date.now() });
+    });
+  }, sessionConfig.heartbeatInterval || 30000);
+
+  // Add to cleanup intervals
+  cleanupIntervals.push(heartbeatInterval);
+
   return sessionNamespace;
-}
+};
+
+/**
+ * Send token expiration warning to client
+ * @param {Object} io - Socket.io instance
+ * @param {string} userId - User ID
+ * @param {number} timeRemaining - Seconds until token expires
+ */
+exports.sendTokenExpirationWarning = (io, userId, timeRemaining) => {
+  if (!io) return;
+  
+  try {
+    io.of('/session').to(`user:${userId}`).emit('token:expiring', {
+      timeRemaining,
+      timestamp: Date.now()
+    });
+    
+    logger.debug(`Sent token expiration warning to user ${userId}, ${timeRemaining}s remaining`);
+  } catch (error) {
+    logger.error('Failed to send token expiration warning', error);
+  }
+};
+
+/**
+ * Broadcast session event to all connected clients for a session
+ * @param {Object} io - Socket.io instance
+ * @param {string} sessionId - Session ID
+ * @param {string} eventName - Event name
+ * @param {Object} data - Event data
+ */
+exports.broadcastSessionEvent = (io, sessionId, eventName, data = {}) => {
+  if (!io) return;
+  
+  try {
+    io.of('/session').to(`session:${sessionId}`).emit(eventName, {
+      ...data,
+      sessionId,
+      timestamp: Date.now()
+    });
+    
+    logger.debug(`Broadcast ${eventName} to session ${sessionId}`);
+  } catch (error) {
+    logger.error(`Failed to broadcast session event ${eventName}`, error);
+  }
+};
+
+/**
+ * Notify all user devices about a security event
+ * @param {Object} io - Socket.io instance
+ * @param {string} userId - User ID
+ * @param {string} eventType - Security event type
+ * @param {Object} data - Additional event data
+ */
+exports.notifySecurityEvent = (io, userId, eventType, data = {}) => {
+  if (!io) return;
+  
+  try {
+    io.of('/session').to(`user:${userId}`).emit(`security:${eventType}`, {
+      ...data,
+      userId,
+      timestamp: Date.now()
+    });
+    
+    logger.debug(`Sent security event ${eventType} to user ${userId}`);
+  } catch (error) {
+    logger.error(`Failed to send security event ${eventType}`, error);
+  }
+};
 
 /**
  * Clean up resources used by the session service

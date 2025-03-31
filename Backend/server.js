@@ -15,7 +15,7 @@ EventEmitter.defaultMaxListeners = 15;
 // Import custom modules
 const { connectDB } = require("./src/config/db");
 const logger = require("./src/utils/logger");
-const { auth } = require("./src/modules");
+const { initializeModules, shutdownModules } = require("./src/modules");
 const socketIO = require("./src/config/socket");
 const corsConfig = require("./src/config/cors.config");
 const cors = require("cors");
@@ -141,17 +141,6 @@ app.get('/api/health', apiRateLimit(), (req, res) => {
   res.json(healthCache.data);
 });
 
-// Initialize token and session services
-tokenService.initialize();
-sessionService.initialize();
-
-// Initialize modules - this will handle all initializations
-auth.initializeAuthModule(app);
-
-// Error handling middleware should be last
-app.use(notFoundHandler);
-app.use(errorHandler);
-
 // Start server
 const PORT = process.env.PORT || 4290;
 
@@ -185,6 +174,38 @@ const startServer = async () => {
     const io = await socketIO.setupSocketIO(httpServer);
     app.set('io', io);
 
+    // Initialize application modules with Socket.IO
+    await initializeModules(app, io, {
+      auth: {
+        cookieSecret: process.env.COOKIE_SECRET,
+        session: {
+          timeouts: {
+            idle: parseInt(process.env.SESSION_IDLE_TIMEOUT || '1800000', 10),
+            absolute: parseInt(process.env.SESSION_ABSOLUTE_TIMEOUT || '86400000', 10)
+          }
+        },
+        websocket: {
+          rooms: {
+            userPrefix: 'user:',
+            devicePrefix: 'device:',
+            sessionPrefix: 'session:',
+            tabPrefix: 'tab:'
+          },
+          events: {
+            tokenExpiring: 'token:expiring',
+            tokenRefreshed: 'token:refreshed',
+            sessionTimeout: 'session:timeout_warning',
+            securityAlert: 'security:alert'
+          }
+        },
+        redis: redisClient
+      }
+    });
+
+    // Error handling middleware should be last
+    app.use(notFoundHandler);
+    app.use(errorHandler);
+
     // Start HTTP server
     httpServer.listen(PORT, () => {
       logger.info(
@@ -215,11 +236,19 @@ process.on("unhandledRejection", (error) => {
 const gracefulShutdown = async () => {
   try {
     logger.info("Initiating graceful shutdown...");
+    
+    // Shutdown application modules
+    await shutdownModules();
+    
+    // Close Redis connections
     const { redisClient, redisPublisher, redisSubscriber } = require("./src/config/redis");
     await redisClient.quit();
     await redisPublisher.quit();
     await redisSubscriber.quit();
+    
+    // Close HTTP server
     await new Promise((resolve) => httpServer.close(resolve));
+    
     logger.info("Server shut down successfully");
     process.exit(0);
   } catch (error) {

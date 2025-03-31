@@ -1,28 +1,28 @@
 /**
  * Centralized auth configuration
  * Single source of truth for all auth-related settings
+ * Includes WebSocket authentication system with hierarchical rooms
  */
 const tokenConfig = require('./token.config');
 const sessionConfig = require('./session.config');
 const securityConfig = require('./security.config');
 const cookieConfig = require('./cookie.config');
+const socketAdapterConfig = require('./socket-adapter.config');
+const roomRegistryConfig = require('./room-registry.config');
+const eventPropagationConfig = require('./event-propagation.config');
+const websocketConfig = require('./websocket.config');
 
 // Validate configuration for consistency
 function validateConfig() {
   // Ensure token and session expiry times are aligned
-  if (tokenConfig.refresh.expiresInSeconds !== sessionConfig.store.ttl) {
+  if (tokenConfig.expiry.refresh !== sessionConfig.store.ttl) {
     console.warn('WARNING: Refresh token expiry and session TTL are not aligned');
     // Align them
-    sessionConfig.store.ttl = tokenConfig.refresh.expiresInSeconds;
+    sessionConfig.store.ttl = tokenConfig.expiry.refresh;
   }
   
   // Ensure CSRF token expiry matches in all places
-  const csrfExpiryInSeconds = tokenConfig.csrf.expiresIn 
-    ? (typeof tokenConfig.csrf.expiresIn === 'string' 
-      ? parseDuration(tokenConfig.csrf.expiresIn) 
-      : tokenConfig.csrf.expiresIn)
-    : 3600; // Default to 1 hour
-    
+  const csrfExpiryInSeconds = tokenConfig.expiry.csrf;
   const cookieCsrfMaxAge = cookieConfig.csrfOptions?.maxAge || 0;
   
   if (csrfExpiryInSeconds * 1000 !== cookieCsrfMaxAge) {
@@ -32,7 +32,6 @@ function validateConfig() {
       cookieConfig.csrfOptions = {};
     }
     cookieConfig.csrfOptions.maxAge = csrfExpiryInSeconds * 1000;
-    tokenConfig.csrf.expiresInSeconds = csrfExpiryInSeconds;
   }
   
   // Ensure cookie domains match if specified
@@ -41,6 +40,73 @@ function validateConfig() {
 
   if (domain && csrfDomain && domain !== csrfDomain) {
     console.warn('WARNING: Cookie domains are not consistent between base and CSRF options');
+  }
+  
+  // Ensure cookies are set as HTTP-only
+  if (!cookieConfig.baseOptions?.httpOnly) {
+    console.warn('WARNING: HTTP-only flag not set for auth cookies');
+    // Set HTTP-only flag
+    if (!cookieConfig.baseOptions) {
+      cookieConfig.baseOptions = {};
+    }
+    cookieConfig.baseOptions.httpOnly = true;
+  }
+  
+  // Validate WebSocket-related configurations
+  validateWebSocketConfig();
+  
+  return true;
+}
+
+// Validate WebSocket-specific configurations
+function validateWebSocketConfig() {
+  // Ensure session TTL and room registry TTL are aligned
+  if (sessionConfig.store.ttl !== roomRegistryConfig.storage.roomTTL) {
+    console.warn('WARNING: Session TTL and room registry TTL are not aligned');
+    // Align them
+    roomRegistryConfig.storage.roomTTL = sessionConfig.store.ttl;
+  }
+  
+  // Ensure token expiry warning time is configured for WebSocket notifications
+  const tokenWarningTime = tokenConfig.socket?.expiryWarningTime || 0;
+  if (tokenWarningTime <= 0) {
+    console.warn('WARNING: Token warning threshold not set for WebSocket notifications');
+    // Set a default (5 minutes before expiry)
+    if (!tokenConfig.socket) tokenConfig.socket = {};
+    tokenConfig.socket.expiryWarningTime = 300;
+  }
+  
+  // Validate event propagation configuration against room hierarchy
+  const maxRoomDepth = roomRegistryConfig.hierarchy.maxDepth;
+  if (maxRoomDepth < 4) { // We need at least 4 levels (user->device->session->tab)
+    console.warn('WARNING: Room hierarchy depth is insufficient for the required structure');
+    roomRegistryConfig.hierarchy.maxDepth = 4;
+  }
+  
+  // Ensure WebSocket room prefixes are consistent
+  const roomPrefixes = websocketConfig.rooms.roomNames;
+  if (roomPrefixes) {
+    if (roomRegistryConfig.naming?.prefixes) {
+      const registryPrefixes = roomRegistryConfig.naming.prefixes;
+      if (roomPrefixes.userPrefix !== registryPrefixes.user ||
+          roomPrefixes.devicePrefix !== registryPrefixes.device ||
+          roomPrefixes.sessionPrefix !== registryPrefixes.session ||
+          roomPrefixes.tabPrefix !== registryPrefixes.tab) {
+        console.warn('WARNING: Room prefixes are inconsistent between WebSocket and registry configs');
+        // Align them
+        roomPrefixes.userPrefix = registryPrefixes.user;
+        roomPrefixes.devicePrefix = registryPrefixes.device;
+        roomPrefixes.sessionPrefix = registryPrefixes.session;
+        roomPrefixes.tabPrefix = registryPrefixes.tab;
+      }
+    }
+  }
+  
+  // Ensure token refresh settings are aligned
+  if (tokenConfig.refreshThreshold !== websocketConfig.tokenRefresh.backgroundTabs.soonThreshold) {
+    console.warn('WARNING: Token refresh thresholds are inconsistent');
+    // Align them
+    websocketConfig.tokenRefresh.backgroundTabs.soonThreshold = tokenConfig.refreshThreshold;
   }
   
   return true;
@@ -60,16 +126,17 @@ function parseTimeToSeconds(timeStr) {
 
 // Normalize config values
 function normalizeConfig() {
-  // Convert all time values to seconds for consistency
-  tokenConfig.access.expiresInSeconds = parseTimeToSeconds(tokenConfig.access.expiresIn);
-  tokenConfig.refresh.expiresInSeconds = parseTimeToSeconds(tokenConfig.refresh.expiresIn);
-  tokenConfig.csrf.expiresInSeconds = parseTimeToSeconds(tokenConfig.csrf.expiresIn);
+  // No need to convert time values as they're already in seconds in token.config.js
   
   return {
     token: tokenConfig,
     session: sessionConfig,
     security: securityConfig,
-    cookie: cookieConfig
+    cookie: cookieConfig,
+    socketAdapter: socketAdapterConfig,
+    roomRegistry: roomRegistryConfig,
+    eventPropagation: eventPropagationConfig,
+    websocket: websocketConfig
   };
 }
 
@@ -77,7 +144,10 @@ function normalizeConfig() {
 const config = normalizeConfig();
 validateConfig();
 
-module.exports = config;
+module.exports = {
+  ...config,
+  requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION === 'true' || false
+};
 
 /**
  * Helper function to parse duration strings like '1h' into seconds

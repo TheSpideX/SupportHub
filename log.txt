@@ -1,129 +1,68 @@
-# Technical Support CRM Portal Architecture
+## WebSocket Middleware Plan
 
-## Logical View
-```mermaid
-graph TD
-    %% Main Components
-    subgraph "User Interfaces"
-        UI[Role-Based Dashboards]
-    end
-    
-    subgraph "Core Modules"
-        Core[Core Functionality]
-    end
-    
-    subgraph "Services Layer"
-        Services[Business Services]
-    end
-    
-    subgraph "Data Access Layer"
-        DataAccess[Data Repositories]
-    end
-    
-    subgraph "External Integrations"
-        Integrations[Third-Party Services]
-    end
-    
-    %% High-level connections
-    UI --> Core
-    Core --> Services
-    Services --> DataAccess
-    Services --> Integrations
-    
-    %% Detailed components with cleaner layout
-    subgraph "UI Details"
-        UI --> CustomerUI[Customer]
-        UI --> SupportUI[Support Team]
-        UI --> TechUI[Technical Team]
-        UI --> LeadUI[Team Lead]
-        UI --> AdminUI[Admin]
-    end
-    
-    subgraph "Core Details"
-        Core --> AuthModule[Authentication]
-        Core --> TicketModule[Ticket Management]
-        Core --> SLAModule[SLA Enforcement]
-        Core --> NotificationModule[Notifications]
-        Core --> TeamModule[Team Management]
-        Core --> ReportingModule[Reporting]
-    end
-    
-    subgraph "Services Details"
-        Services --> AuthService[Auth Service]
-        Services --> TicketService[Ticket Service]
-        Services --> NotificationService[Notification Service]
-        Services --> TeamService[Team Service]
-        Services --> SLAService[SLA Service]
-    end
-    
-    subgraph "Data Details"
-        DataAccess --> UserRepo[User Data]
-        DataAccess --> TicketRepo[Ticket Data]
-        DataAccess --> TeamRepo[Team Data]
-        DataAccess --> AuditRepo[Audit Logs]
-    end
-    
-    subgraph "Integration Details"
-        Integrations --> GitHubInt[GitHub]
-        Integrations --> SlackInt[Slack]
-    end
-```
+Based on your architecture document and existing code, here's a plan for updating middleware files to support your WebSocket authentication system:
 
-## Physical View
-```mermaid
-flowchart TD
-    %% Main Components with simplified connections
-    Client[Client Side] --> Server[Server Side]
-    Server --> Storage[Data Storage]
-    Server --> Deploy[Deployment]
-    
-    %% Client Side Details
-    subgraph "Client Details"
-        Client --> Browser[Web Browser]
-        Browser --> Frontend[React Frontend]
-        Frontend --> UI[UI Components]
-        Frontend --> ClientState[State Management]
-        Frontend --> RealTime[Real-time Updates]
-    end
-    
-    %% Server Side Details
-    subgraph "Server Details"
-        Server --> AppServer[Application Server]
-        Server --> WSServer[WebSocket Server]
-        Server --> TaskQueue[Task Processing]
-        
-        AppServer --> NodeJS[Node.js + Express]
-        AppServer --> API[REST API Layer]
-        AppServer --> CoreServices[Core Services]
-        AppServer --> Security[Security Components]
-        
-        WSServer --> SocketIO[Socket.io]
-        
-        TaskQueue --> BullMQ[BullMQ]
-    end
-    
-    %% Data Storage Details
-    subgraph "Storage Details"
-        Storage --> MongoDB[MongoDB]
-        Storage --> Redis[Redis]
-        
-        MongoDB --> Collections[Data Collections]
-        Redis --> Caching[Caching]
-        Redis --> Sessions[Sessions]
-        Redis --> Queues[Message Queues]
-    end
-    
-    %% Deployment Details
-    subgraph "Deployment Details"
-        Deploy --> Docker[Docker]
-        Deploy --> PM2[PM2]
-        Deploy --> Nginx[Nginx]
-        Deploy --> Cloud[Render Cloud]
-    end
-    
-    %% Key Security Components
-    Security --> HTTPCookies[HTTP-Only Cookies]
-    Security --> JWTAuth[JWT Auth]
-    Security --> CSRF[CSRF Protection]
-    Security --> RateLimiter[Rate Limiting]
-```
+### Existing Middleware to Update:
+
+1. **`authenticate.js`**:
+   - Add WebSocket token validation functions
+   - Support cookie-based authentication for WebSockets
+   - Handle token refresh coordination with WebSockets
+
+2. **`csrf.js`**:
+   - Update to support WebSocket connections
+   - Ensure CSRF tokens work across HTTP and WebSocket contexts
+   - Add WebSocket-specific CSRF validation
+
+3. **`session.js`**:
+   - Add WebSocket session tracking
+   - Implement session synchronization across tabs
+   - Support hierarchical room session management
+
+4. **`rate-limit.js`**:
+   - Add WebSocket-specific rate limiting
+   - Implement connection throttling for WebSockets
+   - Share rate limit counters between HTTP and WebSockets
+
+### New Middleware Files Needed:
+
+1. **`socket-auth.js`**:
+   - WebSocket-specific authentication middleware
+   - Handle socket handshake authentication
+   - Validate HTTP-only cookies during connection
+
+2. **`socket-rooms.js`**:
+   - Manage room subscriptions
+   - Implement hierarchical room structure
+   - Handle room join/leave authorization
+
+3. **`socket-events.js`**:
+   - Event propagation middleware
+   - Filter and route events based on room hierarchy
+   - Implement selective event propagation
+
+4. **`cross-tab.js`**:
+   - Leader election middleware
+   - Cross-tab state synchronization
+   - Connection sharing coordination
+
+### Middleware to Remove/Consolidate:
+
+None of the existing middleware should be removed, but some functionality might be consolidated.
+
+### Controller Changes:
+
+No new controllers are needed. The existing controllers should be updated to:
+1. Use the WebSocket services when appropriate
+2. Emit events to the correct rooms
+3. Handle WebSocket-specific error cases
+
+### Implementation Priority:
+
+1. First: `socket-auth.js` - Core authentication
+2. Second: `authenticate.js` updates - Token handling
+3. Third: `socket-rooms.js` - Room management
+4. Fourth: `socket-events.js` - Event propagation
+5. Fifth: Cross-tab coordination
+
+This approach maintains your existing HTTP authentication while adding WebSocket support, ensuring a single source of truth for authentication logic.

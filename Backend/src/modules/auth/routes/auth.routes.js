@@ -1,6 +1,9 @@
 /**
  * Auth Routes
  * Handles core authentication operations
+ * 
+ * These routes provide both primary HTTP endpoints and fallbacks for
+ * WebSocket functionality when connections are unavailable.
  */
 
 const express = require("express");
@@ -22,7 +25,8 @@ router.get("/health", (req, res) => {
   });
 });
 
-// Authentication endpoints
+// ===== Core Authentication Endpoints =====
+
 router.post(
   "/login",
   rateLimitMiddleware.loginRateLimit(),
@@ -44,14 +48,8 @@ router.post(
   asyncHandler(authController.register)
 );
 
-// User information
-router.get(
-  "/me",
-  authMiddleware.authenticateToken,
-  asyncHandler(authController.getCurrentUser)
-);
+// ===== Email Verification =====
 
-// Email verification
 router.post(
   "/verify-email",
   validate(schemas.verifyEmail),
@@ -65,34 +63,64 @@ router.post(
   asyncHandler(authController.resendVerification)
 );
 
-// Auth status endpoint
+// ===== Auth Status & User Info =====
+
+// Auth status endpoint - focused on authentication state only
 router.get(
   "/status",
   authMiddleware.optionalAuth,
   asyncHandler(authController.getAuthStatus)
 );
 
-// Add a lightweight endpoint to check token status
-router.get('/token-status', authMiddleware.authenticateToken, (req, res) => {
-  // Calculate token expiration time
-  const expiresIn = req.tokenExpiry ? req.tokenExpiry - Math.floor(Date.now() / 1000) : null;
-  
-  res.json({
-    valid: true,
-    expiresIn: expiresIn,
-    // Don't include sensitive information
-    user: {
-      id: req.user.id,
-      role: req.user.role
-    }
-  });
-});
+// Get current user info
+router.get(
+  "/me",
+  authMiddleware.authenticateToken,
+  asyncHandler(authController.getCurrentUser)
+);
 
-// Token refresh endpoint
+// ===== WebSocket Fallbacks =====
+
+// Check for permission changes (fallback for WebSocket permission updates)
+router.get(
+  "/permissions",
+  authMiddleware.authenticateToken,
+  asyncHandler(authController.getUserPermissions)
+);
+
+// ===== Cross-Tab Authentication State =====
+
+// Sync authentication state across tabs (fallback for WebSocket tab room)
 router.post(
-  '/token/refresh',
-  rateLimitMiddleware.apiRateLimit(),
-  asyncHandler(authController.refreshToken)
+  "/sync-state",
+  authMiddleware.authenticateToken,
+  validate(schemas.syncState),
+  asyncHandler(authController.syncAuthState)
+);
+
+// Poll for auth state changes (fallback when WebSocket is down)
+router.get(
+  "/poll-state",
+  authMiddleware.authenticateToken,
+  asyncHandler(authController.pollAuthState)
+);
+
+// ===== WebSocket Connection Fallbacks =====
+
+// Register tab connection (fallback for WebSocket tab room)
+router.post(
+  "/register-tab",
+  authMiddleware.authenticateToken,
+  validate(schemas.registerTab),
+  asyncHandler(authController.registerTab)
+);
+
+// Unregister tab connection (fallback for WebSocket disconnect)
+router.post(
+  "/unregister-tab",
+  authMiddleware.authenticateToken,
+  validate(schemas.unregisterTab),
+  asyncHandler(authController.unregisterTab)
 );
 
 module.exports = router;

@@ -7,12 +7,16 @@ const sessionService = require('../services/session.service');
 const emailService = require('../services/email.service');
 const securityService = require('../services/security.service');
 const authService = require('../services/auth.service');
+const deviceService = require('../services/device.service');
+const socketService = require('../services/socket.service');
 const authConfig = require('../config');
 const { token: tokenConfig, cookie: cookieConfig } = authConfig;
 const authUtils = require('../utils/auth.utils');
-const { passwordPolicy, requireEmailVerification } = require('../config');
-const { getClientInfo } = require('../../../utils/request');
+const { passwordPolicy } = require('../config');
+const { requireEmailVerification } = authConfig;
 const logger = require('../../../utils/logger');
+const { EVENT_NAMES } = require('../constants/event-names.constant');
+const eventPropagationService = require('../services/event-propagation.service');
 
 /**
  * Register a new user
@@ -20,43 +24,32 @@ const logger = require('../../../utils/logger');
 exports.register = asyncHandler(async (req, res) => {
   const { email, password, firstName, lastName } = req.body;
   
-  // Check if user already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    throw new AppError('Email already in use', 409, 'EMAIL_IN_USE');
-  }
-  
-  // Create new user
-  const user = await User.create({
+  // Use auth service to handle registration
+  const { user, verificationToken } = await authService.registerUser({
     email,
-    password, // Will be hashed in the model's pre-save hook
+    password,
     firstName,
-    lastName,
-    role: 'user',
-    security: {
-      emailVerified: false,
-      twoFactorEnabled: false,
-      tokenVersion: 0
-    }
+    lastName
   });
   
-  // Generate verification token
-  const verificationToken = await tokenService.generateEmailVerificationToken(user._id);
-  
-  // Send verification email
-  await emailService.sendVerificationEmail(user.email, {
-    name: user.firstName,
-    verificationUrl: `${authConfig.clientUrl}/auth/verify-email?token=${verificationToken}`
-  });
+  // Send verification email if required
+  if (requireEmailVerification) {
+    await emailService.sendVerificationEmail(user.email, {
+      name: user.firstName,
+      verificationUrl: `${authConfig.clientUrl}/auth/verify-email?token=${verificationToken}`
+    });
+  }
   
   // Return success without logging in the user
   res.status(201).json({
     status: 'success',
-    message: 'User registered successfully. Please verify your email.',
+    message: requireEmailVerification 
+      ? 'User registered successfully. Please verify your email.'
+      : 'User registered successfully.',
     data: {
       userId: user._id,
       email: user.email,
-      emailVerified: false
+      emailVerified: user.security.emailVerified
     }
   });
 });
@@ -66,49 +59,53 @@ exports.register = asyncHandler(async (req, res) => {
  * @route POST /api/auth/login
  */
 exports.login = asyncHandler(async (req, res) => {
-  const { email, password, rememberMe = false } = req.body;
+  const { email, password, rememberMe = false, deviceInfo: clientDeviceInfo, deviceId } = req.body;
   
-  // Authenticate user - Fix: use login method instead of authenticateUser
-  const result = await authService.login(email, password, {
+  // Combine client-provided device info with server-detected info
+  const deviceInfo = {
+    // Server-detected info as fallback
     userAgent: req.headers['user-agent'],
     ipAddress: req.ip,
-    ...authUtils.getClientInfo(req)
-  });
+    isMobile: /mobile|android|iphone|ipad|ipod/i.test(req.headers['user-agent'] || ''),
+    isTablet: /tablet|ipad/i.test(req.headers['user-agent'] || ''),
+    isDesktop: !/mobile|android|iphone|ipad|ipod|tablet/i.test(req.headers['user-agent'] || ''),
+    // Override with client-provided info if available
+    ...(clientDeviceInfo || {})
+  };
   
-  // Get client info
-  const clientInfo = authUtils.getClientInfo(req);
-  
-  // Create session through session service
-  const session = result.session || await sessionService.createSession({
-    userId: result.user._id,
-    userAgent: req.headers['user-agent'],
-    ipAddress: req.ip,
-    deviceInfo: clientInfo,
-    rememberMe
-  });
-  
-  // Generate tokens through token service
-  const tokens = result.tokens || await tokenService.generateAuthTokens(
-    result.user._id,
-    result.user.security?.tokenVersion || 0,
-    session._id,
-    rememberMe
-  );
+  // Authenticate user through auth service
+  const result = await authService.login(email, password, deviceInfo, deviceId);
   
   // Set tokens in HTTP-only cookies
-  tokenService.setTokenCookies(res, tokens);
+  tokenService.setTokenCookies(res, result.tokens);
+  
+  // Register device if it's new
+  if (result.session.deviceId && !result.isKnownDevice) {
+    // Notify user about new device login via WebSocket to other devices
+    const userRoom = socketService.createRoomName('user', result.user._id);
+    if (req.io) {
+      req.io.to(userRoom).emit(EVENT_NAMES.NEW_DEVICE_LOGIN, {
+        deviceId: result.session.deviceId,
+        deviceInfo,
+        timestamp: Date.now()
+      });
+    }
+  }
   
   // Return session metadata for frontend
   return res.status(200).json({
     success: true,
     message: 'Login successful',
     data: {
-      user: authService.sanitizeUser(result.user), // Fix: use result.user instead of user
+      user: authService.sanitizeUser(result.user),
       session: {
-        id: session._id,
-        expiresAt: session.expiresAt,
-        lastActivity: session.lastActiveAt
-      }
+        id: result.session._id,
+        expiresAt: result.session.expiresAt,
+        lastActivity: result.session.lastActiveAt,
+        deviceId: result.session.deviceId
+      },
+      requiresTwoFactor: result.requiresTwoFactor,
+      requiresNewDeviceVerification: result.requiresDeviceVerification
     }
   });
 });
@@ -117,96 +114,45 @@ exports.login = asyncHandler(async (req, res) => {
  * Verify two-factor authentication
  */
 exports.verifyTwoFactor = asyncHandler(async (req, res) => {
-  const { tempToken, twoFactorCode, rememberMe = false } = req.body;
+  const { 
+    tempToken, 
+    twoFactorCode, 
+    rememberMe = false, 
+    deviceInfo: clientDeviceInfo,
+    deviceId 
+  } = req.body;
   
-  // Verify temp token
-  const decoded = await tokenService.verifyTwoFactorToken(tempToken);
-  if (!decoded) {
-    throw new AppError('Invalid or expired token', 401, 'INVALID_TOKEN');
-  }
-  
-  // Find user
-  const user = await User.findById(decoded.sub);
-  if (!user) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
-  }
-  
-  // Verify 2FA code
-  const isCodeValid = await securityService.verifyTwoFactorCode(
-    user.security.twoFactorSecret,
-    twoFactorCode
-  );
-  
-  if (!isCodeValid) {
-    throw new AppError('Invalid two-factor code', 401, 'INVALID_2FA_CODE');
-  }
-  
-  // Get client info
-  const clientInfo = getClientInfo(req);
-  
-  // Create session
-  const session = await Session.create({
-    userId: user._id,
+  // Combine client-provided device info with server-detected info
+  const deviceInfo = {
+    // Server-detected info as fallback
     userAgent: req.headers['user-agent'],
     ipAddress: req.ip,
-    deviceInfo: clientInfo,
-    isActive: true,
-    expiresAt: rememberMe 
-      ? new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000) 
-      : new Date(Date.now() + tokenConfig.REFRESH_TOKEN_EXPIRY * 1000)
-  });
+    isMobile: /mobile|android|iphone|ipad|ipod/i.test(req.headers['user-agent'] || ''),
+    isTablet: /tablet|ipad/i.test(req.headers['user-agent'] || ''),
+    isDesktop: !/mobile|android|iphone|ipad|ipod|tablet/i.test(req.headers['user-agent'] || ''),
+    rememberMe,
+    // Override with client-provided info if available
+    ...(clientDeviceInfo || {})
+  };
   
-  // Generate tokens
-  const { accessToken, refreshToken } = await tokenService.generateAuthTokens(
-    user._id,
-    user.security.tokenVersion,
-    session._id,
-    rememberMe
-  );
+  // Verify 2FA through auth service
+  const result = await authService.verifyTwoFactor(tempToken, twoFactorCode, deviceInfo, deviceId);
   
-  // Set cookies
-  res.cookie(
-    cookieConfig.names.ACCESS_TOKEN, 
-    accessToken, 
-    cookieConfig.accessTokenOptions
-  );
-  
-  res.cookie(
-    cookieConfig.names.REFRESH_TOKEN, 
-    refreshToken, 
-    rememberMe 
-      ? { ...cookieConfig.refreshTokenOptions, maxAge: tokenConfig.REFRESH_TOKEN_EXPIRY * 1000 } 
-      : cookieConfig.refreshTokenOptions
-  );
-  
-  // Generate CSRF token
-  const csrfToken = securityService.generateCsrfToken(res);
-  res.cookie(
-    cookieConfig.names.CSRF_TOKEN, 
-    csrfToken, 
-    cookieConfig.csrfOptions
-  );
+  // Set tokens in HTTP-only cookies
+  tokenService.setTokenCookies(res, result.tokens);
   
   // Return user data
   res.status(200).json({
     status: 'success',
     message: 'Two-factor authentication successful',
     data: {
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        emailVerified: user.security.emailVerified,
-        twoFactorEnabled: user.security.twoFactorEnabled
-      },
+      user: authService.sanitizeUser(result.user),
       session: {
-        id: session._id,
-        createdAt: session.createdAt,
-        deviceInfo: clientInfo
-      },
-      csrfToken
+        id: result.session._id,
+        expiresAt: result.session.expiresAt,
+        lastActivity: result.session.lastActiveAt,
+        deviceId: result.session.deviceId
+      }
     }
   });
 });
@@ -218,9 +164,8 @@ exports.verifyTwoFactor = asyncHandler(async (req, res) => {
 exports.refreshToken = async (req, res) => {
   try {
     // Get refresh token from cookie
-    const refreshToken = req.cookies.auth_refresh_token || 
-                         req.cookies.refresh_token || 
-                         req.cookies[cookieConfig.names.REFRESH_TOKEN];
+    const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
+    const { deviceId } = req.body;
     
     if (!refreshToken) {
       logger.warn('No refresh token found in cookies');
@@ -231,29 +176,20 @@ exports.refreshToken = async (req, res) => {
     }
     
     // Refresh tokens using the token service
-    // This will verify the token and generate new tokens
     const { accessToken, refreshToken: newRefreshToken, session } = 
-      await tokenService.refreshTokens(refreshToken);
+      await tokenService.refreshTokens(refreshToken, deviceId);
     
-    // Set cookies - Fix the cookieConfig issue
-    // Option 1: Use the token service to set cookies
-    // tokenService.setTokenCookies(res, { accessToken, refreshToken: newRefreshToken });
+    // Set cookies using the token service
+    tokenService.setTokenCookies(res, { accessToken, refreshToken: newRefreshToken });
     
-    // Option 2: Or fix the cookieConfig structure if you prefer direct usage
-    
-    res.cookie(cookieConfig.names.ACCESS_TOKEN, accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: cookieConfig.maxAge?.access || 15 * 60 * 1000 // 15 minutes default
-    });
-    res.cookie(cookieConfig.names.REFRESH_TOKEN, newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: cookieConfig.maxAge?.refresh || 7 * 24 * 60 * 60 * 1000 // 7 days default
-    });
-    
+    // Notify other tabs about token refresh via WebSocket
+    if (req.io && session.userId) {
+      const sessionRoom = socketService.createRoomName('session', session.id);
+      req.io.to(sessionRoom).emit(EVENT_NAMES.TOKEN_REFRESHED, {
+        sessionId: session.id,
+        timestamp: Date.now()
+      });
+    }
     
     return res.status(200).json({
       status: 'success',
@@ -265,11 +201,10 @@ exports.refreshToken = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Token refresh error:', error);
+    logger.error('Token refresh error:', error);
     
     // Clear cookies on error
-    res.clearCookie(cookieConfig.names.ACCESS_TOKEN);
-    res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
+    tokenService.clearTokenCookies(res);
     
     return res.status(401).json({
       status: 'error',
@@ -284,29 +219,25 @@ exports.refreshToken = async (req, res) => {
  */
 exports.logout = asyncHandler(async (req, res) => {
   // Get session ID from request
-  const sessionId = req.session?._id || req.user.sessionId;
+  const sessionId = req.session?._id || req.user?.sessionId;
+  const userId = req.user?._id;
   
-  if (sessionId) {
-    // Terminate session
-    await sessionService.terminateSession(sessionId, req.user._id, 'user_logout');
+  if (sessionId && userId) {
+    // Use session service to handle logout
+    await sessionService.terminateSession(sessionId, userId, 'user_logout');
+    
+    // If WebSocket is available, notify other tabs/devices
+    if (req.io && req.user) {
+      const userRoom = socketService.createRoomName('user', userId);
+      req.io.to(userRoom).emit(EVENT_NAMES.USER_LOGOUT, {
+        sessionId,
+        timestamp: Date.now()
+      });
+    }
   }
   
-  // Revoke tokens
-  const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
-  const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
-  
-  if (accessToken) {
-    await tokenService.revokeToken(accessToken, 'access');
-  }
-  
-  if (refreshToken) {
-    await tokenService.revokeToken(refreshToken, 'refresh');
-  }
-  
-  // Clear cookies
-  res.clearCookie(cookieConfig.names.ACCESS_TOKEN);
-  res.clearCookie(cookieConfig.names.REFRESH_TOKEN);
-  res.clearCookie(cookieConfig.names.CSRF_TOKEN);
+  // Clear cookies through token service
+  tokenService.clearTokenCookies(res);
   
   return res.status(200).json({
     success: true,
@@ -317,35 +248,27 @@ exports.logout = asyncHandler(async (req, res) => {
 /**
  * Validate user authentication
  */
-exports.validateUser = (req, res) => {
-  try {
-    // If middleware passed, user is authenticated
-    res.status(200).json({
-      success: true,
-      data: {
-        isValid: true,
-        user: authService.sanitizeUser(req.user)
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+exports.validateUser = asyncHandler(async (req, res) => {
+  // If middleware passed, user is authenticated
+  res.status(200).json({
+    success: true,
+    data: {
+      isValid: true,
+      user: authService.sanitizeUser(req.user)
+    }
+  });
+});
 
 /**
  * Get current user
  */
-exports.getCurrentUser = (req, res) => {
-  try {
-    // Return user data
-    res.status(200).json({
-      success: true,
-      data: authService.sanitizeUser(req.user)
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+exports.getCurrentUser = asyncHandler(async (req, res) => {
+  // Return user data
+  res.status(200).json({
+    success: true,
+    data: authService.sanitizeUser(req.user)
+  });
+});
 
 /**
  * Verify email
@@ -353,29 +276,16 @@ exports.getCurrentUser = (req, res) => {
 exports.verifyEmail = asyncHandler(async (req, res) => {
   const { token } = req.body;
   
-  // Verify token
-  const decoded = await tokenService.verifyEmailVerificationToken(token);
-  if (!decoded) {
-    throw new AppError('Invalid or expired token', 401, 'INVALID_TOKEN');
-  }
-  
-  // Find and update user
-  const user = await User.findByIdAndUpdate(
-    decoded.sub,
-    { 'security.emailVerified': true },
-    { new: true }
-  );
-  
-  if (!user) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
-  }
+  // Use auth service to verify email
+  const result = await authService.verifyEmail(token);
   
   // Return success
   res.status(200).json({
     status: 'success',
     message: 'Email verified successfully',
     data: {
-      emailVerified: true
+      emailVerified: true,
+      userId: result.userId
     }
   });
 });
@@ -386,27 +296,10 @@ exports.verifyEmail = asyncHandler(async (req, res) => {
 exports.forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
   
-  // Find user
-  const user = await User.findOne({ email });
+  // Use auth service to handle password reset request
+  await authService.requestPasswordReset(email);
   
-  // Don't reveal if user exists or not
-  if (!user) {
-    return res.status(200).json({
-      status: 'success',
-      message: 'If your email is registered, you will receive a password reset link'
-    });
-  }
-  
-  // Generate reset token
-  const resetToken = await tokenService.generatePasswordResetToken(user._id);
-  
-  // Send reset email
-  await emailService.sendPasswordResetEmail(user.email, {
-    name: user.firstName,
-    resetUrl: `${authConfig.clientUrl}/auth/reset-password?token=${resetToken}`
-  });
-  
-  // Return success
+  // Always return success to prevent email enumeration
   res.status(200).json({
     status: 'success',
     message: 'If your email is registered, you will receive a password reset link'
@@ -414,70 +307,55 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 });
 
 /**
- * Reset password
+ * Reset password with token
  */
 exports.resetPassword = asyncHandler(async (req, res) => {
   const { token, password } = req.body;
   
-  // Verify token
-  const decoded = await tokenService.verifyPasswordResetToken(token);
-  if (!decoded) {
-    throw new AppError('Invalid or expired token', 401, 'INVALID_TOKEN');
-  }
-  
-  // Find user
-  const user = await User.findById(decoded.sub);
-  if (!user) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
-  }
-  
-  // Update password and increment token version
-  user.password = password;
-  user.security.tokenVersion += 1;
-  await user.save();
-  
-  // Invalidate all sessions
-  await Session.updateMany(
-    { userId: user._id, isActive: true },
-    { isActive: false, endedAt: new Date() }
-  );
+  // Use auth service to reset password
+  await authService.resetPassword(token, password);
   
   // Return success
   res.status(200).json({
     status: 'success',
-    message: 'Password reset successfully'
+    message: 'Password reset successfully. Please log in with your new password.'
   });
 });
 
 /**
- * Change password
+ * Change password (when logged in)
  */
 exports.changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
+  const userId = req.user._id;
+  const sessionId = req.session._id;
+  const deviceId = req.device._id;
   
-  // This middleware should be used after authenticate middleware
-  const user = await User.findById(req.user._id).select('+password');
+  // Use auth service to change password
+  await authService.changePassword(userId, currentPassword, newPassword, {
+    keepCurrentSession: true,
+    currentSessionId: sessionId
+  });
   
-  if (!user) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  // If WebSocket is available, notify about password change using proper propagation
+  if (req.io) {
+    eventPropagationService.emitWithPropagation(req.io, {
+      eventName: EVENT_NAMES.SECURITY_PASSWORD_CHANGED,
+      sourceRoom: {
+        type: 'user',
+        id: userId
+      },
+      data: {
+        userId,
+        timestamp: Date.now(),
+        sessionId,
+        deviceId,
+        source: 'api'
+      },
+      direction: 'down',
+      targetRooms: ['device', 'session', 'tab']
+    });
   }
-  
-  // Verify current password
-  const isPasswordValid = await user.comparePassword(currentPassword);
-  if (!isPasswordValid) {
-    throw new AppError('Current password is incorrect', 401, 'INVALID_PASSWORD');
-  }
-  
-  // Update password and increment token version
-  user.password = newPassword;
-  user.security.tokenVersion += 1;
-  await user.save();
-  
-  // Keep current session active, invalidate others
-  await Session.updateMany(
-    { userId: user._id, isActive: true, _id: { $ne: req.session._id } },
-    { isActive: false, endedAt: new Date() }
-  );
   
   // Return success
   res.status(200).json({
@@ -487,26 +365,50 @@ exports.changePassword = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Check password status (age, expiry)
+ */
+exports.checkPasswordStatus = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  
+  // Use security service to check password status
+  const passwordStatus = await securityService.getPasswordStatus(userId);
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      passwordStatus
+    }
+  });
+});
+
+/**
+ * Validate password strength
+ */
+exports.validatePasswordStrength = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  
+  // Use security service to validate password strength
+  const result = await securityService.validatePasswordStrength(password);
+  
+  res.status(200).json({
+    status: 'success',
+    data: result
+  });
+});
+
+/**
  * Setup two-factor authentication
  */
 exports.setupTwoFactor = asyncHandler(async (req, res) => {
-  // This middleware should be used after authenticate middleware
-  const user = req.user;
+  const userId = req.user._id;
   
-  // Generate 2FA secret
-  const { secret, qrCodeUrl } = await securityService.generateTwoFactorSecret(user.email);
-  
-  // Store secret temporarily (not activated yet)
-  user.security.tempTwoFactorSecret = secret;
-  await user.save();
+  // Use security service to generate 2FA setup
+  const setupData = await securityService.generateTwoFactorSetup(userId);
   
   // Return setup data
   res.status(200).json({
     status: 'success',
-    data: {
-      qrCodeUrl,
-      secret
-    }
+    data: setupData
   });
 });
 
@@ -515,33 +417,28 @@ exports.setupTwoFactor = asyncHandler(async (req, res) => {
  */
 exports.verifyAndActivateTwoFactor = asyncHandler(async (req, res) => {
   const { twoFactorCode } = req.body;
+  const userId = req.user._id;
   
-  // This middleware should be used after authenticate middleware
-  const user = req.user;
+  // Use security service to verify and activate 2FA
+  const result = await securityService.verifyAndActivateTwoFactor(userId, twoFactorCode);
   
-  // Check if temp secret exists
-  if (!user.security.tempTwoFactorSecret) {
-    throw new AppError('Two-factor setup not initiated', 400, 'SETUP_NOT_INITIATED');
+  // If WebSocket is available, notify other devices about 2FA activation
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', userId);
+    eventPropagationService.emitWithPropagation(req.io, {
+      eventName: EVENT_NAMES.TWO_FACTOR_ENABLED,
+      sourceRoom: {
+        type: 'user',
+        id: userId
+      },
+      data: {
+        userId,
+        timestamp: Date.now()
+      },
+      direction: 'down',
+      targetRooms: ['device', 'session', 'tab']
+    });
   }
-  
-  // Verify code
-  const isCodeValid = await securityService.verifyTwoFactorCode(
-    user.security.tempTwoFactorSecret,
-    twoFactorCode
-  );
-  
-  if (!isCodeValid) {
-    throw new AppError('Invalid verification code', 401, 'INVALID_CODE');
-  }
-  
-  // Activate 2FA
-  user.security.twoFactorEnabled = true;
-  user.security.twoFactorSecret = user.security.tempTwoFactorSecret;
-  user.security.tempTwoFactorSecret = undefined;
-  await user.save();
-  
-  // Generate backup codes
-  const backupCodes = await securityService.generateBackupCodes(user._id);
   
   // Return success
   res.status(200).json({
@@ -549,7 +446,7 @@ exports.verifyAndActivateTwoFactor = asyncHandler(async (req, res) => {
     message: 'Two-factor authentication enabled successfully',
     data: {
       twoFactorEnabled: true,
-      backupCodes
+      backupCodes: result.backupCodes
     }
   });
 });
@@ -559,21 +456,28 @@ exports.verifyAndActivateTwoFactor = asyncHandler(async (req, res) => {
  */
 exports.disableTwoFactor = asyncHandler(async (req, res) => {
   const { password } = req.body;
+  const userId = req.user._id;
   
-  // This middleware should be used after authenticate middleware
-  const user = await User.findById(req.user._id).select('+password');
+  // Use security service to disable 2FA
+  await securityService.disableTwoFactor(userId, password);
   
-  // Verify password
-  const isPasswordValid = await user.comparePassword(password);
-  if (!isPasswordValid) {
-    throw new AppError('Password is incorrect', 401, 'INVALID_PASSWORD');
+  // If WebSocket is available, notify other devices about 2FA deactivation
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', userId);
+    eventPropagationService.emitWithPropagation(req.io, {
+      eventName: EVENT_NAMES.TWO_FACTOR_DISABLED,
+      sourceRoom: {
+        type: 'user',
+        id: userId
+      },
+      data: {
+        userId,
+        timestamp: Date.now()
+      },
+      direction: 'down',
+      targetRooms: ['device', 'session', 'tab']
+    });
   }
-  
-  // Disable 2FA
-  user.security.twoFactorEnabled = false;
-  user.security.twoFactorSecret = undefined;
-  user.security.backupCodes = [];
-  await user.save();
   
   // Return success
   res.status(200).json({
@@ -677,18 +581,14 @@ exports.validateSession = asyncHandler(async (req, res) => {
  * Get authentication status
  * @route GET /api/auth/status
  */
-exports.getAuthStatus = async (req, res) => {
+exports.getAuthStatus = asyncHandler(async (req, res) => {
   // If user is authenticated (req.user exists from optionalAuth middleware)
   if (req.user) {
     return res.status(200).json({
       status: 'success',
       data: {
         isAuthenticated: true,
-        user: {
-          id: req.user._id,
-          email: req.user.email,
-          role: req.user.role
-        },
+        user: authService.sanitizeUser(req.user),
         sessionId: req.session?.id
       }
     });
@@ -701,4 +601,127 @@ exports.getAuthStatus = async (req, res) => {
       isAuthenticated: false
     }
   });
-};
+});
+
+/**
+ * Verify new device
+ */
+exports.verifyNewDevice = asyncHandler(async (req, res) => {
+  const { verificationCode } = req.body;
+  const userId = req.user._id;
+  const sessionId = req.session._id;
+  
+  // Use device service to verify the device
+  const result = await deviceService.verifyDeviceWithCode(
+    userId, 
+    sessionId,
+    verificationCode
+  );
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Device verified successfully',
+    data: {
+      deviceId: result.deviceId,
+      verified: true
+    }
+  });
+});
+
+/**
+ * Request new verification code for device
+ */
+exports.requestNewDeviceVerification = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const sessionId = req.session._id;
+  
+  // Use device service to generate new verification code
+  await deviceService.generateNewVerificationCode(userId, sessionId);
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'New verification code sent'
+  });
+});
+
+/**
+ * Report suspicious activity
+ */
+exports.reportSuspiciousActivity = asyncHandler(async (req, res) => {
+  const { activityType, details } = req.body;
+  const userId = req.user._id;
+  const sessionId = req.session._id;
+  const deviceId = req.device._id;
+  
+  // Log suspicious activity
+  await securityService.logSuspiciousActivity(userId, {
+    activityType,
+    details,
+    sessionId,
+    deviceId
+  });
+  
+  // Notify all user devices about suspicious activity
+  if (req.io) {
+    eventPropagationService.emitWithPropagation(req.io, {
+      eventName: EVENT_NAMES.SECURITY_SUSPICIOUS_ACTIVITY,
+      sourceRoom: {
+        type: 'user',
+        id: userId
+      },
+      data: {
+        userId,
+        activityType,
+        timestamp: Date.now(),
+        sessionId,
+        deviceId,
+        source: 'api'
+      },
+      direction: 'down',
+      targetRooms: ['device', 'session', 'tab']
+    });
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Suspicious activity reported and logged'
+  });
+});
+
+/**
+ * Verify device
+ */
+exports.verifyDevice = asyncHandler(async (req, res) => {
+  const { verificationCode } = req.body;
+  const userId = req.user._id;
+  const deviceId = req.device._id;
+  
+  // Verify device
+  await deviceService.verifyDevice(userId, deviceId, verificationCode);
+  
+  // Notify about device verification
+  if (req.io) {
+    eventPropagationService.emitWithPropagation(req.io, {
+      eventName: EVENT_NAMES.SECURITY_DEVICE_VERIFIED,
+      sourceRoom: {
+        type: 'device',
+        id: deviceId
+      },
+      data: {
+        userId,
+        deviceId,
+        timestamp: Date.now(),
+        source: 'api'
+      },
+      direction: 'up', // Notify parent rooms (user)
+      targetRooms: ['user']
+    });
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Device verified successfully'
+  });
+});

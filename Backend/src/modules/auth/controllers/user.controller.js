@@ -1,162 +1,241 @@
-const User = require('../models/user.model');
-const logger = require('../../../utils/logger');
-const { ApiError } = require('../../../utils/errors');
+const { asyncHandler } = require('../../../utils/errorHandlers');
+const { AppError } = require('../../../utils/errors');
+const socketService = require('../services/socket.service');
+const userService = require('../services/user.service');
+const { EVENT_NAMES } = require('../constants/event-names.constant');
 
 /**
- * Get the current user's profile
+ * Get current user profile
  */
-const getUserProfile = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password -refreshTokens');
-    
-    if (!user) {
-      return next(new ApiError('User not found', 404));
+exports.getUserProfile = asyncHandler(async (req, res) => {
+  const user = await userService.getUserById(req.user._id);
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      user: userService.sanitizeUserProfile(user)
     }
-    
-    res.status(200).json({
-      success: true,
-      data: user
-    });
-  } catch (error) {
-    logger.error('Error in getUserProfile:', error);
-    next(error);
-  }
-};
+  });
+});
 
 /**
- * Update the current user's profile
+ * Update user profile
  */
-const updateUserProfile = async (req, res, next) => {
-  try {
-    const { name, email, phone } = req.body;
-    
-    // Check if email is already taken
-    if (email) {
-      const existingUser = await User.findOne({ email, _id: { $ne: req.user.id } });
-      if (existingUser) {
-        return next(new ApiError('Email is already in use', 400));
-      }
-    }
-    
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user.id,
-      { 
-        $set: { 
-          name: name || undefined,
-          email: email || undefined,
-          phone: phone || undefined,
-          updatedAt: Date.now()
-        } 
-      },
-      { new: true, runValidators: true }
-    ).select('-password -refreshTokens');
-    
-    if (!updatedUser) {
-      return next(new ApiError('User not found', 404));
-    }
-    
-    res.status(200).json({
-      success: true,
-      data: updatedUser,
-      message: 'Profile updated successfully'
+exports.updateUserProfile = asyncHandler(async (req, res) => {
+  const { firstName, lastName, phone, avatar } = req.body;
+  
+  const user = await userService.updateUserProfile(
+    req.user._id,
+    { firstName, lastName, phone, avatar }
+  );
+  
+  // Notify other devices about profile update via WebSocket
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', req.user._id);
+    req.io.to(userRoom).emit(EVENT_NAMES.PROFILE_UPDATED, {
+      userId: req.user._id,
+      timestamp: Date.now(),
+      sessionId: req.session?._id
     });
-  } catch (error) {
-    logger.error('Error in updateUserProfile:', error);
-    next(error);
   }
-};
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Profile updated successfully',
+    data: {
+      user: userService.sanitizeUserProfile(user)
+    }
+  });
+});
 
 /**
- * Change the current user's password
+ * Upload profile avatar
  */
-const changePassword = async (req, res, next) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return next(new ApiError('User not found', 404));
-    }
-    
-    // Verify current password
-    const isMatch = await user.matchPassword(currentPassword);
-    if (!isMatch) {
-      return next(new ApiError('Current password is incorrect', 401));
-    }
-    
-    // Update password
-    user.password = newPassword;
-    user.updatedAt = Date.now();
-    await user.save();
-    
-    res.status(200).json({
-      success: true,
-      message: 'Password changed successfully'
-    });
-  } catch (error) {
-    logger.error('Error in changePassword:', error);
-    next(error);
+exports.uploadAvatar = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new AppError('No file uploaded', 400);
   }
-};
+  
+  const avatarUrl = await userService.uploadAvatar(req.user._id, req.file);
+  
+  // Notify other devices about avatar update via WebSocket
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', req.user._id);
+    req.io.to(userRoom).emit(EVENT_NAMES.PROFILE_UPDATED, {
+      userId: req.user._id,
+      timestamp: Date.now(),
+      sessionId: req.session?._id,
+      avatarUpdated: true
+    });
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Avatar uploaded successfully',
+    data: {
+      avatarUrl
+    }
+  });
+});
 
 /**
- * Get the current user's preferences
+ * Delete profile avatar
  */
-const getUserPreferences = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id).select('preferences');
-    
-    if (!user) {
-      return next(new ApiError('User not found', 404));
-    }
-    
-    res.status(200).json({
-      success: true,
-      data: user.preferences || {}
+exports.deleteAvatar = asyncHandler(async (req, res) => {
+  await userService.deleteAvatar(req.user._id);
+  
+  // Notify other devices about avatar deletion via WebSocket
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', req.user._id);
+    req.io.to(userRoom).emit(EVENT_NAMES.PROFILE_UPDATED, {
+      userId: req.user._id,
+      timestamp: Date.now(),
+      sessionId: req.session?._id,
+      avatarDeleted: true
     });
-  } catch (error) {
-    logger.error('Error in getUserPreferences:', error);
-    next(error);
   }
-};
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Avatar deleted successfully'
+  });
+});
 
 /**
- * Update the current user's preferences
+ * Request email change
  */
-const updateUserPreferences = async (req, res, next) => {
-  try {
-    const { preferences } = req.body;
-    
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user.id,
-      { 
-        $set: { 
-          preferences,
-          updatedAt: Date.now()
-        } 
-      },
-      { new: true, runValidators: true }
-    ).select('preferences');
-    
-    if (!updatedUser) {
-      return next(new ApiError('User not found', 404));
-    }
-    
-    res.status(200).json({
-      success: true,
-      data: updatedUser.preferences,
-      message: 'Preferences updated successfully'
+exports.requestEmailChange = asyncHandler(async (req, res) => {
+  const { newEmail, password } = req.body;
+  
+  await userService.requestEmailChange(req.user._id, newEmail, password);
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Verification email sent to new address. Please verify to complete the change.'
+  });
+});
+
+/**
+ * Change user password
+ */
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  
+  await userService.changePassword(req.user._id, currentPassword, newPassword);
+  
+  // Notify other devices about password change via WebSocket
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', req.user._id);
+    req.io.to(userRoom).emit(EVENT_NAMES.PASSWORD_CHANGED, {
+      userId: req.user._id,
+      timestamp: Date.now(),
+      sessionId: req.session?._id
     });
-  } catch (error) {
-    logger.error('Error in updateUserPreferences:', error);
-    next(error);
   }
-};
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Password changed successfully'
+  });
+});
+
+/**
+ * Get user preferences
+ */
+exports.getUserPreferences = asyncHandler(async (req, res) => {
+  const preferences = await userService.getUserPreferences(req.user._id);
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      preferences
+    }
+  });
+});
+
+/**
+ * Update user preferences
+ */
+exports.updateUserPreferences = asyncHandler(async (req, res) => {
+  const { preferences } = req.body;
+  
+  const updatedPreferences = await userService.updateUserPreferences(
+    req.user._id,
+    preferences
+  );
+  
+  // Notify other devices about preferences update via WebSocket
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', req.user._id);
+    req.io.to(userRoom).emit(EVENT_NAMES.PREFERENCES_UPDATED, {
+      userId: req.user._id,
+      timestamp: Date.now(),
+      sessionId: req.session?._id
+    });
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Preferences updated successfully',
+    data: {
+      preferences: updatedPreferences
+    }
+  });
+});
+
+/**
+ * Get user notification settings
+ */
+exports.getNotificationSettings = asyncHandler(async (req, res) => {
+  const settings = await userService.getNotificationSettings(req.user._id);
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      settings
+    }
+  });
+});
+
+/**
+ * Update user notification settings
+ */
+exports.updateNotificationSettings = asyncHandler(async (req, res) => {
+  const { settings } = req.body;
+  
+  const updatedSettings = await userService.updateNotificationSettings(
+    req.user._id,
+    settings
+  );
+  
+  // Notify other devices about notification settings update via WebSocket
+  if (req.io) {
+    const userRoom = socketService.createRoomName('user', req.user._id);
+    req.io.to(userRoom).emit(EVENT_NAMES.NOTIFICATION_SETTINGS_UPDATED, {
+      userId: req.user._id,
+      timestamp: Date.now(),
+      sessionId: req.session?._id
+    });
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    message: 'Notification settings updated successfully',
+    data: {
+      settings: updatedSettings
+    }
+  });
+});
 
 module.exports = {
   getUserProfile,
   updateUserProfile,
+  uploadAvatar,
+  deleteAvatar,
+  requestEmailChange,
   changePassword,
   getUserPreferences,
-  updateUserPreferences
+  updateUserPreferences,
+  getNotificationSettings,
+  updateNotificationSettings
 };

@@ -2,37 +2,31 @@
  * Session Controller
  * Handles all session-related operations
  */
-const Session = require('../models/session.model');
 const { AppError } = require('../../../utils/errors');
 const sessionService = require('../services/session.service');
-const sessionConfig = require('../config/session.config');
 const tokenService = require('../services/token.service');
 const cookieConfig = require('../config/cookie.config');
+const logger = require('../../../utils/logger');
+const asyncHandler = require('../../../utils/asyncHandler');
 
 /**
- * Validate current session
+ * Validate session
  * @route GET /api/auth/session/validate
  */
 exports.validateSession = async (req, res, next) => {
   try {
-    // Set cache control headers to prevent caching
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-    
     const userId = req.user._id;
     const sessionId = req.session.id;
     
-    // Get session from database
-    const session = await Session.findOne({ _id: sessionId, userId });
+    // Validate session using service
+    const validationResult = await sessionService.validateSession(sessionId);
     
-    if (!session) {
-      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
-    }
-    
-    // Check if session is expired
-    if (session.isExpired()) {
-      return next(new AppError('Session expired', 401, 'SESSION_EXPIRED'));
+    if (!validationResult.valid) {
+      return res.status(200).json({
+        success: true,
+        authenticated: false,
+        reason: validationResult.reason
+      });
     }
     
     // Refresh tokens and set cookies
@@ -40,39 +34,25 @@ exports.validateSession = async (req, res, next) => {
       userId,
       req.user.security.tokenVersion,
       sessionId,
-      session.rememberMe || false
+      validationResult.session.rememberMe || false
     );
     
-    // Add debug logging
-    console.log('Generated new tokens during session validation:', {
-      hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken
-    });
-    
-    // Set both HTTP-only token cookies and non-HTTP-only flag cookies
+    // Set both HTTP-only token cookies
     tokenService.setTokenCookies(res, { accessToken, refreshToken });
     
-    // Update session's lastActivity timestamp
-    session.lastActivity = new Date();
-    await session.save();
+    // Get session info using service
+    const sessionInfo = await sessionService.getSessionInfo(sessionId);
     
-    // Return authenticated status with session info
     return res.status(200).json({
       success: true,
       authenticated: true,
       data: {
-        user: {
-          id: userId
-        },
-        session: {
-          id: session._id,
-          expiresAt: session.expiresAt,
-          lastActivity: session.lastActivity
-        }
+        user: { id: userId },
+        session: sessionInfo
       }
     });
   } catch (error) {
-    console.error('Session validation error:', error);
+    logger.error('Session validation error:', error);
     return next(new AppError('Failed to validate session', 500, 'SESSION_VALIDATION_ERROR'));
   }
 };
@@ -83,313 +63,313 @@ exports.validateSession = async (req, res, next) => {
  */
 exports.syncSession = async (req, res, next) => {
   try {
-    const userId = req.user._id;
     const sessionId = req.session.id;
-    const { tabId, screenSize, lastUserActivity } = req.body;
+    const { tabId, clientInfo, scope, deviceId } = req.body;
     
-    // Get session from database
-    const session = await Session.findOne({ _id: sessionId, userId });
+    // Sync session using service
+    const syncResult = await sessionService.syncSession(sessionId, {
+      tabId,
+      clientInfo,
+      userId: req.user._id,
+      scope: scope || 'device',
+      deviceId: deviceId
+    });
     
-    if (!session) {
-      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    if (!syncResult.success) {
+      return next(new AppError(syncResult.message, syncResult.statusCode, syncResult.code));
     }
     
-    // Update session with tab information
-    if (tabId) {
-      // Add or update tab in session
-      const tabIndex = session.activeTabs.findIndex(tab => tab.id === tabId);
-      
-      if (tabIndex >= 0) {
-        // Update existing tab
-        session.activeTabs[tabIndex].lastActivity = new Date();
-        if (screenSize) session.activeTabs[tabIndex].screenSize = screenSize;
-      } else {
-        // Add new tab
-        session.activeTabs.push({
-          id: tabId,
-          createdAt: new Date(),
-          lastActivity: new Date(),
-          screenSize: screenSize || {}
-        });
-      }
+    // Broadcast event if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io, 
+        sessionId, 
+        'session-update', 
+        syncResult.eventData
+      );
     }
     
-    // Update session last activity
-    if (lastUserActivity) {
-      session.lastActivity = new Date(lastUserActivity);
-    } else {
-      session.lastActivity = new Date();
-    }
-    
-    await session.save();
-    
-    // Return updated session info
-    res.status(200).json({
-      status: 'success',
-      data: {
-        session: {
-          id: session._id,
-          createdAt: session.createdAt,
-          lastActivity: session.lastActivity,
-          expiresAt: session.expiresAt,
-          activeTabs: session.activeTabs,
-          device: session.deviceInfo,
-          timeouts: {
-            idle: sessionConfig.timeouts.idle,
-            absolute: sessionConfig.timeouts.absolute,
-            warning: sessionConfig.timeouts.warning
-          }
-        }
-      }
+    return res.status(200).json({
+      success: true,
+      data: syncResult.sessionInfo
     });
   } catch (error) {
-    next(error);
+    logger.error('Session sync error:', error);
+    return next(new AppError('Failed to sync session', 500, 'SESSION_SYNC_ERROR'));
   }
 };
 
 /**
  * Acknowledge session timeout warning
- * @route POST /api/auth/session/acknowledge-warning
+ * @route POST /api/auth/session/timeout-warning/acknowledge
  */
-exports.acknowledgeWarning = async (req, res, next) => {
+exports.acknowledgeTimeoutWarning = async (req, res, next) => {
   try {
-    const userId = req.user._id;
     const sessionId = req.session.id;
-    const { warningType } = req.body;
+    const { warningId } = req.body;
     
-    if (!['IDLE', 'ABSOLUTE', 'SECURITY'].includes(warningType)) {
-      return next(new AppError('Invalid warning type', 400));
+    if (!warningId) {
+      return next(new AppError('Warning ID is required', 400));
     }
     
-    // Update session with acknowledgment
-    const session = await Session.findOne({ _id: sessionId, userId });
+    // Acknowledge warning using service
+    const result = await sessionService.acknowledgeWarning(sessionId, warningId);
     
-    if (!session) {
-      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode));
     }
     
-    // Find the most recent warning of this type
-    const warningIndex = session.warningsSent.findIndex(
-      w => w.warningType === warningType && !w.acknowledged
-    );
-    
-    if (warningIndex >= 0) {
-      session.warningsSent[warningIndex].acknowledged = true;
-      session.lastWarningAcknowledged = new Date();
-      await session.save();
+    // Broadcast event if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io,
+        sessionId,
+        'warning-acknowledged',
+        { warningId }
+      );
     }
     
-    res.status(200).json({
-      status: 'success',
+    return res.status(200).json({
+      success: true,
       message: 'Warning acknowledged'
     });
   } catch (error) {
-    next(error);
+    logger.error('Error acknowledging timeout warning:', error);
+    return next(new AppError('Failed to acknowledge warning', 500));
   }
 };
 
 /**
- * Get active sessions for current user
+ * Extend session
+ * @route POST /api/auth/session/extend
+ */
+exports.extendSession = async (req, res, next) => {
+  try {
+    const sessionId = req.session.id;
+    const { reason } = req.body;
+    
+    // Extend session using service
+    const result = await sessionService.extendSession(sessionId, reason);
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode));
+    }
+    
+    // Broadcast event if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io,
+        sessionId,
+        'session-extended',
+        result.eventData
+      );
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Session extended',
+      data: result.sessionInfo
+    });
+  } catch (error) {
+    logger.error('Error extending session:', error);
+    return next(new AppError('Failed to extend session', 500));
+  }
+};
+
+/**
+ * Poll for session events (fallback when WebSocket is down)
+ * @route GET /api/auth/session/events
+ */
+exports.pollSessionEvents = async (req, res, next) => {
+  try {
+    const sessionId = req.session.id;
+    const { lastEventId } = req.query;
+    
+    // Get events and update activity using service
+    const result = await sessionService.pollSessionEvents(sessionId, lastEventId);
+    
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    logger.error('Error polling session events:', error);
+    return next(new AppError('Failed to poll session events', 500));
+  }
+};
+
+/**
+ * Check authentication status
+ * @route GET /api/auth/session/check
+ */
+exports.checkAuthStatus = async (req, res) => {
+  // Get access token from cookie
+  const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+  
+  if (!accessToken) {
+    return res.status(200).json({
+      authenticated: false,
+      reason: 'NO_TOKEN'
+    });
+  }
+  
+  try {
+    // Use service to check auth status
+    const result = await sessionService.checkAuthStatus(accessToken);
+    
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(200).json({
+      authenticated: false,
+      reason: error.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN'
+    });
+  }
+};
+
+/**
+ * Join session rooms for WebSocket
+ * @route POST /api/auth/session/join-rooms
+ */
+exports.joinSessionRooms = async (req, res, next) => {
+  try {
+    const { socketId, tabId } = req.body;
+    const userId = req.user._id;
+    const sessionId = req.session.id;
+    
+    if (!socketId || !tabId) {
+      return next(new AppError('Socket ID and Tab ID are required', 400));
+    }
+    
+    // Get socket instance from io
+    const io = req.io;
+    if (!io) {
+      return next(new AppError('WebSocket server not available', 500));
+    }
+    
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) {
+      return next(new AppError('Socket not found', 404));
+    }
+    
+    // Join hierarchical rooms using service
+    await sessionService.joinSessionRooms(socket, {
+      userId,
+      sessionId,
+      tabId,
+      deviceId: req.session.deviceId
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Joined session rooms successfully'
+    });
+  } catch (error) {
+    logger.error('Error joining session rooms:', error);
+    return next(new AppError('Failed to join session rooms', 500));
+  }
+};
+
+/**
+ * Get active sessions for user
  * @route GET /api/auth/session/active
  */
 exports.getActiveSessions = async (req, res, next) => {
   try {
     const userId = req.user._id;
     
-    // Get all active sessions for user
-    const sessions = await Session.find({
-      userId,
-      expiresAt: { $gt: new Date() }
-    }).select('_id createdAt lastActivity deviceInfo ipAddress userAgent');
+    const sessions = await sessionService.getActiveSessions(userId);
     
-    res.status(200).json({
-      status: 'success',
-      results: sessions.length,
-      data: {
-        sessions
-      }
+    return res.status(200).json({
+      success: true,
+      data: sessions
     });
   } catch (error) {
-    next(error);
+    logger.error('Error fetching active sessions:', error);
+    return next(new AppError('Failed to fetch active sessions', 500));
   }
 };
 
 /**
- * Terminate specific session
- * @route DELETE /api/auth/session/:sessionId
+ * Terminate session
+ * @route POST /api/auth/session/terminate
  */
 exports.terminateSession = async (req, res, next) => {
   try {
+    const { targetSessionId } = req.body;
     const userId = req.user._id;
-    const { sessionId } = req.params;
-    const currentSessionId = req.session.id;
     
-    // Prevent terminating current session through this endpoint
-    if (sessionId === currentSessionId) {
-      return next(new AppError(
-        'Cannot terminate current session. Use logout instead.',
-        400,
-        'INVALID_OPERATION'
-      ));
+    if (!targetSessionId) {
+      return next(new AppError('Session ID is required', 400));
     }
     
-    // Find and terminate session
-    const session = await Session.findOne({ _id: sessionId, userId });
+    // Terminate session using service
+    const result = await sessionService.terminateSession(targetSessionId, userId);
     
-    if (!session) {
-      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode));
     }
     
-    // End session
-    await sessionService.endSession(sessionId, 'user_terminated');
-    
-    res.status(200).json({
-      status: 'success',
-      message: 'Session terminated'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Terminate all sessions except current
- * @route POST /api/auth/session/terminate-all
- */
-exports.terminateAllSessions = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
-    const currentSessionId = req.session.id;
-    
-    // Find all other active sessions
-    const sessions = await Session.find({
-      userId,
-      _id: { $ne: currentSessionId },
-      expiresAt: { $gt: new Date() }
-    });
-    
-    // Terminate each session
-    const terminationPromises = sessions.map(session => 
-      sessionService.endSession(session._id, 'user_terminated_all')
-    );
-    
-    await Promise.all(terminationPromises);
-    
-    res.status(200).json({
-      status: 'success',
-      message: `Terminated ${sessions.length} sessions`,
-      data: {
-        terminatedCount: sessions.length
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get session by ID
- * @route GET /api/auth/session/:sessionId
- */
-exports.getSessionById = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
-    const { sessionId } = req.params;
-    
-    // Get session from database
-    const session = await Session.findOne({ _id: sessionId, userId });
-    
-    if (!session) {
-      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    // Broadcast termination event if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionTermination(
+        req.io,
+        userId,
+        targetSessionId,
+        'user-terminated'
+      );
     }
     
-    res.status(200).json({
-      status: 'success',
-      data: {
-        session
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Update session activity (heartbeat)
- * @route POST /api/auth/session/heartbeat
- */
-exports.updateSessionActivity = async (req, res, next) => {
-  try {
-    const userId = req.user._id;
-    const sessionId = req.session.id;
-    
-    // Update session last activity
-    await Session.findOneAndUpdate(
-      { _id: sessionId, userId },
-      { lastActivity: new Date() }
-    );
-    
-    res.status(200).json({
-      status: 'success',
-      message: 'Session activity updated'
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Get session status (works without authentication)
- * @route GET /api/auth/session/status
- */
-exports.getSessionStatus = async (req, res) => {
-  try {
-    // Check for token in cookies
-    const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
-    
-    if (!accessToken) {
-      return res.status(200).json({
-        authenticated: false
-      });
-    }
-    
-    // Try to verify the token
-    try {
-      const decoded = await tokenService.verifyAccessToken(accessToken);
-      
-      // Check if session exists and is active
-      const session = await Session.findOne({ 
-        _id: decoded.sessionId,
-        userId: decoded.userId || decoded.sub
-      });
-      
-      if (!session) {
-        return res.status(200).json({
-          authenticated: false,
-          reason: 'SESSION_NOT_FOUND'
-        });
-      }
-      
-      // Return authenticated status with minimal user info
-      return res.status(200).json({
-        authenticated: true,
-        user: {
-          id: decoded.userId || decoded.sub
-        },
-        session: {
-          expiresAt: session.expiresAt
-        }
-      });
-    } catch (error) {
-      return res.status(200).json({
-        authenticated: false,
-        reason: error.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN'
-      });
-    }
-  } catch (error) {
     return res.status(200).json({
-      authenticated: false,
-      error: 'Error checking authentication status'
+      success: true,
+      message: 'Session terminated successfully'
     });
+  } catch (error) {
+    logger.error('Error terminating session:', error);
+    return next(new AppError('Failed to terminate session', 500));
   }
 };
+
+/**
+ * Update session state
+ */
+exports.updateSessionState = asyncHandler(async (req, res) => {
+  const { state } = req.body;
+  const userId = req.user._id;
+  const sessionId = req.session._id;
+  const deviceId = req.device._id;
+  const tabId = req.headers['x-tab-id'];
+  
+  // Use cross-tab service to update state with proper synchronization
+  await crossTabService.updateSharedState(
+    userId,
+    deviceId,
+    tabId,
+    'session',
+    state,
+    true // sync across tabs
+  );
+  
+  // Return success
+  res.status(200).json({
+    status: 'success',
+    message: 'Session state updated'
+  });
+});
+
+/**
+ * Get session state
+ */
+exports.getSessionState = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const deviceId = req.device._id;
+  
+  // Get synchronized state
+  const state = await crossTabService.getSharedState(userId, deviceId, 'session');
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      state
+    }
+  });
+});
