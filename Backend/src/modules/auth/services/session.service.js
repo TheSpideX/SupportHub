@@ -7,6 +7,10 @@ const socketService = require('./socket.service');
 const cookie = require("cookie");
 const crypto = require("crypto");
 const tokenService = require("./token.service");
+const sessionConfig = require('../config/session.config');
+
+// Add this line to define the cleanupIntervals array
+const cleanupIntervals = [];
 
 // Room type constants from config
 const ROOM_TYPES = {
@@ -595,10 +599,9 @@ exports.initialize = function (options = {}) {
   logger.info("Session service initialized");
 
   // Periodically clean up connection throttling map
-  setInterval(() => {
+  const throttleCleanupInterval = setInterval(() => {
     try {
       const now = Date.now();
-      const THROTTLE_WINDOW_MS = 60000; // 1 minute
 
       for (const [ip, timestamps] of connectionThrottling.entries()) {
         const validTimestamps = timestamps.filter(
@@ -615,6 +618,9 @@ exports.initialize = function (options = {}) {
       logger.error("Error cleaning up connection throttling data:", error);
     }
   }, 5 * 60 * 1000); // Run every 5 minutes
+  
+  // Add this interval to the cleanup list
+  cleanupIntervals.push(throttleCleanupInterval);
 };
 
 /**

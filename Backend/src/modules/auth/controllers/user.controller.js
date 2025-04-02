@@ -7,7 +7,7 @@ const { EVENT_NAMES } = require('../constants/event-names.constant');
 /**
  * Get current user profile
  */
-exports.getUserProfile = asyncHandler(async (req, res) => {
+const getUserProfile = asyncHandler(async (req, res) => {
   const user = await userService.getUserById(req.user._id);
   
   res.status(200).json({
@@ -21,7 +21,7 @@ exports.getUserProfile = asyncHandler(async (req, res) => {
 /**
  * Update user profile
  */
-exports.updateUserProfile = asyncHandler(async (req, res) => {
+const updateUserProfile = asyncHandler(async (req, res) => {
   const { firstName, lastName, phone, avatar } = req.body;
   
   const user = await userService.updateUserProfile(
@@ -51,7 +51,7 @@ exports.updateUserProfile = asyncHandler(async (req, res) => {
 /**
  * Upload profile avatar
  */
-exports.uploadAvatar = asyncHandler(async (req, res) => {
+const uploadAvatar = asyncHandler(async (req, res) => {
   if (!req.file) {
     throw new AppError('No file uploaded', 400);
   }
@@ -81,7 +81,7 @@ exports.uploadAvatar = asyncHandler(async (req, res) => {
 /**
  * Delete profile avatar
  */
-exports.deleteAvatar = asyncHandler(async (req, res) => {
+const deleteAvatar = asyncHandler(async (req, res) => {
   await userService.deleteAvatar(req.user._id);
   
   // Notify other devices about avatar deletion via WebSocket
@@ -104,7 +104,7 @@ exports.deleteAvatar = asyncHandler(async (req, res) => {
 /**
  * Request email change
  */
-exports.requestEmailChange = asyncHandler(async (req, res) => {
+const requestEmailChange = asyncHandler(async (req, res) => {
   const { newEmail, password } = req.body;
   
   await userService.requestEmailChange(req.user._id, newEmail, password);
@@ -118,7 +118,7 @@ exports.requestEmailChange = asyncHandler(async (req, res) => {
 /**
  * Change user password
  */
-exports.changePassword = asyncHandler(async (req, res) => {
+const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   
   await userService.changePassword(req.user._id, currentPassword, newPassword);
@@ -142,7 +142,7 @@ exports.changePassword = asyncHandler(async (req, res) => {
 /**
  * Get user preferences
  */
-exports.getUserPreferences = asyncHandler(async (req, res) => {
+const getUserPreferences = asyncHandler(async (req, res) => {
   const preferences = await userService.getUserPreferences(req.user._id);
   
   res.status(200).json({
@@ -156,7 +156,7 @@ exports.getUserPreferences = asyncHandler(async (req, res) => {
 /**
  * Update user preferences
  */
-exports.updateUserPreferences = asyncHandler(async (req, res) => {
+const updateUserPreferences = asyncHandler(async (req, res) => {
   const { preferences } = req.body;
   
   const updatedPreferences = await userService.updateUserPreferences(
@@ -186,7 +186,7 @@ exports.updateUserPreferences = asyncHandler(async (req, res) => {
 /**
  * Get user notification settings
  */
-exports.getNotificationSettings = asyncHandler(async (req, res) => {
+const getNotificationSettings = asyncHandler(async (req, res) => {
   const settings = await userService.getNotificationSettings(req.user._id);
   
   res.status(200).json({
@@ -200,7 +200,7 @@ exports.getNotificationSettings = asyncHandler(async (req, res) => {
 /**
  * Update user notification settings
  */
-exports.updateNotificationSettings = asyncHandler(async (req, res) => {
+const updateNotificationSettings = asyncHandler(async (req, res) => {
   const { settings } = req.body;
   
   const updatedSettings = await userService.updateNotificationSettings(

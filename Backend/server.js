@@ -241,10 +241,13 @@ const gracefulShutdown = async () => {
     await shutdownModules();
     
     // Close Redis connections
-    const { redisClient, redisPublisher, redisSubscriber } = require("./src/config/redis");
-    await redisClient.quit();
-    await redisPublisher.quit();
-    await redisSubscriber.quit();
+    const { redisClient, isRedisAvailable } = require("./src/config/redis");
+    
+    // Only attempt to close Redis if it's available
+    if (isRedisAvailable()) {
+      await redisClient.quit().catch(err => logger.warn("Error closing Redis connections:", err));
+      logger.info("Redis connections closed");
+    }
     
     // Close HTTP server
     await new Promise((resolve) => httpServer.close(resolve));

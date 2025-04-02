@@ -39,7 +39,7 @@ const shutdownModules = async () => {
   
   try {
     // Shutdown auth module
-    await auth.shutdownAuthModule();
+    await auth.shutdown(); // Use the correct exported function name
     
     // Shutdown other modules here as needed
     // await otherModule.shutdown();

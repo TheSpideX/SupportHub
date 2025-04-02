@@ -9,7 +9,7 @@ const sessionConfig = {
   store: {
     type: process.env.SESSION_STORE || 'redis',
     prefix: 'sess:',
-    ttl: 604800 // 7 days (matches refresh token)
+    ttl: 604800 // 7 days (aligned with refresh token)
   },
   
   // Session ID

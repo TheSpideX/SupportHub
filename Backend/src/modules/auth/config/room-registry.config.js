@@ -11,8 +11,8 @@ const roomRegistryConfig = {
     eventPrefix: 'room:event:',
     
     // TTL settings for room data
-    roomTTL: 604800, // 7 days (matches session TTL)
-    metadataTTL: 604800, // 7 days (matches session TTL)
+    roomTTL: 604800, // 7 days (aligned with session TTL)
+    metadataTTL: 604800, // 7 days (aligned with session TTL)
     eventTTL: 6 * 60 * 60, // 6 hours for event history
     
     // Cleanup settings

@@ -14,200 +14,200 @@ const { validateRequest } = require('../middleware/validate');
 
 // ===== Core Session Operations =====
 
-// Validate current session
-router.get(
-  '/validate',
-  authenticateToken,
-  sessionController.validateSession
-);
+// // Validate current session
+// router.get(
+//   '/validate',
+//   authenticateToken,
+//   sessionController.validateSession
+// );
 
-// Session status - focused on session details (expiry, activity)
-router.get(
-  '/status',
-  sessionController.getSessionStatus
-);
+// // Session status - focused on session details (expiry, activity)
+// router.get(
+//   '/status',
+//   sessionController.getSessionStatus
+// );
 
-// Get session details
-router.get(
-  '/:sessionId',
-  authenticateToken,
-  sessionController.getSessionById
-);
+// // Get session details
+// router.get(
+//   '/:sessionId',
+//   authenticateToken,
+//   sessionController.getSessionById
+// );
 
-// ===== Session Management =====
+// // ===== Session Management =====
 
-// Get active sessions for current user
-router.get('/active',
-  authenticateToken,
-  csrfProtection,
-  sessionController.getActiveSessions
-);
+// // Get active sessions for current user
+// router.get('/active',
+//   authenticateToken,
+//   csrfProtection,
+//   sessionController.getActiveSessions
+// );
 
-// Terminate specific session
-router.delete('/:sessionId',
-  authenticateToken,
-  csrfProtection,
-  sessionController.terminateSession
-);
+// // Terminate specific session
+// router.delete('/:sessionId',
+//   authenticateToken,
+//   csrfProtection,
+//   sessionController.terminateSession
+// );
 
-// Terminate all sessions except current
-router.post(
-  '/terminate-all',
-  authenticateToken,
-  csrfProtection,
-  sessionController.terminateAllSessions
-);
+// // Terminate all sessions except current
+// router.post(
+//   '/terminate-all',
+//   authenticateToken,
+//   csrfProtection,
+//   sessionController.terminateAllSessions
+// );
 
-// ===== Activity Tracking =====
+// // ===== Activity Tracking =====
 
-// Update session activity (heartbeat)
-router.post(
-  '/heartbeat',
-  authenticateToken,
-  sessionController.updateSessionActivity
-);
+// // Update session activity (heartbeat)
+// router.post(
+//   '/heartbeat',
+//   authenticateToken,
+//   sessionController.updateSessionActivity
+// );
 
-// Endpoint to acknowledge session warnings
-router.post('/acknowledge-warning',
-  authenticateToken,
-  csrfProtection,
-  validateRequest({
-    body: {
-      warningType: { type: 'string', enum: ['IDLE', 'ABSOLUTE', 'SECURITY'] }
-    }
-  }),
-  sessionController.acknowledgeWarning
-);
+// // Endpoint to acknowledge session warnings
+// router.post('/acknowledge-warning',
+//   authenticateToken,
+//   csrfProtection,
+//   validateRequest({
+//     body: {
+//       warningType: { type: 'string', enum: ['IDLE', 'ABSOLUTE', 'SECURITY'] }
+//     }
+//   }),
+//   sessionController.acknowledgeWarning
+// );
 
-// ===== Cross-Tab Synchronization =====
+// // ===== Cross-Tab Synchronization =====
 
-// Session synchronization endpoint for cross-tab communication
-router.post('/sync', 
-  authenticateToken, 
-  csrfProtection,
-  validateRequest({
-    body: {
-      tabId: { type: 'string', optional: true },
-      screenSize: { type: 'object', optional: true },
-      lastUserActivity: { type: 'date', optional: true }
-    }
-  }),
-  sessionController.syncSession
-);
+// // Session synchronization endpoint for cross-tab communication
+// router.post('/sync', 
+//   authenticateToken, 
+//   csrfProtection,
+//   validateRequest({
+//     body: {
+//       tabId: { type: 'string', optional: true },
+//       screenSize: { type: 'object', optional: true },
+//       lastUserActivity: { type: 'date', optional: true }
+//     }
+//   }),
+//   sessionController.syncSession
+// );
 
-// ===== WebSocket Fallbacks =====
+// // ===== WebSocket Fallbacks =====
 
-// Tab activity update (fallback for WebSocket tab room)
-router.post(
-  '/tab-activity',
-  authenticateToken,
-  validateRequest({
-    body: {
-      tabId: { type: 'string', required: true },
-      activity: { type: 'string', required: true },
-      timestamp: { type: 'date', required: true }
-    }
-  }),
-  sessionController.updateTabActivity
-);
+// // Tab activity update (fallback for WebSocket tab room)
+// router.post(
+//   '/tab-activity',
+//   authenticateToken,
+//   validateRequest({
+//     body: {
+//       tabId: { type: 'string', required: true },
+//       activity: { type: 'string', required: true },
+//       timestamp: { type: 'date', required: true }
+//     }
+//   }),
+//   sessionController.updateTabActivity
+// );
 
-// Tab focus change (fallback for WebSocket tab events)
-router.post(
-  '/tab-focus',
-  authenticateToken,
-  validateRequest({
-    body: {
-      tabId: { type: 'string', required: true },
-      hasFocus: { type: 'boolean', required: true }
-    }
-  }),
-  sessionController.updateTabFocus
-);
+// // Tab focus change (fallback for WebSocket tab events)
+// router.post(
+//   '/tab-focus',
+//   authenticateToken,
+//   validateRequest({
+//     body: {
+//       tabId: { type: 'string', required: true },
+//       hasFocus: { type: 'boolean', required: true }
+//     }
+//   }),
+//   sessionController.updateTabFocus
+// );
 
-// Session timeout warning acknowledgment (fallback for WebSocket)
-router.post(
-  '/timeout-warning/acknowledge',
-  authenticateToken,
-  csrfProtection,
-  validateRequest({
-    body: {
-      warningId: { type: 'string', required: true }
-    }
-  }),
-  sessionController.acknowledgeTimeoutWarning
-);
+// // Session timeout warning acknowledgment (fallback for WebSocket)
+// router.post(
+//   '/timeout-warning/acknowledge',
+//   authenticateToken,
+//   csrfProtection,
+//   validateRequest({
+//     body: {
+//       warningId: { type: 'string', required: true }
+//     }
+//   }),
+//   sessionController.acknowledgeTimeoutWarning
+// );
 
-// Request session extension (fallback for WebSocket)
-router.post(
-  '/extend',
-  authenticateToken,
-  csrfProtection,
-  sessionController.extendSession
-);
+// // Request session extension (fallback for WebSocket)
+// router.post(
+//   '/extend',
+//   authenticateToken,
+//   csrfProtection,
+//   sessionController.extendSession
+// );
 
-// Poll for session events (fallback when WebSocket is down)
-router.get(
-  '/events',
-  authenticateToken,
-  sessionController.pollSessionEvents
-);
+// // Poll for session events (fallback when WebSocket is down)
+// router.get(
+//   '/events',
+//   authenticateToken,
+//   sessionController.pollSessionEvents
+// );
 
-// ===== WebSocket Connection Management =====
+// // ===== WebSocket Connection Management =====
 
-// WebSocket session management
-router.post(
-  '/ws-connect',
-  authenticateToken,
-  csrfProtection,
-  validateRequest({
-    body: {
-      tabId: { type: 'string', required: true },
-      deviceId: { type: 'string', required: true }
-    }
-  }),
-  sessionController.registerWebSocketConnection
-);
+// // WebSocket session management
+// router.post(
+//   '/ws-connect',
+//   authenticateToken,
+//   csrfProtection,
+//   validateRequest({
+//     body: {
+//       tabId: { type: 'string', required: true },
+//       deviceId: { type: 'string', required: true }
+//     }
+//   }),
+//   sessionController.registerWebSocketConnection
+// );
 
-router.post(
-  '/ws-disconnect',
-  authenticateToken,
-  validateRequest({
-    body: {
-      connectionId: { type: 'string', required: true }
-    }
-  }),
-  sessionController.unregisterWebSocketConnection
-);
+// router.post(
+//   '/ws-disconnect',
+//   authenticateToken,
+//   validateRequest({
+//     body: {
+//       connectionId: { type: 'string', required: true }
+//     }
+//   }),
+//   sessionController.unregisterWebSocketConnection
+// );
 
-// ===== Device Management =====
+// // ===== Device Management =====
 
-// Register new device (fallback for WebSocket device room)
-router.post(
-  '/devices',
-  authenticateToken,
-  csrfProtection,
-  validateRequest({
-    body: {
-      deviceId: { type: 'string', required: true },
-      deviceName: { type: 'string', required: true },
-      deviceType: { type: 'string', required: true }
-    }
-  }),
-  sessionController.registerDevice
-);
+// // Register new device (fallback for WebSocket device room)
+// router.post(
+//   '/devices',
+//   authenticateToken,
+//   csrfProtection,
+//   validateRequest({
+//     body: {
+//       deviceId: { type: 'string', required: true },
+//       deviceName: { type: 'string', required: true },
+//       deviceType: { type: 'string', required: true }
+//     }
+//   }),
+//   sessionController.registerDevice
+// );
 
-// Update device info (fallback for WebSocket device room)
-router.put(
-  '/devices/:deviceId',
-  authenticateToken,
-  csrfProtection,
-  validateRequest({
-    body: {
-      deviceName: { type: 'string', optional: true },
-      trusted: { type: 'boolean', optional: true }
-    }
-  }),
-  sessionController.updateDeviceInfo
-);
+// // Update device info (fallback for WebSocket device room)
+// router.put(
+//   '/devices/:deviceId',
+//   authenticateToken,
+//   csrfProtection,
+//   validateRequest({
+//     body: {
+//       deviceName: { type: 'string', optional: true },
+//       trusted: { type: 'boolean', optional: true }
+//     }
+//   }),
+//   sessionController.updateDeviceInfo
+// );
 
 module.exports = router;

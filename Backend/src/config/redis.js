@@ -305,6 +305,27 @@ const redisWrapper = {
       logger.error("Redis expireat error, using fallback:", error);
       return await MemoryStore.expire(key, Math.max(1, Math.floor(timestamp - Date.now()/1000)));
     }
+  },
+  quit: async () => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        // Get the actual Redis client instances
+        const actualRedisClient = redisClient;
+        const actualRedisPublisher = redisPublisher;
+        const actualRedisSubscriber = redisSubscriber;
+        
+        // Close connections
+        if (actualRedisClient) await actualRedisClient.quit().catch(() => {});
+        if (actualRedisPublisher) await actualRedisPublisher.quit().catch(() => {});
+        if (actualRedisSubscriber) await actualRedisSubscriber.quit().catch(() => {});
+        
+        return true;
+      }
+      return true; // Memory store doesn't need to be closed
+    } catch (error) {
+      logger.error("Redis quit error:", error);
+      return false;
+    }
   }
 };
 
@@ -383,5 +404,9 @@ module.exports = {
   redisPublisher,
   redisSubscriber,
   isRedisAvailable: () => redisAvailable && redisCircuitBreaker.isAllowed(),
-  waitForRedisReady
+  waitForRedisReady,
+  // Expose the actual clients for shutdown purposes
+  _redisClient: redisClient,
+  _redisPublisher: redisPublisher,
+  _redisSubscriber: redisSubscriber
 };

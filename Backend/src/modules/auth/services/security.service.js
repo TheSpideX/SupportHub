@@ -22,8 +22,36 @@ const config = require('../config');
 const { roomRegistry, eventPropagation } = config;
 
 class SecurityService {
-  constructor() {
+  constructor(options = {}) {
     this.tokenService = tokenService;
+    this.io = options.io; // Store the Socket.IO instance
+  }
+
+  /**
+   * Initialize security service
+   * @param {Object} options - Initialization options
+   * @param {Object} options.io - Socket.IO instance
+   * @returns {Object} - The initialized security service
+   */
+  initialize(options = {}) {
+    // Prevent duplicate initialization
+    if (this.isInitialized) {
+      logger.debug('Security service already initialized, skipping');
+      return this;
+    }
+    
+    // Store the Socket.IO instance if provided
+    if (options.io) {
+      this.io = options.io;
+    }
+    
+    // Initialize security monitoring
+    this.initializeSecurityMonitoring();
+    
+    this.isInitialized = true;
+    logger.info('Security service initialized');
+    
+    return this;
   }
 
   /**
@@ -950,7 +978,10 @@ class SecurityService {
    */
   initializeWebSocketSecurity() {
     try {
-      const io = require('../../../socket').getIO();
+      // Instead of requiring '../../../socket', use the io instance passed to the service
+      // or get it from the app
+      const io = this.io || (global.app && global.app.get('io'));
+      
       if (!io) {
         logger.warn('Socket.io not initialized, skipping WebSocket security setup');
         return;
@@ -1091,6 +1122,36 @@ class SecurityService {
       return true;
     } catch (error) {
       logger.error(`Failed to record security event ${eventType}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Stop security monitoring
+   */
+  stopMonitoring() {
+    try {
+      // Clear any scheduled security audits
+      if (this.securityAuditInterval) {
+        clearInterval(this.securityAuditInterval);
+        this.securityAuditInterval = null;
+      }
+      
+      // Clear any other timers or intervals
+      if (this.suspiciousActivityTimer) {
+        clearTimeout(this.suspiciousActivityTimer);
+        this.suspiciousActivityTimer = null;
+      }
+      
+      // Reset detection counters
+      if (this.detectionCounters) {
+        this.detectionCounters.clear();
+      }
+      
+      logger.info('Security monitoring stopped');
+      return true;
+    } catch (error) {
+      logger.error('Failed to stop security monitoring:', error);
       return false;
     }
   }

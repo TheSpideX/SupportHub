@@ -984,6 +984,27 @@ class SocketService {
     
     logger.info('Socket debugging initialized');
   }
+
+  /**
+   * Setup Socket.IO event handlers
+   * @param {Object} io - Socket.IO server instance
+   * @param {Object} services - Services to use for handling events
+   */
+  setupSocketHandlers(io, services = {}) {
+    // Store services for later use
+    this.services = services;
+    
+    // Initialize the Socket.IO server if not already initialized
+    if (!this.io) {
+      this.io = io;
+    }
+    
+    // Setup auth namespace
+    this.setupAuthNamespace();
+    
+    logger.info('Socket.IO event handlers initialized');
+    return this.io;
+  }
 }
 
 // Export singleton instance

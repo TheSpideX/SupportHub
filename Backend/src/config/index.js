@@ -4,8 +4,8 @@ dotenv.config();
 
 // Import global configs
 const cors = require('./cors.config');
-const db = require('./db.config');
-const redis = require('./redis.config');
+const db = require('./db'); // Changed from './db.config' to './db'
+const redis = require('./redis'); // Changed from './redis.config' to './redis'
 
 // Import module configs
 const auth = require('../modules/auth/config');

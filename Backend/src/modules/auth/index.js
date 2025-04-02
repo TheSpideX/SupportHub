@@ -34,6 +34,7 @@ const sessionService = require("./services/session.service");
 const securityService = require("./services/security.service");
 const deviceService = require("./services/device.service");
 const socketService = require("./services/socket.service");
+const offlineService = require("./services/offline.service");
 
 // Export controllers
 const authController = require("./controllers/auth.controller");
@@ -48,6 +49,7 @@ const sessionMiddleware = require("./middleware/session");
 const csrfMiddleware = require("./middleware/csrf");
 const rateLimitMiddleware = require("./middleware/rate-limit");
 const { authenticateSocket } = require("./middleware/websocket");
+const socketAuthMiddleware = require("./middleware/websocket").authenticateSocket;
 
 // Import routes
 const authRoutes = require("./routes");
@@ -84,7 +86,7 @@ const initializeAuthModule = (app, io, config = {}) => {
   });
 
   // Initialize security monitoring
-  securityService.initializeSecurityMonitoring();
+  securityService.initialize({ io });
 
   // Initialize WebSocket authentication if Socket.IO is provided
   if (io) {
@@ -122,7 +124,37 @@ const initializeAuthModule = (app, io, config = {}) => {
 };
 
 module.exports = {
-  initializeAuthModule,
+  initialize: initializeAuthModule,
+  init: initializeAuthModule,
+  shutdown: async function() {
+    logger.info("Shutting down authentication module");
+
+    try {
+      // Perform cleanup tasks
+      await sessionService.cleanup();
+      
+      // Check if stopMonitoring exists before calling it
+      if (typeof securityService.stopMonitoring === 'function') {
+        securityService.stopMonitoring();
+      } else {
+        logger.warn('Security service stopMonitoring function not found');
+      }
+      
+      // Cleanup WebSocket services if initialized
+      if (roomRegistryService && roomRegistryService.isInitialized) {
+        await roomRegistryService.cleanup();
+      }
+      
+      if (eventPropagation && eventPropagation.isInitialized) {
+        await eventPropagation.cleanup();
+      }
+
+      logger.info("Authentication module shut down successfully");
+    } catch (error) {
+      logger.error("Error during authentication module shutdown:", error);
+      throw error;
+    }
+  },
   // Export models
   models: {
     User,
@@ -142,18 +174,17 @@ module.exports = {
   },
   // Export services
   services: {
-    authService,
-    tokenService,
-    sessionService,
-    securityService,
-    deviceService,
-    socketService,
-    roomRegistryService,
-    eventPropagation,
+    auth: authService,
+    token: tokenService,
+    session: sessionService,
+    security: securityService,
+    socket: socketService,
+    device: deviceService,
+    offline: offlineService,
   },
   // Export middleware
   middleware: {
-    auth: authMiddleware,
+    authenticate: authMiddleware,
     session: sessionMiddleware,
     csrf: csrfMiddleware,
     rateLimit: rateLimitMiddleware,
@@ -248,7 +279,7 @@ exports.init = async (app, io, config = {}) => {
  * Shutdown the authentication module
  * Cleans up resources and connections
  */
-exports.shutdownAuthModule = async function () {
+const shutdownAuthModule = async function () {
   logger.info("Shutting down authentication module");
 
   try {
