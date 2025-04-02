@@ -1158,3 +1158,703 @@ class SecurityService {
 }
 
 module.exports = new SecurityService();
+
+/**
+ * Get security notifications for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} - Array of security notifications
+ */
+exports.getUserNotifications = async (userId) => {
+  try {
+    // Get notifications from database
+    const SecurityNotification = require('../models/security-notification.model');
+    
+    const notifications = await SecurityNotification.find({
+      userId,
+      read: false
+    })
+    .sort({ createdAt: -1 })
+    .limit(50);
+    
+    return notifications;
+  } catch (error) {
+    logger.error('Error fetching security notifications:', error);
+    throw new Error('Failed to retrieve security notifications');
+  }
+};
+
+/**
+ * Create a security notification
+ * @param {Object} notificationData - Notification data
+ * @returns {Promise<Object>} Created notification
+ */
+exports.createSecurityNotification = async (notificationData) => {
+  try {
+    const SecurityNotification = require('../models/security-notification.model');
+    
+    // Create the notification
+    const notification = new SecurityNotification({
+      ...notificationData,
+      // If userId is not provided, this will be a system-wide notification
+      // that security admins can see
+    });
+    
+    await notification.save();
+    
+    // Log the creation
+    logger.info(`Security notification created: ${notification._id}`);
+    
+    return notification;
+  } catch (error) {
+    logger.error('Error creating security notification:', error);
+    throw new Error('Failed to create security notification');
+  }
+};
+
+/**
+ * Acknowledge a security event
+ * @param {string} eventId - ID of the security event
+ * @param {string} userId - ID of the user acknowledging the event
+ * @returns {Promise<boolean>} Whether the acknowledgment was successful
+ */
+exports.acknowledgeSecurityEvent = async (eventId, userId) => {
+  try {
+    // Find the security event in the database
+    const SecurityEvent = require('../models/security-event.model');
+    
+    const event = await SecurityEvent.findOne({
+      _id: eventId,
+      userId: userId
+    });
+    
+    if (!event) {
+      logger.warn(`Security event not found or not accessible: ${eventId}`);
+      return false;
+    }
+    
+    // Update the event to mark it as acknowledged
+    event.acknowledged = true;
+    event.acknowledgedAt = new Date();
+    await event.save();
+    
+    // Also update any related security notifications
+    const SecurityNotification = require('../models/security-notification.model');
+    await SecurityNotification.updateMany(
+      {
+        'metadata.eventId': eventId,
+        userId: userId
+      },
+      {
+        $set: {
+          read: true,
+          actionCompleted: true
+        }
+      }
+    );
+    
+    logger.info(`Security event acknowledged: ${eventId} by user ${userId}`);
+    return true;
+  } catch (error) {
+    logger.error(`Error acknowledging security event: ${error.message}`);
+    throw new Error('Failed to acknowledge security event');
+  }
+};
+
+/**
+ * Notify other devices about a security event acknowledgment
+ * @param {Object} io - Socket.IO instance
+ * @param {string} userId - User ID
+ * @param {string} eventId - ID of the acknowledged event
+ */
+exports.notifySecurityEventAcknowledged = async (io, userId, eventId) => {
+  try {
+    // Emit to user's room except the current socket
+    io.to(`user:${userId}`).emit('security:event_acknowledged', {
+      eventId,
+      acknowledgedAt: new Date()
+    });
+    
+    logger.debug(`Notified devices about security event acknowledgment: ${eventId}`);
+  } catch (error) {
+    logger.error(`Error notifying about security event acknowledgment: ${error.message}`);
+    // Don't throw here to prevent breaking the main flow
+  }
+};
+
+/**
+ * Get user security settings
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} User security settings
+ */
+exports.getUserSecuritySettings = async (userId) => {
+  try {
+    const User = require('../models/user.model');
+    const user = await User.findById(userId).select('securitySettings');
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    return user.securitySettings || {};
+  } catch (error) {
+    logger.error(`Error fetching security settings: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Update user security settings
+ * @param {string} userId - User ID
+ * @param {Object} settings - Security settings to update
+ * @returns {Promise<Object>} Updated security settings
+ */
+exports.updateUserSecuritySettings = async (userId, settings) => {
+  try {
+    const User = require('../models/user.model');
+    
+    // Validate settings
+    const validSettings = {};
+    if (typeof settings.requireMfa === 'boolean') validSettings['securitySettings.requireMfa'] = settings.requireMfa;
+    if (typeof settings.sessionTimeout === 'number') validSettings['securitySettings.sessionTimeout'] = settings.sessionTimeout;
+    if (typeof settings.trustedDevicesOnly === 'boolean') validSettings['securitySettings.trustedDevicesOnly'] = settings.trustedDevicesOnly;
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: validSettings },
+      { new: true }
+    ).select('securitySettings');
+    
+    if (!user) {
+      throw new Error('User not found');
+    }
+    
+    // Log security event
+    await this.logSecurityEvent(userId, 'security_settings_changed', {
+      changes: Object.keys(validSettings).map(key => key.replace('securitySettings.', ''))
+    });
+    
+    return user.securitySettings;
+  } catch (error) {
+    logger.error(`Error updating security settings: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Setup 2FA for user
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} 2FA setup data
+ */
+exports.setup2FAForUser = async (userId) => {
+  try {
+    const User = require('../models/user.model');
+    const speakeasy = require('speakeasy');
+    const QRCode = require('qrcode');
+    
+    // Generate secret
+    const secret = speakeasy.generateSecret({
+      length: 20,
+      name: `SupportHub:${userId}`
+    });
+    
+    // Store temporary secret
+    await User.findByIdAndUpdate(userId, {
+      'securitySettings.mfa.tempSecret': secret.base32,
+      'securitySettings.mfa.tempSecretCreatedAt': new Date()
+    });
+    
+    // Generate QR code
+    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+    
+    return {
+      secret: secret.base32,
+      qrCode: qrCodeUrl
+    };
+  } catch (error) {
+    logger.error(`Error setting up 2FA: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Verify 2FA setup
+ * @param {string} userId - User ID
+ * @param {string} token - Verification token
+ * @returns {Promise<boolean>} Whether verification was successful
+ */
+exports.verify2FASetup = async (userId, token) => {
+  try {
+    const User = require('../models/user.model');
+    const speakeasy = require('speakeasy');
+    
+    // Get user with temp secret
+    const user = await User.findById(userId).select('securitySettings.mfa');
+    
+    if (!user || !user.securitySettings.mfa.tempSecret) {
+      return false;
+    }
+    
+    // Verify token
+    const verified = speakeasy.totp.verify({
+      secret: user.securitySettings.mfa.tempSecret,
+      encoding: 'base32',
+      token: token
+    });
+    
+    if (verified) {
+      // Update user with verified secret
+      await User.findByIdAndUpdate(userId, {
+        'securitySettings.mfa.secret': user.securitySettings.mfa.tempSecret,
+        'securitySettings.mfa.enabled': true,
+        'securitySettings.mfa.verifiedAt': new Date(),
+        $unset: { 'securitySettings.mfa.tempSecret': 1, 'securitySettings.mfa.tempSecretCreatedAt': 1 }
+      });
+      
+      // Log security event
+      await this.logSecurityEvent(userId, 'mfa_enabled', {
+        method: 'totp'
+      });
+      
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    logger.error(`Error verifying 2FA setup: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Disable 2FA
+ * @param {string} userId - User ID
+ * @param {string} token - Verification token
+ * @returns {Promise<boolean>} Whether disabling was successful
+ */
+exports.disable2FA = async (userId, token) => {
+  try {
+    const User = require('../models/user.model');
+    const speakeasy = require('speakeasy');
+    
+    // Get user with secret
+    const user = await User.findById(userId).select('securitySettings.mfa');
+    
+    if (!user || !user.securitySettings.mfa.secret || !user.securitySettings.mfa.enabled) {
+      return false;
+    }
+    
+    // Verify token
+    const verified = speakeasy.totp.verify({
+      secret: user.securitySettings.mfa.secret,
+      encoding: 'base32',
+      token: token
+    });
+    
+    if (verified) {
+      // Update user to disable 2FA
+      await User.findByIdAndUpdate(userId, {
+        'securitySettings.mfa.enabled': false,
+        $unset: { 'securitySettings.mfa.secret': 1 }
+      });
+      
+      // Log security event
+      await this.logSecurityEvent(userId, 'mfa_disabled', {
+        method: 'totp'
+      });
+      
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    logger.error(`Error disabling 2FA: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Verify 2FA token
+ * @param {string} token - Verification token
+ * @param {string} sessionId - Session ID
+ * @returns {Promise<Object>} Verification result
+ */
+exports.verify2FAToken = async (token, sessionId) => {
+  try {
+    const Session = require('../models/session.model');
+    const User = require('../models/user.model');
+    const speakeasy = require('speakeasy');
+    
+    // Get session
+    const session = await Session.findById(sessionId);
+    if (!session) {
+      return { success: false, message: 'Invalid session' };
+    }
+    
+    // Get user
+    const user = await User.findById(session.userId).select('securitySettings.mfa');
+    if (!user || !user.securitySettings.mfa.secret || !user.securitySettings.mfa.enabled) {
+      return { success: false, message: 'MFA not enabled for user' };
+    }
+    
+    // Verify token
+    const verified = speakeasy.totp.verify({
+      secret: user.securitySettings.mfa.secret,
+      encoding: 'base32',
+      token: token,
+      window: 1 // Allow 1 period before and after
+    });
+    
+    if (verified) {
+      // Update session to mark as MFA verified
+      await Session.findByIdAndUpdate(sessionId, {
+        mfaVerified: true,
+        mfaVerifiedAt: new Date()
+      });
+      
+      // Log security event
+      await this.logSecurityEvent(session.userId, 'mfa_verified', {
+        sessionId
+      });
+      
+      return { 
+        success: true,
+        data: {
+          mfaVerified: true
+        }
+      };
+    }
+    
+    return { success: false, message: 'Invalid verification token' };
+  } catch (error) {
+    logger.error(`Error verifying 2FA token: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Verify user device
+ * @param {string} userId - User ID
+ * @param {string} deviceId - Device ID
+ * @param {string} verificationCode - Verification code
+ * @returns {Promise<boolean>} Whether verification was successful
+ */
+exports.verifyUserDevice = async (userId, deviceId, verificationCode) => {
+  try {
+    const DeviceInfo = require('../models/device-info.model');
+    
+    // Find device verification request
+    const device = await DeviceInfo.findOne({
+      _id: deviceId,
+      userId: userId,
+      'verification.code': verificationCode,
+      'verification.expiresAt': { $gt: new Date() }
+    });
+    
+    if (!device) {
+      return false;
+    }
+    
+    // Update device to mark as verified
+    await DeviceInfo.findByIdAndUpdate(deviceId, {
+      'verification.verified': true,
+      'verification.verifiedAt': new Date(),
+      trusted: true
+    });
+    
+    // Log security event
+    await this.logSecurityEvent(userId, 'device_verified', {
+      deviceId,
+      deviceName: device.name,
+      deviceType: device.type
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error(`Error verifying device: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Remove trusted device
+ * @param {string} userId - User ID
+ * @param {string} deviceId - Device ID
+ * @returns {Promise<boolean>} Whether removal was successful
+ */
+exports.removeTrustedDevice = async (userId, deviceId) => {
+  try {
+    const DeviceInfo = require('../models/device-info.model');
+    
+    // Find device
+    const device = await DeviceInfo.findOne({
+      _id: deviceId,
+      userId: userId
+    });
+    
+    if (!device) {
+      return false;
+    }
+    
+    // Update device to remove trust
+    await DeviceInfo.findByIdAndUpdate(deviceId, {
+      trusted: false,
+      'verification.verified': false
+    });
+    
+    // Log security event
+    await this.logSecurityEvent(userId, 'device_removed', {
+      deviceId,
+      deviceName: device.name,
+      deviceType: device.type
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error(`Error removing trusted device: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Get user security events
+ * @param {string} userId - User ID
+ * @param {Object} options - Query options
+ * @returns {Promise<Object>} Security events with pagination
+ */
+exports.getUserSecurityEvents = async (userId, options = {}) => {
+  try {
+    const SecurityEvent = require('../models/security-event.model');
+    
+    const query = { userId };
+    if (options.type) {
+      query.eventType = options.type;
+    }
+    
+    const page = options.page || 1;
+    const limit = options.limit || 20;
+    const skip = (page - 1) * limit;
+    
+    const [events, total] = await Promise.all([
+      SecurityEvent.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SecurityEvent.countDocuments(query)
+    ]);
+    
+    return {
+      data: events,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    logger.error(`Error fetching security events: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Get user security notifications
+ * @param {string} userId - User ID
+ * @param {Object} options - Query options
+ * @returns {Promise<Object>} Security notifications with pagination
+ */
+exports.getUserSecurityNotifications = async (userId, options = {}) => {
+  try {
+    const SecurityNotification = require('../models/security-notification.model');
+    
+    const query = { userId };
+    if (options.read) {
+      query.read = options.read;
+    }
+    
+    const page = options.page || 1;
+    const limit = options.limit || 20;
+    const skip = (page - 1) * limit;
+    
+    const [notifications, total] = await Promise.all([
+      SecurityNotification.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      SecurityNotification.countDocuments(query)
+    ]);
+    
+    return {
+      data: notifications,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  } catch (error) {
+    logger.error(`Error fetching security notifications: ${error.message}`);
+    throw error;
+  }
+};
+
+/**
+ * Generate CSRF token
+ * @param {Object} res - Response object to set cookie
+ * @returns {String} CSRF token
+ */
+exports.generateCsrfToken = (res) => {
+  try {
+    const token = tokenService.generateSecureToken();
+    
+    // Set CSRF token as HTTP-only cookie
+    res.cookie('csrf_token', token, {
+      httpOnly: true,
+      maxAge: cookieConfig.csrf.maxAge,
+      secure: cookieConfig.csrf.secure,
+      sameSite: cookieConfig.csrf.sameSite
+    });
+    
+    return token;
+  } catch (error) {
+    logger.error('CSRF token generation error:', error);
+    throw new AuthError('Failed to generate CSRF token', 'CSRF_ERROR');
+  }
+};
+
+/**
+ * Get security events for user
+ * @param {String} userId - User ID
+ * @param {Object} options - Query options
+ * @returns {Promise<Array>} Security events
+ */
+exports.getSecurityEvents = async (userId, options = {}) => {
+  try {
+    const { limit = 10, page = 1, type } = options;
+    const skip = (page - 1) * limit;
+    
+    const query = { userId };
+    if (type) query.eventType = type;
+    
+    const SecurityEvent = require('../models/security-event.model');
+    const events = await SecurityEvent.find(query)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    return events;
+  } catch (error) {
+    logger.error('Error fetching security events:', error);
+    throw error;
+  }
+};
+
+/**
+ * Initialize socket security
+ * @param {Object} socket - Socket.io socket
+ * @param {Object} data - User data
+ * @returns {Promise<void>}
+ */
+exports.initializeSocketSecurity = async (socket, data) => {
+  try {
+    const { userId, sessionId, deviceId } = data;
+    
+    // Set user data on socket
+    socket.data.userId = userId;
+    socket.data.sessionId = sessionId;
+    socket.data.deviceId = deviceId;
+    
+    // Create hierarchical room structure
+    const userRoom = `user:${userId}`;
+    const deviceRoom = deviceId ? `${userRoom}/device:${deviceId}` : null;
+    const sessionRoom = sessionId ? `${deviceRoom}/session:${sessionId}` : null;
+    
+    // Join rooms
+    socket.join(userRoom);
+    if (deviceRoom) socket.join(deviceRoom);
+    if (sessionRoom) socket.join(sessionRoom);
+    
+    // Set up security event handlers
+    this.setupSocketSecurityHandlers(socket);
+    
+    // Log security event
+    await this.logSecurityEvent(userId, 'socket_connected', {
+      socketId: socket.id,
+      hierarchyPath: sessionRoom || deviceRoom || userRoom
+    });
+    
+    logger.info(`Socket security initialized for user ${userId}`);
+  } catch (error) {
+    logger.error('Socket security initialization error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Validate security context
+ * @param {Object} context - Security context
+ * @param {String} userId - User ID
+ * @returns {Promise<Boolean>} Validation result
+ */
+exports.validateSecurityContext = async (context, userId) => {
+  try {
+    if (!context || !context.id || !userId) {
+      return false;
+    }
+    
+    // Additional validation logic can be implemented here
+    // For example, checking if the context matches stored contexts
+    
+    return true;
+  } catch (error) {
+    logger.error('Security context validation error:', error);
+    return false;
+  }
+};
+
+/**
+ * Broadcast security event to user's devices
+ * @param {Object} io - Socket.io instance
+ * @param {String} userId - User ID
+ * @param {String} eventType - Event type
+ * @param {Object} details - Event details
+ * @returns {Promise<void>}
+ */
+exports.broadcastSecurityEvent = async (io, userId, eventType, details = {}) => {
+  try {
+    const userRoom = `user:${userId}`;
+    
+    io.to(userRoom).emit('security:event', {
+      type: eventType,
+      details,
+      timestamp: new Date()
+    });
+    
+    logger.debug(`Security event ${eventType} broadcasted to user ${userId}`);
+  } catch (error) {
+    logger.error('Error broadcasting security event:', error);
+  }
+};
+
+/**
+ * Notify about device verification
+ * @param {Object} io - Socket.io instance
+ * @param {String} userId - User ID
+ * @param {String} deviceId - Device ID
+ * @returns {Promise<void>}
+ */
+exports.notifyDeviceVerification = async (io, userId, deviceId) => {
+  try {
+    const userRoom = `user:${userId}`;
+    
+    io.to(userRoom).emit('security:device_verified', {
+      deviceId,
+      timestamp: new Date()
+    });
+    
+    logger.debug(`Device verification notification sent to user ${userId}`);
+  } catch (error) {
+    logger.error('Error sending device verification notification:', error);
+  }
+};

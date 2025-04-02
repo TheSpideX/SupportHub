@@ -100,8 +100,47 @@ exports.syncSession = async (req, res, next) => {
 };
 
 /**
+ * Update tab focus state
+ * @route POST /api/auth/session/tab-focus
+ * @access Private - Requires authentication
+ */
+exports.updateTabFocus = async (req, res, next) => {
+  try {
+    const sessionId = req.session._id;
+    const { tabId, hasFocus } = req.body;
+    
+    // Update tab focus using service
+    const result = await sessionService.updateTabFocus(sessionId, tabId, hasFocus);
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    // Broadcast tab focus update if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io,
+        sessionId,
+        'tab-focus-changed',
+        { tabId, hasFocus }
+      );
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Tab focus updated',
+      data: { tabId, hasFocus }
+    });
+  } catch (error) {
+    logger.error('Error updating tab focus:', error);
+    return next(new AppError('Failed to update tab focus', 500));
+  }
+};
+
+/**
  * Acknowledge session timeout warning
  * @route POST /api/auth/session/timeout-warning/acknowledge
+ * @access Private - Requires authentication and CSRF protection
  */
 exports.acknowledgeTimeoutWarning = async (req, res, next) => {
   try {
@@ -131,17 +170,19 @@ exports.acknowledgeTimeoutWarning = async (req, res, next) => {
     
     return res.status(200).json({
       success: true,
-      message: 'Warning acknowledged'
+      message: 'Warning acknowledged',
+      data: { warningId }
     });
   } catch (error) {
     logger.error('Error acknowledging timeout warning:', error);
-    return next(new AppError('Failed to acknowledge warning', 500));
+    return next(new AppError('Failed to acknowledge timeout warning', 500));
   }
 };
 
 /**
  * Extend session
  * @route POST /api/auth/session/extend
+ * @access Private - Requires authentication and CSRF protection
  */
 exports.extendSession = async (req, res, next) => {
   try {
@@ -179,6 +220,7 @@ exports.extendSession = async (req, res, next) => {
 /**
  * Poll for session events (fallback when WebSocket is down)
  * @route GET /api/auth/session/events
+ * @access Private - Requires authentication
  */
 exports.pollSessionEvents = async (req, res, next) => {
   try {
@@ -330,6 +372,43 @@ exports.terminateSession = async (req, res, next) => {
 };
 
 /**
+ * Terminate all sessions except current
+ * @route POST /api/auth/session/terminate-all
+ * @access Private - Requires authentication and CSRF protection
+ */
+exports.terminateAllSessions = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const currentSessionId = req.session.id;
+    
+    // Terminate all sessions except current using service
+    const result = await sessionService.endAllUserSessionsExceptCurrent(userId, currentSessionId);
+    
+    // Broadcast termination event if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io,
+        userId,
+        'session-terminated-all',
+        {
+          initiatedBy: currentSessionId,
+          reason: 'user-requested'
+        }
+      );
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: `Successfully terminated ${result} sessions`,
+      terminatedCount: result
+    });
+  } catch (error) {
+    logger.error('Error terminating all sessions:', error);
+    return next(new AppError('Failed to terminate sessions', 500));
+  }
+};
+
+/**
  * Update session state
  */
 exports.updateSessionState = asyncHandler(async (req, res) => {
@@ -373,3 +452,355 @@ exports.getSessionState = asyncHandler(async (req, res) => {
     }
   });
 });
+
+/**
+ * Get session status
+ * @route GET /api/auth/session/status
+ * @access Public - Uses token from cookie
+ */
+exports.getSessionStatus = async (req, res) => {
+  try {
+    // Get access token from cookie
+    const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+    
+    if (!accessToken) {
+      return res.status(200).json({
+        active: false,
+        reason: 'NO_TOKEN'
+      });
+    }
+    
+    try {
+      // Verify token without throwing
+      const decoded = await tokenService.verifyAccessToken(accessToken);
+      
+      if (!decoded || !decoded.sessionId) {
+        return res.status(200).json({
+          active: false,
+          reason: 'INVALID_TOKEN'
+        });
+      }
+      
+      // Get session info
+      const sessionInfo = await sessionService.getSessionInfo(decoded.sessionId);
+      
+      if (!sessionInfo) {
+        return res.status(200).json({
+          active: false,
+          reason: 'SESSION_NOT_FOUND'
+        });
+      }
+      
+      return res.status(200).json({
+        active: true,
+        session: sessionInfo
+      });
+    } catch (error) {
+      return res.status(200).json({
+        active: false,
+        reason: error.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN'
+      });
+    }
+  } catch (error) {
+    logger.error('Error getting session status:', error);
+    return res.status(500).json({
+      active: false,
+      reason: 'SERVER_ERROR'
+    });
+  }
+};
+
+/**
+ * Get session details by ID
+ * @route GET /api/auth/session/:sessionId
+ * @access Private - Requires authentication
+ */
+exports.getSessionById = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+    const userId = req.user._id;
+    
+    // Check if session exists and belongs to user
+    const session = await sessionService.getSessionById(sessionId);
+    
+    if (!session) {
+      return next(new AppError('Session not found', 404, 'SESSION_NOT_FOUND'));
+    }
+    
+    // Security check - ensure user can only access their own sessions
+    if (session.userId.toString() !== userId.toString()) {
+      return next(new AppError('Unauthorized access to session', 403, 'FORBIDDEN'));
+    }
+    
+    // Get formatted session info for client
+    const sessionInfo = await sessionService.getSessionInfo(sessionId, { includeDetails: true });
+    
+    return res.status(200).json({
+      success: true,
+      data: sessionInfo
+    });
+  } catch (error) {
+    logger.error('Error getting session by ID:', error);
+    return next(new AppError('Failed to retrieve session details', 500));
+  }
+};
+
+/**
+ * Update session activity (heartbeat)
+ * @route POST /api/auth/session/heartbeat
+ * @access Private - Requires authentication
+ */
+exports.updateSessionActivity = async (req, res, next) => {
+  try {
+    const sessionId = req.session.id;
+    const { tabId } = req.body;
+    
+    // Update session activity
+    const result = await sessionService.updateSessionActivity(sessionId);
+    
+    // If tabId is provided, update tab activity as well
+    if (tabId) {
+      await sessionService.updateTabActivity(sessionId, tabId, req.body);
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Session activity updated',
+      expiresAt: result.expiresAt
+    });
+  } catch (error) {
+    logger.error('Error updating session activity:', error);
+    return next(new AppError('Failed to update session activity', 500));
+  }
+};
+
+/**
+ * Acknowledge session warning
+ * @route POST /api/auth/session/acknowledge-warning
+ * @access Private - Requires authentication and CSRF protection
+ */
+exports.acknowledgeWarning = async (req, res, next) => {
+  try {
+    const sessionId = req.session._id;
+    const { warningType } = req.body;
+    
+    if (!['IDLE', 'ABSOLUTE', 'SECURITY'].includes(warningType)) {
+      return next(new AppError('Invalid warning type', 400, 'INVALID_WARNING_TYPE'));
+    }
+    
+    // Acknowledge warning using service
+    const result = await sessionService.acknowledgeSessionWarning(sessionId, warningType);
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    // Broadcast event if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io,
+        sessionId,
+        'warning-acknowledged',
+        { warningType, timestamp: new Date() }
+      );
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Warning acknowledged',
+      data: {
+        warningType,
+        acknowledgedAt: new Date()
+      }
+    });
+  } catch (error) {
+    logger.error('Error acknowledging warning:', error);
+    return next(new AppError('Failed to acknowledge warning', 500));
+  }
+};
+
+/**
+ * Update tab activity
+ * @route POST /api/auth/session/tab-activity
+ * @access Private - Requires authentication
+ */
+exports.updateTabActivity = async (req, res, next) => {
+  try {
+    const sessionId = req.session._id;
+    const { tabId, activity, timestamp } = req.body;
+    
+    // Update tab activity using service
+    const result = await sessionService.updateTabActivity(
+      sessionId, 
+      tabId, 
+      activity,
+      new Date(timestamp)
+    );
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    // Broadcast tab activity update if WebSocket is available
+    if (req.io) {
+      await sessionService.broadcastSessionEvent(
+        req.io,
+        sessionId,
+        'tab-activity-updated',
+        { 
+          tabId, 
+          activity,
+          timestamp: new Date(timestamp)
+        }
+      );
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Tab activity updated',
+      data: {
+        tabId,
+        activity,
+        timestamp: new Date(timestamp)
+      }
+    });
+  } catch (error) {
+    logger.error('Error updating tab activity:', error);
+    return next(new AppError('Failed to update tab activity', 500));
+  }
+};
+
+/**
+ * Register WebSocket connection
+ * @route POST /api/auth/session/ws-connect
+ * @access Private - Requires authentication and CSRF protection
+ */
+exports.registerWebSocketConnection = async (req, res, next) => {
+  try {
+    const sessionId = req.session._id;
+    const userId = req.user._id;
+    const { tabId, deviceId } = req.body;
+    
+    // Register connection using service
+    const result = await sessionService.registerWebSocketConnection(
+      userId,
+      sessionId,
+      tabId,
+      deviceId
+    );
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'WebSocket connection registered',
+      data: {
+        connectionId: result.connectionId,
+        sessionId,
+        tabId,
+        deviceId
+      }
+    });
+  } catch (error) {
+    logger.error('Error registering WebSocket connection:', error);
+    return next(new AppError('Failed to register WebSocket connection', 500));
+  }
+};
+
+/**
+ * Unregister WebSocket connection
+ * @route POST /api/auth/session/ws-disconnect
+ * @access Private - Requires authentication
+ */
+exports.unregisterWebSocketConnection = async (req, res, next) => {
+  try {
+    const sessionId = req.session._id;
+    const { connectionId } = req.body;
+    
+    // Unregister connection using service
+    const result = await sessionService.unregisterWebSocketConnection(
+      sessionId,
+      connectionId
+    );
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'WebSocket connection unregistered'
+    });
+  } catch (error) {
+    logger.error('Error unregistering WebSocket connection:', error);
+    return next(new AppError('Failed to unregister WebSocket connection', 500));
+  }
+};
+
+/**
+ * Register device
+ * @route POST /api/auth/session/devices
+ * @access Private - Requires authentication and CSRF protection
+ */
+exports.registerDevice = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { deviceId, deviceName, deviceType } = req.body;
+    
+    // Register device using service
+    const result = await sessionService.registerDevice(
+      userId,
+      deviceId,
+      deviceName,
+      deviceType
+    );
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Device registered successfully',
+      data: result.device
+    });
+  } catch (error) {
+    logger.error('Error registering device:', error);
+    return next(new AppError('Failed to register device', 500));
+  }
+};
+
+/**
+ * Update device info
+ * @route PUT /api/auth/session/devices/:deviceId
+ * @access Private - Requires authentication and CSRF protection
+ */
+exports.updateDeviceInfo = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { deviceId } = req.params;
+    const { deviceName, trusted } = req.body;
+    
+    // Update device using service
+    const result = await sessionService.updateDeviceInfo(
+      userId,
+      deviceId,
+      { deviceName, trusted }
+    );
+    
+    if (!result.success) {
+      return next(new AppError(result.message, result.statusCode || 400, result.code));
+    }
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Device updated successfully',
+      data: result.device
+    });
+  } catch (error) {
+    logger.error('Error updating device info:', error);
+    return next(new AppError('Failed to update device info', 500));
+  }
+};

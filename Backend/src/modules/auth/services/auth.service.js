@@ -302,7 +302,7 @@ class AuthService {
    * @param {Object} res - Express response object for setting cookies
    * @returns {Promise<Object>} New tokens
    */
-  async refreshTokens(refreshToken, sessionId, deviceInfo = {}, res) {
+  async refreshToken(refreshToken, sessionId, deviceInfo = {}, res) {
     try {
       // Verify refresh token
       const decoded = tokenService.verifyRefreshToken(refreshToken);

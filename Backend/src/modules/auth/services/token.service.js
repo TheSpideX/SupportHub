@@ -143,7 +143,7 @@ exports.generateAuthTokens = async (user, sessionData = {}) => {
  * @param {string} refreshToken
  * @returns {Object} new access and refresh tokens
  */
-exports.refreshTokens = async (refreshToken) => {
+exports.refreshToken = async (refreshToken) => {
   logger.debug('Starting token refresh process');
   
   // Verify refresh token

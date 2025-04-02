@@ -357,3 +357,42 @@ exports.joinSocketRooms = (socket) => {
     socket.join(`tab:${socket.data.tabId}`);
   }
 };
+
+/**
+ * Middleware to require and validate refresh token
+ * Used for token refresh endpoints
+ */
+exports.requireRefreshToken = async (req, res, next) => {
+  try {
+    // Get refresh token from cookies
+    const cookies = extractCookies(req);
+    const refreshToken = cookies[cookieConfig.names.REFRESH_TOKEN];
+    
+    if (!refreshToken) {
+      return next(new AppError('Refresh token is required', 401, 'REFRESH_TOKEN_REQUIRED'));
+    }
+    
+    try {
+      // Verify the refresh token
+      const decoded = await tokenService.verifyRefreshToken(refreshToken);
+      
+      // Add token info to request
+      req.refreshToken = {
+        token: refreshToken,
+        decoded
+      };
+      
+      next();
+    } catch (error) {
+      if (error.code === 'TOKEN_EXPIRED') {
+        return next(new AppError('Refresh token expired', 401, 'REFRESH_TOKEN_EXPIRED'));
+      } else if (error.code === 'TOKEN_REVOKED') {
+        return next(new AppError('Refresh token has been revoked', 401, 'REFRESH_TOKEN_REVOKED'));
+      } else {
+        return next(new AppError('Invalid refresh token', 401, 'INVALID_REFRESH_TOKEN'));
+      }
+    }
+  } catch (error) {
+    next(error);
+  }
+};

@@ -177,7 +177,7 @@ exports.refreshToken = async (req, res) => {
     
     // Refresh tokens using the token service
     const { accessToken, refreshToken: newRefreshToken, session } = 
-      await tokenService.refreshTokens(refreshToken, deviceId);
+      await tokenService.refreshToken(refreshToken, deviceId);
     
     // Set cookies using the token service
     tokenService.setTokenCookies(res, { accessToken, refreshToken: newRefreshToken });

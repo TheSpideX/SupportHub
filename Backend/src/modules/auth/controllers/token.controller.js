@@ -9,10 +9,10 @@ const jwt = require('jsonwebtoken');
 const crossTabService = require('../services/cross-tab.service');
 
 /**
- * Refresh tokens
+ * Refresh token
  * @route POST /api/auth/token/refresh
  */
-exports.refreshTokens = asyncHandler(async (req, res) => {
+exports.refreshToken = asyncHandler(async (req, res) => {
   // Get refresh token from cookie
   const refreshToken = req.cookies[cookieConfig.names.REFRESH_TOKEN];
   const { deviceId, tabId, isLeaderTab = false } = req.body;
@@ -26,7 +26,7 @@ exports.refreshTokens = asyncHandler(async (req, res) => {
   }
   
   try {
-    // Refresh tokens and update session
+    // Call the existing refreshTokens function
     const result = await tokenService.refreshTokens(refreshToken, { deviceId, tabId });
     
     // Set cookies
@@ -422,3 +422,38 @@ exports.sendRefreshNotification = async (req, res) => {
     });
   }
 };
+
+/**
+ * Verify access token
+ * @route GET /api/auth/token/verify
+ */
+exports.verifyAccessToken = asyncHandler(async (req, res) => {
+  try {
+    // Get token from cookies
+    const accessToken = req.cookies[cookieConfig.names.ACCESS_TOKEN];
+    
+    if (!accessToken) {
+      return res.status(200).json({
+        valid: false,
+        message: 'No access token found'
+      });
+    }
+    
+    // Use the token service to verify the token
+    const decoded = await tokenService.verifyAccessToken(accessToken);
+    
+    // Return success with token information
+    return res.status(200).json({
+      valid: true,
+      userId: decoded.userId || decoded.sub,
+      sessionId: decoded.sessionId,
+      expiresAt: decoded.exp ? new Date(decoded.exp * 1000) : null
+    });
+  } catch (error) {
+    // Return invalid but with 200 status for client handling
+    return res.status(200).json({
+      valid: false,
+      message: error.name === 'TokenExpiredError' ? 'Token expired' : 'Invalid token'
+    });
+  }
+});

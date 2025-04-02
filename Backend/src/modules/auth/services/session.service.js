@@ -11,6 +11,7 @@ const sessionConfig = require('../config/session.config');
 
 // Add this line to define the cleanupIntervals array
 const cleanupIntervals = [];
+const connectionThrottling = new Map();
 
 // Room type constants from config
 const ROOM_TYPES = {
@@ -238,29 +239,36 @@ exports.getUserSessions = async (userId) => {
 };
 
 /**
- * End all sessions for a user except the current one
- * @param {string} userId
- * @param {string} currentSessionId - Session ID to keep active
- * @returns {number} Number of sessions ended
+ * End all user sessions except current
+ * @param {string} userId - User ID
+ * @param {string} currentSessionId - Current session ID to exclude
+ * @returns {Promise<number>} Number of terminated sessions
  */
 exports.endAllUserSessionsExceptCurrent = async (userId, currentSessionId) => {
-  const sessions = await exports.getUserSessions(userId);
-
-  let endedCount = 0;
-
-  for (const session of sessions) {
-    if (session.id !== currentSessionId) {
-      const ended = await exports.endSession(
-        session.id,
-        "user_logged_out_elsewhere"
-      );
-      if (ended) {
-        endedCount++;
-      }
+  try {
+    // Find all active sessions for user except current
+    const sessions = await Session.find({
+      userId: userId.toString(),
+      _id: { $ne: currentSessionId },
+      isActive: true
+    });
+    
+    if (!sessions || sessions.length === 0) {
+      return 0;
     }
+    
+    // End each session
+    const endPromises = sessions.map(session => 
+      exports.endSession(session._id, 'user_terminated_all')
+    );
+    
+    await Promise.all(endPromises);
+    
+    return sessions.length;
+  } catch (error) {
+    logger.error("Failed to end all user sessions", error);
+    throw new Error("Failed to terminate sessions");
   }
-
-  return endedCount;
 };
 
 /**
@@ -312,26 +320,30 @@ exports.getSessionInfo = async (sessionId, options = {}) => {
  */
 exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
   try {
-    // Get session
     const sessionKey = `session:${sessionId}`;
-    const sessionData = await redisClient.get(sessionKey);
-
-    if (!sessionData) {
-      return false;
+    
+    // Get session from Redis or DB
+    let session = await getSessionFromCache(sessionId);
+    
+    if (!session) {
+      // Fallback to DB if not in cache
+      session = await Session.findById(sessionId);
+      if (!session) {
+        logger.warn(`Session ${sessionId} not found for tab activity update`);
+        return false;
+      }
     }
-
-    const session = JSON.parse(sessionData);
-
+    
     // Initialize activeTabs array if it doesn't exist
     if (!session.activeTabs) {
       session.activeTabs = [];
     }
-
+    
     // Find existing tab
     const existingTabIndex = session.activeTabs.findIndex(
-      (tab) => tab.tabId === tabId
+      tab => tab.tabId === tabId
     );
-
+    
     // Update or add tab
     const now = Date.now();
     const tabData = {
@@ -358,20 +370,31 @@ exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
       (tab) => tab.lastActivity > fiveMinutesAgo || tab.tabId === tabId
     );
 
-    // Update session
+    // Update session in Redis
+    const expiresAt = session.expiresAt || new Date(Date.now() + sessionConfig.store.ttl * 1000);
+    const ttlSeconds = Math.max(1, Math.ceil((expiresAt - now) / 1000));
+    
     await setWithExpiry(
       sessionKey,
       JSON.stringify(session),
-      Math.ceil((session.expiresAt - now) / 1000)
+      ttlSeconds
     );
-
+    
+    // Update in database asynchronously
+    Session.findByIdAndUpdate(
+      sessionId,
+      { 
+        lastActiveAt: new Date(now),
+        activeTabs: session.activeTabs
+      },
+      { new: true }
+    ).catch(err => {
+      logger.error('Failed to update session in database:', err);
+    });
+    
     return true;
   } catch (error) {
-    console.error("Failed to update tab activity", {
-      sessionId,
-      tabId,
-      error: error.message,
-    });
+    logger.error("Failed to update tab activity", error);
     return false;
   }
 };
@@ -1665,4 +1688,652 @@ const setWithExpiry = async (key, value, ttlSeconds) => {
     : Math.ceil(sessionConfig.store.ttl);
     
   await redisClient.set(key, value, "EX", validTtl);
+};
+
+/**
+ * Acknowledge session warning
+ * @param {string} sessionId - Session ID
+ * @param {string} warningType - Type of warning (IDLE, ABSOLUTE, SECURITY)
+ * @returns {Object} Result object with success status
+ */
+exports.acknowledgeSessionWarning = async (sessionId, warningType) => {
+  try {
+    if (!sessionId) {
+      return { success: false, message: 'Session ID is required', statusCode: 400 };
+    }
+    
+    if (!['IDLE', 'ABSOLUTE', 'SECURITY'].includes(warningType)) {
+      return { success: false, message: 'Invalid warning type', statusCode: 400 };
+    }
+    
+    // Update warning acknowledgment in session
+    const session = await Session.findByIdAndUpdate(
+      sessionId,
+      { 
+        $set: { lastWarningAcknowledged: new Date() },
+        $push: { 
+          warningsSent: {
+            warningType,
+            timestamp: new Date(),
+            acknowledged: true
+          }
+        }
+      },
+      { new: true }
+    );
+    
+    if (!session) {
+      return { success: false, message: 'Session not found', statusCode: 404, code: 'SESSION_NOT_FOUND' };
+    }
+    
+    logger.debug(`Session warning ${warningType} acknowledged for session ${sessionId}`);
+    
+    return { 
+      success: true,
+      session
+    };
+  } catch (error) {
+    logger.error(`Failed to acknowledge warning for session ${sessionId}:`, error);
+    return { success: false, message: 'Failed to acknowledge warning', statusCode: 500 };
+  }
+};
+
+/**
+ * Update tab activity
+ * @param {string} sessionId - Session ID
+ * @param {string} tabId - Tab ID
+ * @param {string} activity - Activity type
+ * @param {Date} timestamp - Activity timestamp
+ * @returns {Object} Result object with success status
+ */
+exports.updateTabActivity = async (sessionId, tabId, activity, timestamp) => {
+  try {
+    if (!sessionId || !tabId) {
+      return { 
+        success: false, 
+        message: 'Session ID and Tab ID are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Find the session
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return { 
+        success: false, 
+        message: 'Session not found', 
+        statusCode: 404, 
+        code: 'SESSION_NOT_FOUND' 
+      };
+    }
+    
+    // Update tab activity in session
+    const updateResult = await Session.findOneAndUpdate(
+      { _id: sessionId, 'tabs.id': tabId },
+      { 
+        $set: { 
+          lastActiveAt: new Date(),
+          'tabs.$.lastActivity': activity,
+          'tabs.$.lastActiveAt': timestamp || new Date()
+        }
+      },
+      { new: true }
+    );
+    
+    // If tab doesn't exist in session yet, add it
+    if (!updateResult) {
+      await Session.findByIdAndUpdate(
+        sessionId,
+        {
+          $push: {
+            tabs: {
+              id: tabId,
+              lastActivity: activity,
+              lastActiveAt: timestamp || new Date(),
+              active: true
+            }
+          },
+          $set: { lastActiveAt: new Date() }
+        }
+      );
+    }
+    
+    logger.debug(`Tab ${tabId} activity updated for session ${sessionId}: ${activity}`);
+    
+    return { success: true };
+  } catch (error) {
+    logger.error(`Failed to update tab activity for session ${sessionId}:`, error);
+    return { 
+      success: false, 
+      message: 'Failed to update tab activity', 
+      statusCode: 500 
+    };
+  }
+};
+
+/**
+ * Update tab focus state
+ * @param {string} sessionId - Session ID
+ * @param {string} tabId - Tab ID
+ * @param {boolean} hasFocus - Whether tab has focus
+ * @returns {Object} Result object with success status
+ */
+exports.updateTabFocus = async (sessionId, tabId, hasFocus) => {
+  try {
+    if (!sessionId || !tabId) {
+      return { 
+        success: false, 
+        message: 'Session ID and Tab ID are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Find the session
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return { 
+        success: false, 
+        message: 'Session not found', 
+        statusCode: 404, 
+        code: 'SESSION_NOT_FOUND' 
+      };
+    }
+    
+    // Update tab focus state
+    const updateResult = await Session.findOneAndUpdate(
+      { _id: sessionId, 'tabs.id': tabId },
+      { 
+        $set: { 
+          lastActiveAt: new Date(),
+          'tabs.$.hasFocus': hasFocus,
+          'tabs.$.lastFocusChange': new Date()
+        }
+      },
+      { new: true }
+    );
+    
+    // If tab doesn't exist in session yet, add it
+    if (!updateResult) {
+      await Session.findByIdAndUpdate(
+        sessionId,
+        {
+          $push: {
+            tabs: {
+              id: tabId,
+              hasFocus: hasFocus,
+              lastFocusChange: new Date(),
+              active: true,
+              lastActiveAt: new Date()
+            }
+          },
+          $set: { lastActiveAt: new Date() }
+        }
+      );
+    }
+    
+    return {
+      success: true,
+      message: 'Tab focus updated successfully'
+    };
+  } catch (error) {
+    logger.error('Error updating tab focus:', error);
+    return {
+      success: false,
+      message: 'Failed to update tab focus',
+      statusCode: 500
+    };
+  }
+};
+
+/**
+ * Acknowledge warning
+ * @param {string} sessionId - Session ID
+ * @param {string} warningId - Warning ID
+ * @returns {Object} Result object with success status
+ */
+exports.acknowledgeWarning = async (sessionId, warningId) => {
+  try {
+    if (!sessionId || !warningId) {
+      return { 
+        success: false, 
+        message: 'Session ID and Warning ID are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Find the session
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return { 
+        success: false, 
+        message: 'Session not found', 
+        statusCode: 404, 
+        code: 'SESSION_NOT_FOUND' 
+      };
+    }
+    
+    // Update the warning status
+    const updatedSession = await Session.findOneAndUpdate(
+      { _id: sessionId, 'warningsSent._id': warningId },
+      { 
+        $set: { 
+          'warningsSent.$.acknowledged': true,
+          'warningsSent.$.acknowledgedAt': new Date()
+        }
+      },
+      { new: true }
+    );
+    
+    if (!updatedSession) {
+      return {
+        success: false,
+        message: 'Warning not found',
+        statusCode: 404,
+        code: 'WARNING_NOT_FOUND'
+      };
+    }
+    
+    return {
+      success: true,
+      message: 'Warning acknowledged successfully',
+      sessionInfo: {
+        id: updatedSession._id,
+        expiresAt: updatedSession.expiresAt,
+        warningsSent: updatedSession.warningsSent
+      }
+    };
+  } catch (error) {
+    logger.error('Error acknowledging warning:', error);
+    return {
+      success: false,
+      message: 'Failed to acknowledge warning',
+      statusCode: 500
+    };
+  }
+};
+
+/**
+ * Sync session across tabs
+ * @param {string} sessionId - Session ID
+ * @param {Object} options - Sync options
+ * @param {string} options.tabId - Tab ID
+ * @param {Object} options.clientInfo - Client information
+ * @param {string} options.userId - User ID
+ * @param {string} options.scope - Sync scope (tab, device, user)
+ * @param {string} options.deviceId - Device ID
+ * @returns {Object} Result object with success status
+ */
+exports.syncSession = async (sessionId, options) => {
+  try {
+    const { tabId, clientInfo, userId, scope, deviceId } = options;
+    
+    if (!sessionId || !userId) {
+      return { 
+        success: false, 
+        message: 'Session ID and User ID are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Find the session
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return { 
+        success: false, 
+        message: 'Session not found', 
+        statusCode: 404, 
+        code: 'SESSION_NOT_FOUND' 
+      };
+    }
+    
+    // Update session activity
+    await exports.updateSessionActivity(sessionId);
+    
+    // Update tab activity if tabId provided
+    if (tabId) {
+      await exports.updateTabActivity(sessionId, tabId, 'sync', new Date());
+    }
+    
+    // Prepare event data for broadcasting
+    const eventData = {
+      sessionId,
+      userId,
+      tabId,
+      deviceId,
+      scope,
+      timestamp: new Date(),
+      sessionInfo: await exports.getSessionInfo(sessionId)
+    };
+    
+    return {
+      success: true,
+      message: 'Session synced successfully',
+      eventData
+    };
+  } catch (error) {
+    logger.error('Error syncing session:', error);
+    return {
+      success: false,
+      message: 'Failed to sync session',
+      statusCode: 500
+    };
+  }
+};
+
+/**
+ * Broadcast session event to connected clients
+ * @param {Object} io - Socket.io instance
+ * @param {string} sessionId - Session ID
+ * @param {string} eventName - Event name
+ * @param {Object} eventData - Event data
+ * @returns {Promise<boolean>} Success status
+ */
+exports.broadcastSessionEvent = async (io, sessionId, eventName, eventData) => {
+  try {
+    if (!io || !sessionId || !eventName) {
+      logger.warn('Missing required parameters for broadcasting session event');
+      return false;
+    }
+    
+    // Broadcast to session room
+    io.to(`session:${sessionId}`).emit(eventName, {
+      ...eventData,
+      timestamp: new Date()
+    });
+    
+    return true;
+  } catch (error) {
+    logger.error('Error broadcasting session event:', error);
+    return false;
+  }
+};
+
+/**
+ * Extend session
+ * @param {string} sessionId - Session ID
+ * @param {string} reason - Reason for extension
+ * @returns {Object} Result object with success status and session info
+ */
+exports.extendSession = async (sessionId, reason) => {
+  try {
+    if (!sessionId) {
+      return { 
+        success: false, 
+        message: 'Session ID is required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Calculate new expiry time (add configured extension time)
+    const session = await Session.findById(sessionId);
+    
+    if (!session) {
+      return { 
+        success: false, 
+        message: 'Session not found', 
+        statusCode: 404 
+      };
+    }
+    
+    // Get extension duration from config
+    const extensionMinutes = sessionConfig.extensionDuration || 30;
+    const extensionMs = extensionMinutes * 60 * 1000;
+    
+    // Calculate new expiry time
+    const newExpiryTime = new Date(Date.now() + extensionMs);
+    
+    // Update session with new expiry time
+    const updatedSession = await Session.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          expiresAt: newExpiryTime,
+          lastExtendedAt: new Date()
+        },
+        $push: {
+          extensions: {
+            timestamp: new Date(),
+            reason: reason || 'user-requested',
+            expiryBefore: session.expiresAt,
+            expiryAfter: newExpiryTime
+          }
+        }
+      },
+      { new: true }
+    );
+    
+    logger.debug(`Session ${sessionId} extended to ${newExpiryTime}`);
+    
+    // Format session info for response
+    const sessionInfo = {
+      id: updatedSession._id,
+      expiresAt: updatedSession.expiresAt,
+      lastActiveAt: updatedSession.lastActiveAt,
+      lastExtendedAt: updatedSession.lastExtendedAt
+    };
+    
+    return { 
+      success: true,
+      sessionInfo,
+      eventData: {
+        expiresAt: newExpiryTime,
+        reason: reason || 'user-requested'
+      }
+    };
+  } catch (error) {
+    logger.error(`Failed to extend session ${sessionId}:`, error);
+    return { 
+      success: false, 
+      message: 'Failed to extend session', 
+      statusCode: 500 
+    };
+  }
+};
+
+/**
+ * Poll for session events (fallback when WebSocket is down)
+ * @param {string} sessionId - Session ID
+ * @param {string} lastEventId - Last event ID client has seen
+ * @returns {Object} New events since lastEventId
+ */
+exports.pollSessionEvents = async (sessionId, lastEventId) => {
+  try {
+    if (!sessionId) {
+      throw new Error('Session ID is required');
+    }
+    
+    // Update session activity
+    await exports.updateSessionActivity(sessionId);
+    
+    // Get events since lastEventId
+    const events = await SessionEvent.find({
+      sessionId,
+      _id: { $gt: lastEventId || '000000000000000000000000' }
+    })
+    .sort({ createdAt: 1 })
+    .limit(100);
+    
+    return {
+      events,
+      lastEventId: events.length > 0 ? events[events.length - 1]._id : lastEventId
+    };
+  } catch (error) {
+    logger.error(`Failed to poll events for session ${sessionId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Register WebSocket connection
+ * @param {string} userId - User ID
+ * @param {string} sessionId - Session ID
+ * @param {string} tabId - Tab ID
+ * @param {string} deviceId - Device ID
+ * @returns {Object} Result object with success status and connection ID
+ */
+exports.registerWebSocketConnection = async (userId, sessionId, tabId, deviceId) => {
+  try {
+    if (!userId || !sessionId || !tabId || !deviceId) {
+      return { 
+        success: false, 
+        message: 'User ID, Session ID, Tab ID, and Device ID are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Create connection record
+    const connection = await WebSocketConnection.create({
+      userId,
+      sessionId,
+      tabId,
+      deviceId,
+      connectedAt: new Date(),
+      lastActiveAt: new Date()
+    });
+    
+    // Update session with connection info
+    await Session.findByIdAndUpdate(
+      sessionId,
+      {
+        $push: {
+          webSocketConnections: connection._id
+        },
+        $set: {
+          lastActiveAt: new Date()
+        }
+      }
+    );
+    
+    logger.debug(`WebSocket connection registered for session ${sessionId}, tab ${tabId}`);
+    
+    return { 
+      success: true,
+      connectionId: connection._id
+    };
+  } catch (error) {
+    logger.error(`Failed to register WebSocket connection:`, error);
+    return { 
+      success: false, 
+      message: 'Failed to register WebSocket connection', 
+      statusCode: 500 
+    };
+  }
+};
+
+/**
+ * Unregister WebSocket connection
+ * @param {string} sessionId - Session ID
+ * @param {string} connectionId - Connection ID
+ * @returns {Object} Result object with success status
+ */
+exports.unregisterWebSocketConnection = async (sessionId, connectionId) => {
+  try {
+    if (!sessionId || !connectionId) {
+      return { 
+        success: false, 
+        message: 'Session ID and Connection ID are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Update connection status
+    await WebSocketConnection.findByIdAndUpdate(
+      connectionId,
+      {
+        disconnectedAt: new Date(),
+        active: false
+      }
+    );
+    
+    // Update session
+    await Session.findByIdAndUpdate(
+      sessionId,
+      {
+        $pull: {
+          webSocketConnections: connectionId
+        }
+      }
+    );
+    
+    logger.debug(`WebSocket connection ${connectionId} unregistered for session ${sessionId}`);
+    
+    return { success: true };
+  } catch (error) {
+    logger.error(`Failed to unregister WebSocket connection:`, error);
+    return { 
+      success: false, 
+      message: 'Failed to unregister WebSocket connection', 
+      statusCode: 500 
+    };
+  }
+};
+
+/**
+ * Register device
+ * @param {string} userId - User ID
+ * @param {string} deviceId - Device ID
+ * @param {string} deviceName - Device name
+ * @param {string} deviceType - Device type
+ * @returns {Object} Result object with success status and device info
+ */
+exports.registerDevice = async (userId, deviceId, deviceName, deviceType) => {
+  try {
+    if (!userId || !deviceId || !deviceName || !deviceType) {
+      return { 
+        success: false, 
+        message: 'User ID, Device ID, Device Name, and Device Type are required', 
+        statusCode: 400 
+      };
+    }
+    
+    // Check if device already exists
+    let device = await Device.findOne({ userId, deviceId });
+    
+    if (device) {
+      // Update existing device
+      device = await Device.findOneAndUpdate(
+        { userId, deviceId },
+        {
+          $set: {
+            deviceName,
+            deviceType,
+            lastActiveAt: new Date()
+          }
+        },
+        { new: true }
+      );
+    } else {
+      // Create new device
+      device = await Device.create({
+        userId,
+        deviceId,
+        deviceName,
+        deviceType,
+        lastActiveAt: new Date()
+      });
+    }
+    
+    logger.debug(`Device ${deviceId} registered for user ${userId}`);
+    
+    return {
+      success: true,
+      deviceInfo: {
+        deviceId: device.deviceId,
+        deviceName: device.deviceName,
+        deviceType: device.deviceType,
+        lastActiveAt: device.lastActiveAt
+      }
+    };
+  } catch (error) {
+    logger.error(`Failed to register device:`, error);
+    return {
+      success: false,
+      message: 'Failed to register device',
+      statusCode: 500
+    };
+  }
 };

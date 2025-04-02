@@ -4,6 +4,49 @@
  */
 const mongoose = require('mongoose');
 
+// Add new event types while maintaining backward compatibility
+const eventTypes = [
+  // Authentication events
+  'login_success',
+  'login_failure',
+  'logout',
+  'password_change',
+  'password_reset_request',
+  'password_reset_complete',
+  'account_locked',
+  'account_unlocked',
+  'suspicious_activity',
+  'failed_login_attempt',
+  'device_verified',
+  'new_device_detected',
+  
+  // Token lifecycle events
+  'token_refresh',
+  'token_refreshed',
+  'token_expired',
+  'token_revoked',
+  
+  // WebSocket events
+  'socket_connected',
+  'socket_disconnected',
+  'room_joined',
+  'room_left',
+  'session_expired',
+  'session_timeout_warning',
+  'session_extended',
+  'device_verification_requested',
+  'hierarchy_changed',
+  'mfa_enabled',
+  'mfa_disabled',
+  'security_settings_changed',
+  
+  // Additional events for controller compatibility
+  'security_context_created',
+  'security_context_validated',
+  'client_report'
+];
+
+// Update schema with new fields while maintaining backward compatibility
 const securityEventSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -13,41 +56,7 @@ const securityEventSchema = new mongoose.Schema({
   eventType: {
     type: String,
     required: true,
-    enum: [
-      // Authentication events
-      'login_success',
-      'login_failure',
-      'logout',
-      'password_change',
-      'password_reset_request',
-      'password_reset_complete',
-      'account_locked',
-      'account_unlocked',
-      'suspicious_activity',
-      'failed_login_attempt',
-      'device_verified',
-      'new_device_detected',
-      
-      // Token lifecycle events
-      'token_refresh',
-      'token_refreshed',
-      'token_expired',
-      'token_revoked',
-      
-      // WebSocket events
-      'socket_connected',
-      'socket_disconnected',
-      'room_joined',
-      'room_left',
-      'session_expired',
-      'session_timeout_warning',
-      'session_extended',
-      'device_verification_requested',
-      'hierarchy_changed',
-      'mfa_enabled',
-      'mfa_disabled',
-      'security_settings_changed'
-    ]
+    enum: eventTypes
   },
   timestamp: {
     type: Date,
@@ -78,7 +87,14 @@ const securityEventSchema = new mongoose.Schema({
   processed: {
     type: Boolean,
     default: false
-  }
+  },
+  
+  // For backward compatibility with security notification model
+  acknowledged: {
+    type: Boolean,
+    default: false
+  },
+  acknowledgedAt: Date
 });
 
 // Index for faster queries
