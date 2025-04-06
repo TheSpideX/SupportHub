@@ -1,29 +1,44 @@
 import axios from 'axios';
 import { API_CONFIG } from '@/config/api';
 import { logger } from '@/utils/logger';
+import { getSocketService } from '@/services/socket';
+import { getTokenService } from '@/features/auth/services';
 
-// Update API client configuration to include credentials
+// Create API client with proper configuration
 const apiClient = axios.create({
   baseURL: API_CONFIG.BASE_URL || '/api',
-  timeout: 10000,
+  timeout: API_CONFIG.TIMEOUT || 15000,
   withCredentials: true, // Critical for cookies
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
   }
 });
 
-// Add request interceptor to include CSRF token
+// Add request interceptor for CSRF token and device tracking
 apiClient.interceptors.request.use(
   (config) => {
     // Get CSRF token from cookie
     const csrfToken = document.cookie
       .split('; ')
-      .find(row => row.startsWith('XSRF-TOKEN='))
+      .find(row => row.startsWith(`${API_CONFIG.CSRF.COOKIE_NAME}=`))
       ?.split('=')[1];
     
     if (csrfToken) {
-      config.headers['X-CSRF-Token'] = csrfToken;
+      config.headers[API_CONFIG.CSRF.HEADER_NAME] = csrfToken;
+    }
+    
+    // Add device and tab identifiers if socket service is available
+    const socketService = getSocketService();
+    if (socketService) {
+      config.headers['X-Device-ID'] = socketService.getDeviceId();
+      config.headers['X-Tab-ID'] = socketService.getTabId();
+      
+      // Add leader status if this tab is the leader
+      if (socketService.isLeaderTab()) {
+        config.headers['X-Tab-Leader'] = 'true';
+      }
     }
     
     return config;
@@ -31,37 +46,39 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Add response interceptor to handle token refresh
+// Add response interceptor for token refresh and session management
 apiClient.interceptors.response.use(
   (response) => {
-    // Check for token expiration header
-    const tokenExpiresIn = response.headers['x-token-expires-in'];
+    // Handle session expiration information
+    const tokenExpiresIn = response.headers['x-session-expires-in'];
     if (tokenExpiresIn) {
       const expiresInMs = parseInt(tokenExpiresIn, 10) * 1000;
       if (!isNaN(expiresInMs) && expiresInMs > 0) {
-        // Schedule refresh based on server-provided expiration time
-        const refreshThreshold = API_CONFIG.AUTH.REFRESH_THRESHOLD || 5 * 60 * 1000;
-        const refreshIn = Math.max(expiresInMs - refreshThreshold, 1000); // At least 1 second
+        const socketService = getSocketService();
         
-        logger.debug(`Scheduling token refresh in ${Math.round(refreshIn/1000)} seconds`);
-        
-        // Clear any existing refresh timeout
-        if (window.tokenRefreshTimeout) {
-          clearTimeout(window.tokenRefreshTimeout);
+        // If we have a socket service, let it handle token refresh scheduling
+        if (socketService) {
+          socketService.updateSessionExpiration(expiresInMs);
+        } else {
+          // Fallback to traditional refresh scheduling
+          const refreshThreshold = API_CONFIG.AUTH.REFRESH_THRESHOLD || 5 * 60 * 1000;
+          const refreshIn = Math.max(expiresInMs - refreshThreshold, 1000);
+          
+          logger.debug(`Scheduling token refresh in ${Math.round(refreshIn/1000)} seconds`);
+          
+          // Clear any existing refresh timeout
+          if (window.tokenRefreshTimeout) {
+            clearTimeout(window.tokenRefreshTimeout);
+          }
+          
+          // Set new refresh timeout
+          window.tokenRefreshTimeout = setTimeout(() => {
+            logger.debug('Executing scheduled token refresh');
+            apiClient.post('/auth/refresh-token', {})
+              .then(() => logger.debug('Token refresh successful'))
+              .catch(err => logger.error('Token refresh failed:', err));
+          }, refreshIn);
         }
-        
-        // Set new refresh timeout
-        window.tokenRefreshTimeout = setTimeout(() => {
-          logger.debug('Executing scheduled token refresh');
-          apiClient.post('/auth/refresh-token', {}, { 
-            withCredentials: true,
-            headers: {
-              'X-Requested-With': 'XMLHttpRequest'
-            }
-          })
-          .then(() => logger.debug('Token refresh successful'))
-          .catch(err => logger.error('Token refresh failed:', err));
-        }, refreshIn);
       }
     }
     return response;
@@ -74,40 +91,60 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       
       try {
+        const socketService = getSocketService();
+        const tokenService = getTokenService();
+        
         logger.debug('Token expired, attempting refresh');
         
-        // Remove the /api prefix since apiClient likely already has it
-        const refreshResponse = await apiClient.post('/auth/refresh-token', {}, { 
-          withCredentials: true,
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-          }
-        });
-        
-        // Check if refresh was successful
-        if (refreshResponse.status === 200) {
-          logger.debug('Token refresh successful');
+        // If we have a socket service and we're not the leader tab,
+        // wait for the leader to refresh the token
+        if (socketService && !socketService.isLeaderTab()) {
+          logger.debug('Waiting for leader tab to refresh token');
+          await socketService.waitForTokenRefresh();
+        } else {
+          // This tab will handle the token refresh
+          logger.debug('This tab is refreshing the token');
+          await apiClient.post('/auth/refresh-token', {});
           
-          // If CSRF token is in the response, update it
-          if (refreshResponse.data?.csrfToken) {
-            // Update CSRF token in storage or state
-            if (window.tokenService && typeof window.tokenService.setCsrfToken === 'function') {
-              window.tokenService.setCsrfToken(refreshResponse.data.csrfToken);
-            }
+          // If we have a socket service, notify other tabs
+          if (socketService && socketService.isLeaderTab()) {
+            socketService.notifyTokenRefreshed();
           }
-          
-          // Retry the original request
-          return apiClient(originalRequest);
         }
+        
+        // Retry the original request
+        return apiClient(originalRequest);
       } catch (refreshError) {
         logger.error('Token refresh failed', refreshError);
         
         // If refresh fails, redirect to login
-        // But first, check if we're already on the login page to avoid redirect loops
         if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login?session=expired';
         }
         return Promise.reject(refreshError);
+      }
+    }
+    
+    // Handle 403 errors that might be related to CSRF
+    if (error.response?.status === 403 && 
+        error.response?.data?.message?.includes('CSRF')) {
+      try {
+        logger.debug('CSRF token invalid, attempting to refresh');
+        
+        // Try to get a new CSRF token
+        const tokenService = getTokenService();
+        if (tokenService) {
+          await tokenService.refreshCsrfToken();
+          
+          // Update the CSRF token in the original request
+          originalRequest.headers[API_CONFIG.CSRF.HEADER_NAME] = 
+            tokenService.getCsrfToken();
+          
+          // Retry the original request
+          return apiClient(originalRequest);
+        }
+      } catch (csrfError) {
+        logger.error('CSRF refresh failed', csrfError);
       }
     }
     

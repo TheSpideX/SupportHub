@@ -58,15 +58,24 @@ const routes = [
     children: [
       {
         index: true,
-        element: <Navigate to="/login" replace />,
+        element: <Navigate to="/auth/login" replace />,
       },
       {
-        path: 'login',
-        element: <LoginPage />,
-      },
-      {
-        path: 'register',
-        element: <RegisterPage />,
+        path: 'auth',
+        children: [
+          {
+            index: true,
+            element: <Navigate to="/auth/login" replace />,
+          },
+          {
+            path: 'login',
+            element: <LoginPage />,
+          },
+          {
+            path: 'register',
+            element: <RegisterPage />,
+          },
+        ],
       },
       {
         path: 'dashboard',

@@ -7,44 +7,70 @@ export const API_ROUTES = {
   
   // Auth endpoints
   AUTH: {
-    // Authentication
+    // Core authentication
     LOGIN: "/api/auth/login",
     REGISTER: "/api/auth/register",
     LOGOUT: "/api/auth/logout",
-    REFRESH_TOKEN: "/api/auth/token/refresh",
     
-    // User information
+    // Auth status & user info
+    STATUS: "/api/auth/status",
     USER_INFO: "/api/auth/me",
     
     // Email verification
     VERIFY_EMAIL: "/api/auth/verify-email",
     RESEND_VERIFICATION: "/api/auth/resend-verification",
     
-    // Two-factor authentication
-    VERIFY_2FA: "/api/auth/verify-2fa",
-    SETUP_2FA: "/api/auth/setup-2fa",
-    DISABLE_2FA: "/api/auth/disable-2fa",
-    GENERATE_BACKUP_CODES: "/api/auth/generate-backup-codes",
-    
-    // Password management
-    FORGOT_PASSWORD: "/api/auth/forgot-password",
-    RESET_PASSWORD: "/api/auth/reset-password",
-    CHANGE_PASSWORD: "/api/auth/change-password",
-    
-    // Profile management
-    UPDATE_PROFILE: "/api/auth/update-profile",
+    // Token management
+    REFRESH_TOKEN: "/api/auth/token/refresh",
+    CSRF_TOKEN: "/api/auth/token/csrf",
+    WS_AUTH_TOKEN: "/api/auth/token/ws-auth",
     
     // Session management
-    VALIDATE_SESSION: "/api/auth/validate-session",
-    SYNC_SESSION: "/api/auth/session/sync",
-    GET_SESSIONS: "/api/auth/sessions",
-    TERMINATE_SESSION: "/api/auth/sessions/terminate",
-    TERMINATE_ALL_SESSIONS: "/api/auth/sessions/terminate-all",
+    VALIDATE_SESSION: "/api/auth/session",
+    ACTIVE_SESSIONS: "/api/auth/session/active",
+    TERMINATE_SESSION: (sessionId: string) => `/api/auth/session/${sessionId}`,
+    TERMINATE_ALL_SESSIONS: "/api/auth/session/terminate-all",
+    SESSION_HEARTBEAT: "/api/auth/session/heartbeat",
     
-    // Security
-    CSRF_TOKEN: "/api/auth/csrf-token",
+    // Tab management (WebSocket fallbacks)
+    REGISTER_TAB: "/api/auth/register-tab",
+    UNREGISTER_TAB: "/api/auth/unregister-tab",
+    TAB_ACTIVITY: "/api/auth/session/tab-activity",
+    TAB_FOCUS: "/api/auth/session/tab-focus",
+    SYNC_STATE: "/api/auth/sync-state",
+    POLL_STATE: "/api/auth/poll-state",
+    
+    // Device management
+    REGISTER_DEVICE: "/api/auth/session/devices",
+    UPDATE_DEVICE: (deviceId: string) => `/api/auth/session/devices/${deviceId}`,
     VERIFY_DEVICE: "/api/auth/verify-device",
-    REPORT_SECURITY_ISSUE: "/api/auth/report-security-issue"
+    
+    // User profile management
+    GET_PROFILE: "/api/auth/user/profile",
+    UPDATE_PROFILE: "/api/auth/user/profile",
+    GET_PREFERENCES: "/api/auth/user/preferences",
+    UPDATE_PREFERENCES: "/api/auth/user/preferences",
+    
+    // Password management
+    CHANGE_PASSWORD: "/api/auth/user/password",
+    FORGOT_PASSWORD: "/api/auth/forgot-password",
+    RESET_PASSWORD: "/api/auth/reset-password",
+    
+    // Two-factor authentication
+    SETUP_2FA: "/api/auth/security/2fa/setup",
+    VERIFY_2FA_SETUP: "/api/auth/security/2fa/verify-setup",
+    DISABLE_2FA: "/api/auth/security/2fa/disable",
+    VERIFY_2FA: "/api/auth/verify-2fa",
+    GENERATE_BACKUP_CODES: "/api/auth/security/2fa/backup-codes",
+    
+    // Security settings
+    SECURITY_SETTINGS: "/api/auth/security/settings",
+    
+    // Permissions
+    GET_PERMISSIONS: "/api/auth/permissions",
+    
+    // System
+    HEALTH: "/api/auth/health"
   },
   
   // User management endpoints
@@ -71,10 +97,8 @@ export const EXTENDED_API_ROUTES = {
   ...API_ROUTES,
   AUTH: {
     ...API_ROUTES.AUTH,
-    LOGOUT_EVERYWHERE: `${API_ROUTES.AUTH.LOGOUT}/all`,
-    TERMINATE_SESSION: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate`,
-    TERMINATE_ALL_OTHER_SESSIONS: `${API_ROUTES.BASE_URL}/api/auth/sessions/terminate-others`,
-    GET_USER: API_ROUTES.AUTH.USER_INFO
+    LOGOUT_EVERYWHERE: "/api/auth/logout/all",
+    TERMINATE_ALL_OTHER_SESSIONS: "/api/auth/session/terminate-others"
   }
 };
 

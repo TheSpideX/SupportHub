@@ -10,21 +10,17 @@ const mapStringToUserRole = (role: string): UserRole => {
   switch (role.toUpperCase()) {
     case 'ADMIN':
       return UserRole.ADMIN;
-    case 'MANAGER':
-      return UserRole.MANAGER;
-    case 'USER':
-      return UserRole.USER;
     // Map backend roles to frontend roles
     case 'CUSTOMER':
-      return UserRole.USER;
+      return UserRole.CUSTOMER;
     case 'SUPPORT':
-      return UserRole.USER;
+      return UserRole.SUPPORT;
     case 'TECHNICAL':
-      return UserRole.USER;
+      return UserRole.TECHNICAL;
     case 'TEAM_LEAD':
-      return UserRole.MANAGER;
+      return UserRole.TEAM_LEAD;
     default:
-      return UserRole.GUEST;
+      return UserRole.CUSTOMER; // Default to CUSTOMER role
   }
 };
 

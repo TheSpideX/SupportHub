@@ -98,7 +98,10 @@ class SessionSocketManager {
    * @param deviceFingerprint Optional device fingerprint for additional authentication
    */
   public initialize(deviceFingerprint?: string): void {
-    if (this.socket?.connected || this.socket?.io?.engine?.readyState === "opening") {
+    if (
+      this.socket?.connected ||
+      this.socket?.io?.engine?.readyState === "opening"
+    ) {
       logger.info("Socket already initialized and connecting/connected");
       return;
     }
@@ -118,19 +121,23 @@ class SessionSocketManager {
 
     try {
       const wsUrl = this.getWebSocketUrl();
-      logger.info(`Initializing socket with URL: ${wsUrl}/session`);  // Changed to info level
+      logger.info(`Initializing socket with URL: ${wsUrl}/session`); // Changed to info level
 
       this.socket = io(`${wsUrl}/session`, {
-        autoConnect: true,  // Changed to true for immediate connection
+        autoConnect: true, // Changed to true for immediate connection
         reconnection: true, // Enable built-in reconnection
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         randomizationFactor: 0.5,
         transports: ["websocket"],
-        withCredentials: true,
+        withCredentials: true, // Important for sending HTTP-only cookies
         auth: {
+          // The token will be sent via HTTP-only cookies automatically
           deviceFingerprint: this.deviceFingerprint,
+          tabId: this.tabId,
+          // Add CSRF token if available for additional security
+          csrfToken: this.tokenService.getCsrfToken() || undefined,
         },
         query: {
           tabId: this.tabId,
@@ -142,7 +149,7 @@ class SessionSocketManager {
       this.socket.initialized = true;
       this.setupEventHandlers();
       this.setupHeartbeat();
-      
+
       // Add debug logging for connection process
       logger.debug("Socket initialized, connecting...");
       this.connect();
@@ -212,6 +219,15 @@ class SessionSocketManager {
     });
 
     this.socket.on("connect_error", (error: any) => {
+      // Check if this is an authentication error
+      const isAuthError =
+        error.message?.includes("Authentication") ||
+        error.message?.includes("auth") ||
+        error.message?.includes("token") ||
+        error.message?.includes("unauthorized") ||
+        error.message?.includes("not authenticated") ||
+        error.data?.code === 401;
+
       // Log detailed error information
       logger.error("Session socket connection error", {
         message: error.message || "Unknown error",
@@ -222,13 +238,24 @@ class SessionSocketManager {
         stack: error.stack,
         // Log additional connection details
         withCredentials: this.socket?.io?.opts?.withCredentials,
-        url: this.getWebSocketUrl() || 'unknown',
+        url: this.getWebSocketUrl() || "unknown",
         transportType: this.socket?.io?.engine?.transport?.name,
+        isAuthError,
       });
-      
+
       this.status = "error";
       this.triggerEvent("status", this.status);
-      this.handleReconnect("connect_error");
+
+      // If it's an auth error, try to refresh the token before reconnecting
+      if (isAuthError) {
+        this.handleAuthError().catch((err) => {
+          logger.error("Failed to handle auth error:", err);
+          // If token refresh fails, we'll still try normal reconnection
+          this.handleReconnect("auth_error");
+        });
+      } else {
+        this.handleReconnect("connect_error");
+      }
     });
 
     // Session-specific events
@@ -307,7 +334,10 @@ class SessionSocketManager {
     // Also handle server-side ping events
     this.socket.on("heartbeat", () => {
       logger.debug("Received heartbeat, sending response");
-      this.socket?.emit("heartbeat:response", { tabId: this.tabId, timestamp: Date.now() });
+      this.socket?.emit("heartbeat:response", {
+        tabId: this.tabId,
+        timestamp: Date.now(),
+      });
       if (this.socket) this.socket.isAlive = true;
     });
   }
@@ -383,16 +413,46 @@ class SessionSocketManager {
 
     try {
       if (this.currentRooms) {
-        // Leave rooms in reverse order
-        const rooms = Object.values(this.currentRooms).reverse();
+        // Leave rooms in reverse order (tab -> session -> device -> user)
+        // This matches the hierarchical structure on the backend
+        const rooms = Object.entries(this.currentRooms)
+          .sort((a, b) => {
+            // Custom sort to ensure proper order: tab, session, device, user
+            const order = { tab: 0, session: 1, device: 2, user: 3 };
+            return (
+              order[a[0] as keyof typeof order] -
+              order[b[0] as keyof typeof order]
+            );
+          })
+          .map(([_, roomId]) => roomId);
+
+        // Send leave events for each room
         rooms.forEach((room) => {
-          this.socket?.emit("leave", room);
+          try {
+            this.socket?.emit("leave", { room });
+            logger.debug(`Left room: ${room}`);
+          } catch (e) {
+            logger.error(`Error leaving room ${room}:`, e);
+          }
         });
       }
 
+      // Send a final disconnect notification
+      try {
+        this.socket.emit("client:disconnect", {
+          tabId: this.tabId,
+          timestamp: Date.now(),
+          reason: "client_disconnect",
+        });
+      } catch (e) {
+        // Ignore errors during disconnect notification
+      }
+
+      // Disconnect the socket
       this.socket.disconnect();
       this.status = "disconnected";
       this.currentRooms = null;
+      logger.info("Socket disconnected successfully");
     } catch (error) {
       logger.error("Error disconnecting socket:", error);
     }
@@ -576,17 +636,51 @@ class SessionSocketManager {
   private getWebSocketUrl(): string {
     // Get base API URL from environment or use current origin
     const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    
+
     // For development, ensure we're using the right port
     if (import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
       // Default development backend port is 3000
-      return 'http://localhost:3000';
+      return "http://localhost:3000";
     }
-    
+
     return apiUrl;
   }
 
-  // Add new method for room management
+  /**
+   * Handle authentication errors by attempting to refresh the token
+   */
+  private async handleAuthError(): Promise<boolean> {
+    logger.info("Handling socket authentication error");
+
+    try {
+      // Try to refresh the token
+      const refreshed = await this.tokenService.refreshToken();
+
+      if (refreshed) {
+        logger.info("Token refreshed successfully, reconnecting socket");
+
+        // Reconnect the socket with the new token
+        if (this.socket) {
+          // Disconnect and reconnect to use the new token
+          this.socket.disconnect();
+          setTimeout(() => this.connect(), 500); // Small delay to ensure disconnect completes
+        }
+
+        return true;
+      } else {
+        logger.warn("Token refresh failed, socket will remain disconnected");
+        return false;
+      }
+    } catch (error) {
+      logger.error("Error refreshing token for socket authentication:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Join the hierarchical room structure
+   * This matches the backend's room authorization system
+   */
   private async joinRoomHierarchy(): Promise<void> {
     if (!this.socket?.connected) return;
 
@@ -597,7 +691,7 @@ class SessionSocketManager {
         throw new Error("No valid session found");
       }
 
-      // Create room IDs
+      // Create room IDs according to backend's expected format
       const roomIds = {
         user: `user:${this.getUserId()}`,
         device: `device:${this.deviceFingerprint || "unknown"}`,
@@ -607,30 +701,41 @@ class SessionSocketManager {
 
       // Join rooms in hierarchical order with error handling
       try {
-        await this.socket.emitWithAck("join:user", roomIds.user);
+        // First join user room - this is the top level room
+        await this.socket.emitWithAck("join", roomIds.user);
         logger.debug("Joined user room", { roomId: roomIds.user });
 
-        await this.socket.emitWithAck("join:device", {
-          roomId: roomIds.device,
+        // Then join device room with parent reference
+        await this.socket.emitWithAck("join", {
+          room: roomIds.device,
           parent: roomIds.user,
           capabilities: await this.getDeviceCapabilities(),
         });
         logger.debug("Joined device room", { roomId: roomIds.device });
 
-        await this.socket.emitWithAck("join:session", {
-          roomId: roomIds.session,
+        // Then join session room with parent reference
+        await this.socket.emitWithAck("join", {
+          room: roomIds.session,
           parent: roomIds.device,
         });
         logger.debug("Joined session room", { roomId: roomIds.session });
 
-        await this.socket.emitWithAck("join:tab", {
-          roomId: roomIds.tab,
+        // Finally join tab room with parent reference
+        await this.socket.emitWithAck("join", {
+          room: roomIds.tab,
           parent: roomIds.session,
         });
         logger.debug("Joined tab room", { roomId: roomIds.tab });
 
         this.currentRooms = roomIds;
         logger.info("Successfully joined room hierarchy", { rooms: roomIds });
+
+        // Send initial heartbeat to confirm connection
+        this.socket.emit("heartbeat:response", {
+          tabId: this.tabId,
+          timestamp: Date.now(),
+          rooms: Object.values(roomIds),
+        });
       } catch (error) {
         // If any room join fails, attempt cleanup
         logger.error("Failed to join rooms, cleaning up", error);
@@ -743,11 +848,11 @@ class SessionSocketManager {
     const heartbeatInterval = setInterval(() => {
       if (this.socket?.connected) {
         // Use the socket's emit method directly instead of this.activity()
-        this.socket.emit("heartbeat:response", { 
-          tabId: this.tabId, 
-          timestamp: Date.now() 
+        this.socket.emit("heartbeat:response", {
+          tabId: this.tabId,
+          timestamp: Date.now(),
         });
-        
+
         if (this.socket) this.socket.isAlive = true;
         logger.debug("Sent heartbeat response");
       } else if (this.status === "disconnected") {
@@ -796,18 +901,26 @@ export function initializeSessionSocket(): void {
   const { securityService } = getAuthServices();
 
   // Get device fingerprint from security service
-  securityService.getDeviceFingerprint().then((fingerprint) => {
-    // Initialize socket with fingerprint
-    const socketManager = getSessionSocketManager();
-    socketManager.initialize(fingerprint);
-    
-    // Log connection attempt
-    logger.info("Socket initialization triggered with device fingerprint", { fingerprint: fingerprint ? "present" : "missing" });
-  }).catch(error => {
-    logger.error("Failed to get device fingerprint, initializing without it", error);
-    // Initialize socket without fingerprint as fallback
-    getSessionSocketManager().initialize();
-  });
+  securityService
+    .getDeviceFingerprint()
+    .then((fingerprint) => {
+      // Initialize socket with fingerprint
+      const socketManager = getSessionSocketManager();
+      socketManager.initialize(fingerprint);
+
+      // Log connection attempt
+      logger.info("Socket initialization triggered with device fingerprint", {
+        fingerprint: fingerprint ? "present" : "missing",
+      });
+    })
+    .catch((error) => {
+      logger.error(
+        "Failed to get device fingerprint, initializing without it",
+        error
+      );
+      // Initialize socket without fingerprint as fallback
+      getSessionSocketManager().initialize();
+    });
 }
 
 // Remove the direct export of sessionSocketManager

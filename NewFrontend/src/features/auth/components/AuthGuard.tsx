@@ -167,7 +167,7 @@ export const AuthGuard = ({
       from: location.pathname
     });
     // Use direct path
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={APP_ROUTES.AUTH.LOGIN} replace />;
   }
   
   // Check permissions if required

@@ -18,6 +18,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { logger } from '@/utils/logger';
 import { RootState } from '@/store';
+import { APP_ROUTES } from '@/utils/routes';
 
 /**
  * Custom hook for authentication state and operations
@@ -38,6 +39,10 @@ export const useAuth = () => {
     isLoading: authState.isLoading,
     path: location.pathname
   });
+
+  const redirectToLogin = useCallback(() => {
+    navigate(APP_ROUTES.AUTH.LOGIN);
+  }, [navigate]);
 
   /**
    * Improved error handling for auth operations
