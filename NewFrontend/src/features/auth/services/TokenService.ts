@@ -1171,6 +1171,78 @@ export class TokenService {
   }
 
   /**
+   * Check if this tab is the leader tab
+   * Leader tab is responsible for token refresh and other shared operations
+   */
+  private isLeaderTab(): boolean {
+    try {
+      // Check if we have leader information in localStorage
+      const leaderData = localStorage.getItem("auth_leader_tab");
+      if (!leaderData) {
+        // No leader yet, try to become one
+        return this.electLeaderTab();
+      }
+
+      // Parse leader data
+      const data = JSON.parse(leaderData);
+
+      // Check if this tab is the leader
+      return data.tabId === this._tabId;
+    } catch (error) {
+      logger.error("Error checking leader tab status:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Elect a leader tab
+   * Returns true if this tab becomes the leader
+   */
+  private electLeaderTab(): boolean {
+    try {
+      const now = Date.now();
+      const leaderData = localStorage.getItem("auth_leader_tab");
+
+      // Parse current leader data if it exists
+      let currentLeader = { tabId: "", timestamp: 0 };
+      if (leaderData) {
+        try {
+          currentLeader = JSON.parse(leaderData);
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+
+      // If leader is recent (last 10 seconds) and not this tab, we're not leader
+      if (
+        currentLeader.tabId &&
+        currentLeader.tabId !== this._tabId &&
+        now - currentLeader.timestamp < 10000
+      ) {
+        return false;
+      }
+
+      // Otherwise, claim leadership
+      const newLeader = { tabId: this._tabId, timestamp: now };
+      localStorage.setItem("auth_leader_tab", JSON.stringify(newLeader));
+
+      // Broadcast leadership claim
+      if (this.authChannel) {
+        this.authChannel.postMessage({
+          type: "LEADER_ELECTED",
+          tabId: this._tabId,
+          timestamp: now,
+        });
+      }
+
+      return true;
+    } catch (error) {
+      logger.error("Error during leader tab election:", error);
+      return false;
+    }
+  }
+
+  /**
    * Perform token refresh (internal implementation)
    */
   private async performTokenRefresh(): Promise<boolean> {
@@ -1197,15 +1269,28 @@ export class TokenService {
       }
 
       // Perform actual refresh logic
+      // IMPROVEMENT: Add device and tab information to the refresh request
+      // This helps with cross-device synchronization
+      const deviceId =
+        sessionStorage.getItem("device_fingerprint") || this.deviceFingerprint;
+      const tabId = sessionStorage.getItem("tab_id") || this._tabId;
+      const isLeaderTab = this.isLeaderTab();
+
       const response = await fetch(
         `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`,
         {
           method: "POST",
-          credentials: "include",
+          credentials: "include", // Critical for HTTP-only cookies
           headers: {
             "Content-Type": "application/json",
             ...this.getAuthHeaders(),
           },
+          body: JSON.stringify({
+            deviceId,
+            tabId,
+            isLeaderTab,
+            timestamp: Date.now(),
+          }),
         }
       );
 
@@ -1222,6 +1307,13 @@ export class TokenService {
       if (data.data?.session) {
         this.updateSessionData(data.data.session);
       }
+
+      // Set the token existence flag cookie
+      setCookie(TOKEN_EXISTS_FLAG, "true", {
+        path: this.config.cookiePath,
+        secure: this.config.cookieSecure,
+        maxAge: this.config.accessTokenMaxAge,
+      });
 
       // Notify listeners about token refresh
       this.notifyRefreshListeners(data.data?.session || {});
@@ -2080,7 +2172,7 @@ export class TokenService {
         userId: sessionData.userId,
         expiresAt: expiresAt,
         tokenVersion: tokenVersion,
-        id: sessionData.id // Include the session ID from sessionData
+        id: sessionData.id, // Include the session ID from sessionData
       };
     } catch (error) {
       logger.error("Error getting session info:", error);

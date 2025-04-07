@@ -7,6 +7,17 @@ const socketService = require("./socket.service");
 const cookie = require("cookie");
 const crypto = require("crypto");
 const tokenService = require("./token.service");
+
+// Simple AppError class for session errors
+class AppError extends Error {
+  constructor(message, statusCode = 500, code = "INTERNAL_ERROR") {
+    super(message);
+    this.statusCode = statusCode;
+    this.code = code;
+    this.name = "AppError";
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
 const sessionConfig = require("../config/session.config");
 
 // Add this line to define the cleanupIntervals array
@@ -25,6 +36,44 @@ const ROOM_TYPES = {
 const createRoomName = (type, id) => {
   const prefix = type.endsWith(":") ? type : `${type}:`;
   return `${prefix}${id}`;
+};
+
+/**
+ * Helper function to calculate TTL in seconds
+ * @param {Date} expiresAt - Expiration date
+ * @param {number} now - Current timestamp
+ * @param {number} defaultTTL - Default TTL in seconds
+ * @returns {number} - TTL in seconds
+ */
+const calculateTTLSeconds = (expiresAt, now, defaultTTL) => {
+  if (!expiresAt) return defaultTTL;
+
+  const ttlMs = new Date(expiresAt).getTime() - now;
+  return ttlMs > 0 ? Math.floor(ttlMs / 1000) : defaultTTL;
+};
+
+/**
+ * Set a value in Redis with expiry
+ * @param {string} key - Redis key
+ * @param {string} value - Value to store
+ * @param {number} ttlSeconds - TTL in seconds
+ * @returns {Promise<string>} - Redis response
+ */
+const setWithExpiry = async (key, value, ttlSeconds) => {
+  try {
+    // Set the value with expiry in one command
+    if (ttlSeconds > 0) {
+      await redisClient.set(key, value, { EX: ttlSeconds });
+    } else {
+      await redisClient.set(key, value);
+    }
+
+    return "OK";
+  } catch (error) {
+    logger.error("Error setting Redis value with expiry:", error);
+    // Don't throw the error, just return a failure status
+    return "FAIL";
+  }
 };
 
 // Add function to cleanup empty rooms
@@ -96,7 +145,6 @@ exports.createSession = async ({
 
     // Create a session document with enhanced security metadata
     const session = await Session.create({
-      _id: sessionId,
       userId: userId.toString(),
       isActive: true,
       expiresAt: new Date(Date.now() + sessionConfig.store.ttl * 1000),
@@ -150,20 +198,44 @@ exports.createSession = async ({
  * @returns {Object} session
  */
 exports.getSessionById = async (sessionId) => {
-  const sessionData = await redisClient.get(`session:${sessionId}`);
+  try {
+    // Try to get from Redis first
+    const sessionData = await redisClient.get(`session:${sessionId}`);
 
-  if (!sessionData) {
-    throw new AppError("Session not found", 404, "SESSION_NOT_FOUND");
+    if (sessionData) {
+      return JSON.parse(sessionData);
+    }
+
+    // If not in Redis, try to get from MongoDB
+    const dbSession = await Session.findById(sessionId);
+
+    if (!dbSession) {
+      // Return a default session object instead of throwing an error
+      logger.warn(`Session not found: ${sessionId}`);
+      return {
+        id: sessionId,
+        isActive: false,
+        notFound: true,
+      };
+    }
+
+    // Convert MongoDB document to plain object
+    const session = dbSession.toObject();
+    session.id = session._id.toString();
+
+    // Cache in Redis for future requests
+    await redisClient.set(`session:${sessionId}`, JSON.stringify(session));
+
+    return session;
+  } catch (error) {
+    logger.error(`Error getting session ${sessionId}:`, error);
+    // Return a default session object instead of throwing an error
+    return {
+      id: sessionId,
+      isActive: false,
+      error: true,
+    };
   }
-
-  const session = JSON.parse(sessionData);
-
-  // Check if session is expired
-  if (session.expiresAt < Date.now()) {
-    throw new AppError("Session expired", 401, "SESSION_EXPIRED");
-  }
-
-  return session;
 };
 
 /**
@@ -1748,58 +1820,68 @@ exports.isInitialized = isInitialized;
 // Export the module
 module.exports = exports;
 
+// calculateTTLSeconds is now defined at the top of the file
+
+// setWithExpiry is now defined at the top of the file
+
 /**
- * Helper function to safely calculate TTL in seconds for Redis
- * @param {Date|string|number} expiresAt - Expiration timestamp
- * @param {number} now - Current timestamp
- * @param {number} defaultTTL - Default TTL in seconds if calculation fails
- * @returns {number} - TTL in seconds (always >= 1)
+ * Record a security event for a user
+ * @param {string} userId - User ID
+ * @param {string} sessionId - Session ID
+ * @param {string} eventType - Type of security event
+ * @param {string} severity - Severity level (low, medium, high, critical)
+ * @param {Object} details - Additional event details
+ * @returns {Promise<Object>} - Recorded event
  */
-const calculateTTLSeconds = (
-  expiresAt,
-  now = Date.now(),
-  defaultTTL = 3600
+exports.recordSecurityEvent = async (
+  userId,
+  sessionId,
+  eventType,
+  severity,
+  details
 ) => {
   try {
-    // Convert expiresAt to milliseconds timestamp
-    const expiryTime =
-      expiresAt instanceof Date
-        ? expiresAt.getTime()
-        : typeof expiresAt === "string"
-        ? new Date(expiresAt).getTime()
-        : typeof expiresAt === "number"
-        ? expiresAt
-        : null;
-
-    // If conversion failed or result is invalid, use default
-    if (!expiryTime || isNaN(expiryTime)) {
-      return defaultTTL;
+    if (!userId) {
+      throw new Error("User ID is required");
     }
 
-    // Calculate TTL in seconds, with minimum of 1 second
-    return Math.max(1, Math.ceil((expiryTime - now) / 1000));
+    // Create event object
+    const event = {
+      id: crypto.randomBytes(16).toString("hex"),
+      type: eventType,
+      userId,
+      sessionId,
+      severity: severity || "medium",
+      details: details || {},
+      timestamp: new Date(),
+    };
+
+    // Store in Redis for real-time access
+    const eventKey = `security:events:${userId}`;
+    await redisClient.lpush(eventKey, JSON.stringify(event));
+    await redisClient.ltrim(eventKey, 0, 99); // Keep last 100 events
+    await redisClient.expire(eventKey, 86400); // Expire after 24 hours
+
+    // Emit to user's room if socket service is available
+    if (socketService && typeof socketService.emitToUserRoom === "function") {
+      socketService.emitToUserRoom(userId, eventType, {
+        ...event,
+        userId: undefined, // Don't send userId in the payload for security
+      });
+    }
+
+    logger.info(`Security event recorded: ${eventType}`, {
+      userId,
+      sessionId,
+      severity,
+      eventId: event.id,
+    });
+
+    return event;
   } catch (error) {
-    logger.warn(
-      `TTL calculation error: ${error.message}. Using default: ${defaultTTL}s`
-    );
-    return defaultTTL;
+    logger.error("Failed to record security event:", error);
+    throw error;
   }
-};
-
-/**
- * Helper function to set Redis key with expiration
- * @param {string} key - Redis key
- * @param {string} value - Value to store
- * @param {number} ttlSeconds - TTL in seconds
- */
-const setWithExpiry = async (key, value, ttlSeconds) => {
-  // Ensure ttlSeconds is valid
-  const validTtl =
-    Number.isFinite(ttlSeconds) && ttlSeconds > 0
-      ? ttlSeconds
-      : Math.ceil(sessionConfig.store.ttl);
-
-  await redisClient.set(key, value, "EX", validTtl);
 };
 
 /**

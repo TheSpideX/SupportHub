@@ -60,6 +60,7 @@ export class WebSocketService {
   private broadcastChannel: BroadcastChannel | null = null;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
+  private deviceFingerprint: string | null = null;
 
   constructor() {
     // Initialize tab ID
@@ -148,6 +149,7 @@ export class WebSocketService {
     const csrfToken = this.tokenService?.getCsrfToken() || "";
 
     // Create socket connection
+    // IMPORTANT: Use the /auth namespace for authentication
     this.socket = io(`${wsUrl}/auth`, {
       autoConnect: true,
       reconnection: true,
@@ -161,14 +163,15 @@ export class WebSocketService {
         tabId: this.tabId,
         csrfToken: csrfToken,
         timestamp: Date.now(),
-        deviceFingerprint: this.deviceFingerprint || "unknown",
+        deviceFingerprint: this.getDeviceFingerprint(),
       },
       extraHeaders: {
         "X-CSRF-Token": csrfToken,
-        "X-Device-ID": this.deviceFingerprint || "unknown",
+        "X-Device-ID": this.getDeviceFingerprint(),
         "X-Tab-ID": this.tabId,
       },
       forceNew: true, // Force a new connection to avoid reusing problematic connections
+      path: "/socket.io", // Default Socket.IO path
     });
 
     // Log detailed connection information
@@ -231,10 +234,11 @@ export class WebSocketService {
         // Check if we've exceeded the maximum number of reconnect attempts
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
           logger.error(
-            `Maximum reconnect attempts (${this.maxReconnectAttempts}) reached. Giving up.`
+            `Maximum reconnect attempts (${this.maxReconnectAttempts}) reached. Falling back to cross-tab sync.`
           );
-          // Redirect to login after too many failed attempts
-          window.location.href = "/auth/login?reason=max_reconnect_attempts";
+
+          // IMPROVEMENT: Instead of redirecting, fall back to cross-tab synchronization
+          this.enableFallbackMode();
           return;
         }
 
@@ -289,12 +293,263 @@ export class WebSocketService {
   }
 
   /**
+   * Enable fallback mode when WebSocket connection fails
+   * This switches to using cross-tab synchronization instead of WebSockets
+   */
+  private enableFallbackMode(): void {
+    logger.info(
+      "Enabling WebSocket fallback mode with cross-tab synchronization"
+    );
+
+    // Clean up any existing socket connection
+    this.cleanup();
+
+    // Set status to indicate we're in fallback mode
+    this.status = "disconnected";
+
+    // Trigger fallback mode event
+    this.triggerEvent("fallback", { enabled: true, timestamp: Date.now() });
+
+    // Initialize cross-tab communication if not already done
+    this.initializeCrossTabSync();
+
+    // Start polling for auth events as a fallback
+    this.startAuthEventPolling();
+
+    // Notify other tabs that we're in fallback mode
+    this.broadcastFallbackStatus(true);
+  }
+
+  /**
+   * Initialize cross-tab synchronization
+   */
+  private initializeCrossTabSync(): void {
+    // Skip if already initialized or if BroadcastChannel is not available
+    if (this.broadcastChannel || typeof BroadcastChannel === "undefined") {
+      return;
+    }
+
+    try {
+      this.broadcastChannel = new BroadcastChannel("auth_socket_channel");
+
+      // Set up message handler
+      this.broadcastChannel.onmessage = (event) => {
+        if (!event.data || !event.data.type) return;
+
+        // Handle cross-tab messages
+        switch (event.data.type) {
+          case "AUTH_EVENT":
+            // Process auth event from another tab
+            this.processAuthEvent(event.data.event);
+            break;
+
+          case "FALLBACK_STATUS":
+            // Another tab is in fallback mode
+            logger.debug(
+              "Received fallback status from another tab:",
+              event.data
+            );
+            break;
+
+          case "TOKEN_REFRESHED":
+            // Token was refreshed in another tab
+            this.triggerEvent("token:refreshed", event.data.payload);
+            break;
+        }
+      };
+
+      logger.info("Cross-tab synchronization initialized for fallback mode");
+    } catch (error) {
+      logger.error("Failed to initialize cross-tab sync:", error);
+    }
+  }
+
+  /**
+   * Start polling for auth events as a fallback when WebSockets are unavailable
+   */
+  private startAuthEventPolling(): void {
+    // Only the leader tab should poll to avoid duplicate requests
+    if (!this.isLeader && this.hasOtherTabs()) {
+      logger.debug("Not starting auth event polling - not the leader tab");
+      return;
+    }
+
+    logger.info("Starting auth event polling as fallback mechanism");
+
+    // Set up polling interval - only if we're the leader tab
+    const pollInterval = setInterval(async () => {
+      // Skip if we're no longer in fallback mode or not the leader
+      if (this.socket?.connected || (!this.isLeader && this.hasOtherTabs())) {
+        clearInterval(pollInterval);
+        return;
+      }
+
+      try {
+        // Poll for auth events using REST API
+        if (this.tokenService) {
+          const lastEventId = localStorage.getItem("last_auth_event_id") || "0";
+
+          const response = await fetch(
+            `${API_CONFIG.API_URL}/auth/events?lastEventId=${lastEventId}`,
+            {
+              credentials: "include",
+              headers: {
+                "X-CSRF-Token": this.tokenService.getCsrfToken() || "",
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+
+            if (data.events && data.events.length > 0) {
+              // Process each event
+              data.events.forEach((event: any) => {
+                // Save the last event ID
+                localStorage.setItem("last_auth_event_id", event.id);
+
+                // Process the event
+                this.processAuthEvent(event);
+
+                // Broadcast to other tabs
+                this.broadcastAuthEvent(event);
+              });
+            }
+          }
+        }
+      } catch (error) {
+        logger.error("Error polling for auth events:", error);
+      }
+    }, 5000); // Poll every 5 seconds
+  }
+
+  /**
+   * Process an auth event
+   */
+  private processAuthEvent(event: any): void {
+    if (!event || !event.type) return;
+
+    // Map server event types to client event types
+    const eventMap: Record<string, string> = {
+      "token.refreshed": "token:refreshed",
+      "token.expired": "token:expired",
+      "session.timeout_warning": "session:timeout_warning",
+      "session.terminated": "session:terminated",
+      "security.alert": "security:alert",
+    };
+
+    const clientEventType = eventMap[event.type] || event.type;
+
+    // Trigger the event
+    this.triggerEvent(clientEventType, event.payload || {});
+  }
+
+  /**
+   * Broadcast an auth event to other tabs
+   */
+  private broadcastAuthEvent(event: any): void {
+    if (!this.broadcastChannel) return;
+
+    try {
+      this.broadcastChannel.postMessage({
+        type: "AUTH_EVENT",
+        event,
+        timestamp: Date.now(),
+        sourceTabId: this.tabId,
+      });
+    } catch (error) {
+      logger.error("Failed to broadcast auth event:", error);
+    }
+  }
+
+  /**
+   * Broadcast fallback status to other tabs
+   */
+  private broadcastFallbackStatus(enabled: boolean): void {
+    if (!this.broadcastChannel) return;
+
+    try {
+      this.broadcastChannel.postMessage({
+        type: "FALLBACK_STATUS",
+        enabled,
+        timestamp: Date.now(),
+        sourceTabId: this.tabId,
+      });
+    } catch (error) {
+      logger.error("Failed to broadcast fallback status:", error);
+    }
+  }
+
+  /**
+   * Check if there are other tabs open
+   */
+  private hasOtherTabs(): boolean {
+    try {
+      const leaderData = localStorage.getItem("auth_leader_tab");
+      if (!leaderData) return false;
+
+      const data = JSON.parse(leaderData);
+      return data.tabId !== this.tabId;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Get device fingerprint for authentication
+   */
+  private getDeviceFingerprint(): string {
+    // Use cached fingerprint if available
+    if (this.deviceFingerprint) {
+      return this.deviceFingerprint;
+    }
+
+    // Try to get fingerprint from security service
+    if (this.securityService) {
+      try {
+        const fingerprint = this.securityService.getDeviceFingerprintSync();
+        if (fingerprint) {
+          this.deviceFingerprint = fingerprint;
+          return fingerprint;
+        }
+      } catch (error) {
+        logger.warn("Failed to get device fingerprint:", error);
+      }
+    }
+
+    // Fallback to stored fingerprint in sessionStorage
+    const storedFingerprint =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("device_fingerprint")
+        : null;
+
+    if (storedFingerprint) {
+      this.deviceFingerprint = storedFingerprint;
+      return storedFingerprint;
+    }
+
+    // Last resort: generate a simple fingerprint
+    const simpleFingerprint = `device_${Math.random()
+      .toString(36)
+      .substring(2, 11)}`;
+    this.deviceFingerprint = simpleFingerprint;
+
+    // Store for future use
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("device_fingerprint", simpleFingerprint);
+    }
+
+    return simpleFingerprint;
+  }
+
+  /**
    * Get the WebSocket URL
    */
   private getWebSocketUrl(): string {
     // Use the backend URL directly - bypass the Vite proxy for WebSockets
     // This is necessary because WebSockets can't go through the Vite proxy
-    const host = "http://localhost:4290";
+    // IMPORTANT: Use the backend port (4290) instead of the frontend port (5173)
+    const host = API_CONFIG.WS_URL || "http://localhost:4290";
 
     // Log the WebSocket URL for debugging
     logger.debug(`Using WebSocket URL: ${host}`);
@@ -358,6 +613,9 @@ export class WebSocketService {
 
       // Start heartbeat
       this.startHeartbeat();
+
+      // Disable fallback mode if it was active
+      this.broadcastFallbackStatus(false);
     });
 
     this.socket.on("disconnect", (reason) => {
@@ -369,6 +627,25 @@ export class WebSocketService {
       if (this.heartbeatInterval) {
         clearInterval(this.heartbeatInterval);
         this.heartbeatInterval = null;
+      }
+
+      // If disconnected due to transport error or network issues, consider fallback mode
+      if (
+        reason === "transport error" ||
+        reason === "transport close" ||
+        reason === "ping timeout"
+      ) {
+        logger.warn(
+          `WebSocket disconnected due to ${reason}, considering fallback mode`
+        );
+
+        // Wait a bit before enabling fallback mode to allow for reconnection
+        setTimeout(() => {
+          // Only enable fallback if still disconnected
+          if (!this.socket?.connected && this.status === "disconnected") {
+            this.enableFallbackMode();
+          }
+        }, 5000); // Wait 5 seconds before enabling fallback
       }
     });
 

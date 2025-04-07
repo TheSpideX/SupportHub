@@ -21,7 +21,7 @@ const ROOM_PREFIX = {
   USER: "user:",
   DEVICE: "device:",
   SESSION: "session:",
-  TAB: "tab:"
+  TAB: "tab:",
 };
 
 /**
@@ -71,10 +71,10 @@ const recordDeviceInfo = async (userId, deviceInfo) => {
   try {
     const fingerprint = generateEnhancedFingerprint(deviceInfo);
     const now = Date.now();
-    
+
     // First, update Redis for quick access during the session
     const historyKey = `${DEVICE_HISTORY_KEY_PREFIX}${userId}`;
-    
+
     // Create device record for Redis
     const deviceRecord = {
       fingerprint,
@@ -102,35 +102,35 @@ const recordDeviceInfo = async (userId, deviceInfo) => {
       JSON.stringify(deviceRecord)
     );
     await redisClient.expire(historyKey, DEVICE_HISTORY_TTL);
-    
+
     // Now, update or create the persistent Device record in MongoDB
     let device = await Device.findOne({
-      userId: mongoose.Types.ObjectId(userId),
-      fingerprint: fingerprint
+      userId: new mongoose.Types.ObjectId(userId),
+      fingerprint: fingerprint,
     });
-    
+
     if (device) {
       // Update existing device
       device.lastActive = new Date(now);
       device.userAgent = deviceInfo.userAgent || device.userAgent;
-      
+
       // Add IP to the list if it's new
       if (deviceInfo.ip && !device.ipAddresses.includes(deviceInfo.ip)) {
         device.ipAddresses.push(deviceInfo.ip);
       }
-      
+
       await device.save();
     } else {
       // Create new device
-      const deviceId = crypto.randomBytes(16).toString('hex');
-      
+      const deviceId = crypto.randomBytes(16).toString("hex");
+
       // Create hierarchical room paths
       const userRoom = `${ROOM_PREFIX.USER}${userId}`;
       const deviceRoom = `${ROOM_PREFIX.DEVICE}${deviceId}`;
-      
+
       device = new Device({
         deviceId,
-        userId: mongoose.Types.ObjectId(userId),
+        userId: new mongoose.Types.ObjectId(userId),
         name: deviceInfo.name || `Device on ${new Date().toLocaleDateString()}`,
         fingerprint,
         userAgent: deviceInfo.userAgent || "",
@@ -140,15 +140,15 @@ const recordDeviceInfo = async (userId, deviceInfo) => {
         ipAddresses: deviceInfo.ip ? [deviceInfo.ip] : [],
         hierarchyPath: {
           userRoom,
-          deviceRoom
+          deviceRoom,
         },
         activeSessions: [],
         isVerified: false,
-        trustScore: 20 // Initial low trust score for new devices
+        trustScore: 20, // Initial low trust score for new devices
       });
-      
+
       await device.save();
-      
+
       // Also update user's device hierarchy
       await User.findByIdAndUpdate(userId, {
         $set: {
@@ -156,24 +156,27 @@ const recordDeviceInfo = async (userId, deviceInfo) => {
             deviceId,
             sessions: [],
             lastActive: new Date(now),
-            isVerified: false
-          }
-        }
+            isVerified: false,
+          },
+        },
       });
-      
+
       // Emit device:new event to user room
-      socketManager.emitToRoom(userRoom, 'security:device_new', {
-        deviceId,
-        deviceName: device.name,
-        deviceType: device.deviceType,
-        needsVerification: true
-      });
+      // Only emit if socketManager is defined
+      if (socketManager && typeof socketManager.emitToRoom === "function") {
+        socketManager.emitToRoom(userRoom, "security:device_new", {
+          deviceId,
+          deviceName: device.name,
+          deviceType: device.deviceType,
+          needsVerification: true,
+        });
+      }
     }
 
     return {
       ...deviceRecord,
       deviceId: device.deviceId,
-      isVerified: device.isVerified
+      isVerified: device.isVerified,
     };
   } catch (error) {
     logger.error("Error recording device info:", error);
@@ -193,19 +196,19 @@ const linkSessionToDevice = async (deviceId, sessionId) => {
     if (!device) {
       return false;
     }
-    
+
     // Add session to device if not already present
     if (!device.activeSessions.includes(sessionId)) {
       device.activeSessions.push(sessionId);
       await device.save();
-      
+
       // Update user's device hierarchy
       await User.findByIdAndUpdate(device.userId, {
         $addToSet: {
-          [`security.deviceHierarchy.${deviceId}.sessions`]: sessionId
-        }
+          [`security.deviceHierarchy.${deviceId}.sessions`]: sessionId,
+        },
       });
-      
+
       // Update session with device reference
       await Session.findByIdAndUpdate(sessionId, {
         $set: {
@@ -213,12 +216,12 @@ const linkSessionToDevice = async (deviceId, sessionId) => {
           hierarchyPath: {
             userRoom: device.hierarchyPath.userRoom,
             deviceRoom: device.hierarchyPath.deviceRoom,
-            sessionRoom: `${ROOM_PREFIX.SESSION}${sessionId}`
-          }
-        }
+            sessionRoom: `${ROOM_PREFIX.SESSION}${sessionId}`,
+          },
+        },
       });
     }
-    
+
     return true;
   } catch (error) {
     logger.error("Error linking session to device:", error);
@@ -235,13 +238,13 @@ const linkSessionToDevice = async (deviceId, sessionId) => {
 const verifyDeviceConsistency = async (userId, deviceInfo) => {
   try {
     const fingerprint = generateEnhancedFingerprint(deviceInfo);
-    
+
     // Check MongoDB first for persistent device records
     const device = await Device.findOne({
-      userId: mongoose.Types.ObjectId(userId),
-      fingerprint
+      userId: new mongoose.Types.ObjectId(userId),
+      fingerprint,
     });
-    
+
     if (device) {
       // Device exists in MongoDB
       return {
@@ -250,10 +253,10 @@ const verifyDeviceConsistency = async (userId, deviceInfo) => {
         suspiciousScore: calculateSuspiciousScore(device),
         lastSeen: device.lastActive,
         deviceId: device.deviceId,
-        isValid: true
+        isValid: true,
       };
     }
-    
+
     // Fall back to Redis for recently seen devices not yet in MongoDB
     const historyKey = `${DEVICE_HISTORY_KEY_PREFIX}${userId}`;
     const devices = await redisClient.hgetall(historyKey);
@@ -339,11 +342,11 @@ const generateVerificationCode = async (userId, deviceId) => {
     // Generate a 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const key = `${DEVICE_VERIFICATION_KEY_PREFIX}${userId}:${deviceId}`;
-    
+
     // Store in Redis with expiration
     await redisClient.set(key, code);
     await redisClient.expire(key, VERIFICATION_CODE_TTL);
-    
+
     return code;
   } catch (error) {
     logger.error("Error generating verification code:", error);
@@ -362,51 +365,51 @@ const verifyDevice = async (userId, deviceId, code) => {
   try {
     const key = `${DEVICE_VERIFICATION_KEY_PREFIX}${userId}:${deviceId}`;
     const storedCode = await redisClient.get(key);
-    
+
     if (!storedCode || storedCode !== code) {
       return false;
     }
-    
+
     // Code is valid, mark device as verified
     const device = await Device.findOne({
-      userId: mongoose.Types.ObjectId(userId),
-      deviceId
+      userId: new mongoose.Types.ObjectId(userId),
+      deviceId,
     });
-    
+
     if (!device) {
       return false;
     }
-    
+
     // Update device verification status
     device.isVerified = true;
     device.verifiedAt = new Date();
     device.trustScore = 80; // High initial trust for verified devices
     await device.save();
-    
+
     // Update user's device hierarchy
     await User.findByIdAndUpdate(userId, {
       $set: {
-        [`security.deviceHierarchy.${deviceId}.isVerified`]: true
-      }
+        [`security.deviceHierarchy.${deviceId}.isVerified`]: true,
+      },
     });
-    
+
     // Delete the verification code
     await redisClient.del(key);
-    
+
     // Emit device verification event to user and device rooms
     const userRoom = `${ROOM_PREFIX.USER}${userId}`;
     const deviceRoom = `${ROOM_PREFIX.DEVICE}${deviceId}`;
-    
-    socketManager.emitToRoom(userRoom, 'security:device_verified', {
+
+    socketManager.emitToRoom(userRoom, "security:device_verified", {
       deviceId,
-      deviceName: device.name
+      deviceName: device.name,
     });
-    
-    socketManager.emitToRoom(deviceRoom, 'security:device_verified', {
+
+    socketManager.emitToRoom(deviceRoom, "security:device_verified", {
       deviceId,
-      deviceName: device.name
+      deviceName: device.name,
     });
-    
+
     return true;
   } catch (error) {
     logger.error("Error verifying device:", error);
@@ -423,55 +426,55 @@ const verifyDevice = async (userId, deviceId, code) => {
 const revokeDevice = async (userId, deviceId) => {
   try {
     const device = await Device.findOne({
-      userId: mongoose.Types.ObjectId(userId),
-      deviceId
+      userId: new mongoose.Types.ObjectId(userId),
+      deviceId,
     });
-    
+
     if (!device) {
       return false;
     }
-    
+
     // Get all active sessions for this device
     const sessions = await Session.find({
       deviceId,
-      isActive: true
+      isActive: true,
     });
-    
+
     // Revoke all sessions
     for (const session of sessions) {
       session.isActive = false;
       session.revokedAt = new Date();
-      session.revokedReason = 'device_revoked';
+      session.revokedReason = "device_revoked";
       await session.save();
-      
+
       // Emit session termination event
       const sessionRoom = `${ROOM_PREFIX.SESSION}${session._id}`;
-      socketManager.emitToRoom(sessionRoom, 'session:terminated', {
-        reason: 'device_revoked'
+      socketManager.emitToRoom(sessionRoom, "session:terminated", {
+        reason: "device_revoked",
       });
     }
-    
+
     // Update device status
     device.isRevoked = true;
     device.revokedAt = new Date();
     device.activeSessions = [];
     await device.save();
-    
+
     // Update user's device hierarchy
     await User.findByIdAndUpdate(userId, {
       $set: {
         [`security.deviceHierarchy.${deviceId}.isRevoked`]: true,
-        [`security.deviceHierarchy.${deviceId}.sessions`]: []
-      }
+        [`security.deviceHierarchy.${deviceId}.sessions`]: [],
+      },
     });
-    
+
     // Emit device revocation event to user room
     const userRoom = `${ROOM_PREFIX.USER}${userId}`;
-    socketManager.emitToRoom(userRoom, 'security:device_revoked', {
+    socketManager.emitToRoom(userRoom, "security:device_revoked", {
       deviceId,
-      deviceName: device.name
+      deviceName: device.name,
     });
-    
+
     return true;
   } catch (error) {
     logger.error("Error revoking device:", error);
@@ -487,10 +490,10 @@ const revokeDevice = async (userId, deviceId) => {
 const getUserDevices = async (userId) => {
   try {
     const devices = await Device.find({
-      userId: mongoose.Types.ObjectId(userId)
+      userId: new mongoose.Types.ObjectId(userId),
     }).sort({ lastActive: -1 });
-    
-    return devices.map(device => ({
+
+    return devices.map((device) => ({
       deviceId: device.deviceId,
       name: device.name,
       browser: device.browser,
@@ -499,7 +502,7 @@ const getUserDevices = async (userId) => {
       isVerified: device.isVerified,
       lastActive: device.lastActive,
       firstSeen: device.createdAt,
-      activeSessions: device.activeSessions.length
+      activeSessions: device.activeSessions.length,
     }));
   } catch (error) {
     logger.error("Error getting user devices:", error);
@@ -514,39 +517,39 @@ const getUserDevices = async (userId) => {
  */
 const calculateSuspiciousScore = (device) => {
   let score = 0;
-  
+
   // Base score for verified devices
   if (device.isVerified) {
     score = 10; // Low base score for verified devices
   } else {
     score = 30; // Higher base score for unverified devices
   }
-  
+
   // Check last activity
-  const daysSinceLastActive = 
+  const daysSinceLastActive =
     (Date.now() - device.lastActive.getTime()) / (1000 * 60 * 60 * 24);
-  
+
   // Device hasn't been used in a while
   if (daysSinceLastActive > 30) {
     score += 20;
   } else if (daysSinceLastActive > 7) {
     score += 10;
   }
-  
+
   // Check device age
-  const daysSinceCreated = 
+  const daysSinceCreated =
     (Date.now() - device.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-  
+
   // New device (less than 3 days old)
   if (daysSinceCreated < 3) {
     score += 15;
   }
-  
+
   // Adjust based on trust score if available
   if (device.trustScore) {
-    score = Math.max(0, score - (device.trustScore / 10));
+    score = Math.max(0, score - device.trustScore / 10);
   }
-  
+
   return Math.min(100, score);
 };
 
@@ -556,17 +559,17 @@ const calculateSuspiciousScore = (device) => {
  * @returns {string} - Device type
  */
 const getDeviceType = (deviceInfo) => {
-  const ua = deviceInfo.userAgent || '';
-  
+  const ua = deviceInfo.userAgent || "";
+
   if (/mobile/i.test(ua)) {
-    return 'mobile';
+    return "mobile";
   } else if (/tablet/i.test(ua)) {
-    return 'tablet';
+    return "tablet";
   } else if (/windows|macintosh|linux/i.test(ua)) {
-    return 'desktop';
+    return "desktop";
   }
-  
-  return 'unknown';
+
+  return "unknown";
 };
 
 /**
@@ -578,27 +581,40 @@ const getDeviceType = (deviceInfo) => {
  * @param {string} tabId - Tab ID
  * @returns {Promise<boolean>} - Success status
  */
-const subscribeToDeviceRooms = async (socket, userId, deviceId, sessionId, tabId) => {
+const subscribeToDeviceRooms = async (
+  socket,
+  userId,
+  deviceId,
+  sessionId,
+  tabId
+) => {
   try {
     // Create room hierarchy using the room registry
-    const rooms = await roomRegistry.createRoomHierarchy(userId, deviceId, sessionId, tabId);
-    
+    const rooms = await roomRegistry.createRoomHierarchy(
+      userId,
+      deviceId,
+      sessionId,
+      tabId
+    );
+
     // Join all rooms
     await socket.join(rooms.userRoom);
     await socket.join(rooms.deviceRoom);
     await socket.join(rooms.sessionRoom);
     await socket.join(rooms.tabRoom);
-    
+
     // Store room info in socket for cleanup
     socket.deviceRooms = rooms;
-    
+
     // Update session with tab information
     await Session.findByIdAndUpdate(sessionId, {
-      $addToSet: { activeTabs: tabId }
+      $addToSet: { activeTabs: tabId },
     });
-    
-    logger.debug(`Socket ${socket.id} subscribed to rooms: ${JSON.stringify(rooms)}`);
-    
+
+    logger.debug(
+      `Socket ${socket.id} subscribed to rooms: ${JSON.stringify(rooms)}`
+    );
+
     return true;
   } catch (error) {
     logger.error("Error subscribing to device rooms:", error);
@@ -615,48 +631,48 @@ const subscribeToDeviceRooms = async (socket, userId, deviceId, sessionId, tabId
 const assessDeviceSecurity = async (userId, deviceInfo) => {
   try {
     const fingerprint = generateEnhancedFingerprint(deviceInfo);
-    
+
     // Get device from database
     const device = await Device.findOne({
-      userId: mongoose.Types.ObjectId(userId),
-      fingerprint
+      userId: new mongoose.Types.ObjectId(userId),
+      fingerprint,
     });
-    
+
     if (!device) {
       return {
         isKnown: false,
-        trustLevel: 'low',
-        riskLevel: 'medium',
-        riskFactors: ['new_device'],
-        requiresVerification: true
+        trustLevel: "low",
+        riskLevel: "medium",
+        riskFactors: ["new_device"],
+        requiresVerification: true,
       };
     }
-    
+
     // Calculate suspicious score
     const suspiciousScore = calculateSuspiciousScore(device);
-    
+
     // Determine risk level based on suspicious score
-    let riskLevel = 'low';
+    let riskLevel = "low";
     if (suspiciousScore > 70) {
-      riskLevel = 'high';
+      riskLevel = "high";
     } else if (suspiciousScore > 40) {
-      riskLevel = 'medium';
+      riskLevel = "medium";
     }
-    
+
     // Determine trust level based on verification status and history
-    let trustLevel = 'medium';
+    let trustLevel = "medium";
     if (device.isVerified && device.trustScore > 70) {
-      trustLevel = 'high';
+      trustLevel = "high";
     } else if (!device.isVerified || device.trustScore < 30) {
-      trustLevel = 'low';
+      trustLevel = "low";
     }
-    
+
     // Determine risk factors
     const riskFactors = [];
-    if (suspiciousScore > 40) riskFactors.push('suspicious_behavior');
-    if (!device.isVerified) riskFactors.push('unverified_device');
-    if (device.ipAddresses.length > 5) riskFactors.push('multiple_locations');
-    
+    if (suspiciousScore > 40) riskFactors.push("suspicious_behavior");
+    if (!device.isVerified) riskFactors.push("unverified_device");
+    if (device.ipAddresses.length > 5) riskFactors.push("multiple_locations");
+
     return {
       isKnown: true,
       deviceId: device.deviceId,
@@ -664,11 +680,14 @@ const assessDeviceSecurity = async (userId, deviceInfo) => {
       riskLevel,
       riskFactors,
       requiresVerification: !device.isVerified,
-      lastSeen: device.lastActive
+      lastSeen: device.lastActive,
     };
   } catch (error) {
     logger.error("Error assessing device security:", error);
-    throw new AuthError("Failed to assess device security", "SECURITY_ASSESSMENT_FAILED");
+    throw new AuthError(
+      "Failed to assess device security",
+      "SECURITY_ASSESSMENT_FAILED"
+    );
   }
 };
 
@@ -683,5 +702,5 @@ module.exports = {
   revokeDevice,
   subscribeToDeviceRooms,
   assessDeviceSecurity,
-  ROOM_PREFIX
+  ROOM_PREFIX,
 };

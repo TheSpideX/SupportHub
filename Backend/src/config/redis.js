@@ -20,6 +20,8 @@ const redisCircuitBreaker = new CircuitBreaker("redis", {
 // Add fallback storage mechanism
 const MemoryStore = {
   data: new Map(),
+  hashData: new Map(), // For hash operations
+  setData: new Map(), // For set operations
   get: async (key) => MemoryStore.data.get(key),
   set: async (key, value, mode, duration) => {
     MemoryStore.data.set(key, value);
@@ -41,6 +43,76 @@ const MemoryStore = {
     }
 
     return matchingKeys;
+  },
+  // Hash operations
+  hget: async (key, field) => {
+    const hash = MemoryStore.hashData.get(key) || new Map();
+    return hash.get(field) || null;
+  },
+  hset: async (key, field, value) => {
+    let hash = MemoryStore.hashData.get(key);
+    if (!hash) {
+      hash = new Map();
+      MemoryStore.hashData.set(key, hash);
+    }
+    hash.set(field, value);
+    return 1;
+  },
+  hgetall: async (key) => {
+    const hash = MemoryStore.hashData.get(key) || new Map();
+    const result = {};
+    for (const [field, value] of hash.entries()) {
+      result[field] = value;
+    }
+    return result;
+  },
+  hmset: async (key, obj) => {
+    let hash = MemoryStore.hashData.get(key);
+    if (!hash) {
+      hash = new Map();
+      MemoryStore.hashData.set(key, hash);
+    }
+    for (const [field, value] of Object.entries(obj)) {
+      hash.set(field, value);
+    }
+    return "OK";
+  },
+  // Set operations
+  sMembers: async (key) => {
+    const set = MemoryStore.setData.get(key);
+    if (!set) {
+      return [];
+    }
+    return Array.from(set);
+  },
+  sAdd: async (key, ...members) => {
+    let set = MemoryStore.setData.get(key);
+    if (!set) {
+      set = new Set();
+      MemoryStore.setData.set(key, set);
+    }
+    let added = 0;
+    for (const member of members) {
+      if (!set.has(member)) {
+        set.add(member);
+        added++;
+      }
+    }
+    return added;
+  },
+  sRem: async (key, ...members) => {
+    const set = MemoryStore.setData.get(key);
+    if (!set) {
+      return 0;
+    }
+    let removed = 0;
+    for (const member of members) {
+      if (set.has(member)) {
+        set.delete(member);
+        removed++;
+      }
+    }
+    return removed;
   },
   scan: async (cursor, match, count) => {
     // Simple implementation of scan for in-memory
@@ -71,7 +143,7 @@ const MemoryStore = {
   expire: async (key, seconds) => {
     const item = MemoryStore.data.get(key);
     if (item) {
-      item.expiry = Date.now() + (seconds * 1000);
+      item.expiry = Date.now() + seconds * 1000;
       return 1;
     }
     return 0;
@@ -188,13 +260,33 @@ const redisWrapper = {
   set: async (key, value, mode, duration) => {
     try {
       // Validate duration if EX mode is used
-      if (mode === 'EX' && (isNaN(duration) || duration <= 0)) {
-        logger.warn(`Invalid Redis expiration value: ${duration}, using default`);
+      if (mode === "EX" && (isNaN(duration) || duration <= 0)) {
+        logger.warn(
+          `Invalid Redis expiration value: ${duration}, using default`
+        );
         duration = 3600; // Default to 1 hour
       }
-      
+
       if (redisAvailable && redisCircuitBreaker.isAllowed()) {
-        const result = await redisClient.set(key, value, mode, duration);
+        let result;
+
+        // Handle different Redis set command formats
+        if (mode === "EX" && duration) {
+          // Use the correct syntax for setting with expiry
+          const options = {
+            EX: duration,
+          };
+          result = await redisClient.set(key, value, options);
+        } else if (mode && duration) {
+          // For other modes like PX, NX, XX
+          const options = {};
+          options[mode] = duration;
+          result = await redisClient.set(key, value, options);
+        } else {
+          // Simple set without options
+          result = await redisClient.set(key, value);
+        }
+
         redisCircuitBreaker.recordSuccess();
         return result;
       }
@@ -262,6 +354,21 @@ const redisWrapper = {
       return await MemoryStore.hgetall(key);
     }
   },
+  // Add hget method
+  hget: async (key, field) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.hget(key, field);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.hget(key, field);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis hget error, using fallback:", error);
+      return await MemoryStore.hget(key, field);
+    }
+  },
   hmset: async (key, obj) => {
     try {
       if (redisAvailable && redisCircuitBreaker.isAllowed()) {
@@ -274,6 +381,66 @@ const redisWrapper = {
       redisCircuitBreaker.recordFailure();
       logger.error("Redis hmset error, using fallback:", error);
       return await MemoryStore.hmset(key, obj);
+    }
+  },
+  // Add hset method
+  hset: async (key, field, value) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.hset(key, field, value);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.hset(key, field, value);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis hset error, using fallback:", error);
+      return await MemoryStore.hset(key, field, value);
+    }
+  },
+  // Add sMembers method
+  sMembers: async (key) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.smembers(key);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.sMembers(key);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis sMembers error, using fallback:", error);
+      return await MemoryStore.sMembers(key);
+    }
+  },
+  // Add sAdd method
+  sAdd: async (key, ...members) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.sadd(key, ...members);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.sAdd(key, ...members);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis sAdd error, using fallback:", error);
+      return await MemoryStore.sAdd(key, ...members);
+    }
+  },
+  // Add sRem method
+  sRem: async (key, ...members) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.srem(key, ...members);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.sRem(key, ...members);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis sRem error, using fallback:", error);
+      return await MemoryStore.sRem(key, ...members);
     }
   },
   // For EXPIRE command (sets TTL in seconds)
@@ -299,11 +466,17 @@ const redisWrapper = {
         redisCircuitBreaker.recordSuccess();
         return result;
       }
-      return await MemoryStore.expire(key, Math.max(1, Math.floor(timestamp - Date.now()/1000)));
+      return await MemoryStore.expire(
+        key,
+        Math.max(1, Math.floor(timestamp - Date.now() / 1000))
+      );
     } catch (error) {
       redisCircuitBreaker.recordFailure();
       logger.error("Redis expireat error, using fallback:", error);
-      return await MemoryStore.expire(key, Math.max(1, Math.floor(timestamp - Date.now()/1000)));
+      return await MemoryStore.expire(
+        key,
+        Math.max(1, Math.floor(timestamp - Date.now() / 1000))
+      );
     }
   },
   quit: async () => {
@@ -313,12 +486,14 @@ const redisWrapper = {
         const actualRedisClient = redisClient;
         const actualRedisPublisher = redisPublisher;
         const actualRedisSubscriber = redisSubscriber;
-        
+
         // Close connections
         if (actualRedisClient) await actualRedisClient.quit().catch(() => {});
-        if (actualRedisPublisher) await actualRedisPublisher.quit().catch(() => {});
-        if (actualRedisSubscriber) await actualRedisSubscriber.quit().catch(() => {});
-        
+        if (actualRedisPublisher)
+          await actualRedisPublisher.quit().catch(() => {});
+        if (actualRedisSubscriber)
+          await actualRedisSubscriber.quit().catch(() => {});
+
         return true;
       }
       return true; // Memory store doesn't need to be closed
@@ -326,7 +501,7 @@ const redisWrapper = {
       logger.error("Redis quit error:", error);
       return false;
     }
-  }
+  },
 };
 
 // Initialize the Redis clients
@@ -367,33 +542,33 @@ const waitForRedisReady = (timeoutMs = 5000) => {
     if (redisAvailable) {
       return resolve(true);
     }
-    
+
     // Set a timeout
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error("Redis connection timeout"));
     }, timeoutMs);
-    
+
     // Set up event listeners
     const onConnect = () => {
       cleanup();
       resolve(true);
     };
-    
+
     const onError = (err) => {
       cleanup();
       reject(err);
     };
-    
+
     // Add temporary listeners
-    redisClient.on('connect', onConnect);
-    redisClient.on('error', onError);
-    
+    redisClient.on("connect", onConnect);
+    redisClient.on("error", onError);
+
     // Cleanup function to remove listeners
     function cleanup() {
       clearTimeout(timeout);
-      redisClient.removeListener('connect', onConnect);
-      redisClient.removeListener('error', onError);
+      redisClient.removeListener("connect", onConnect);
+      redisClient.removeListener("error", onError);
     }
   });
 };
@@ -408,5 +583,5 @@ module.exports = {
   // Expose the actual clients for shutdown purposes
   _redisClient: redisClient,
   _redisPublisher: redisPublisher,
-  _redisSubscriber: redisSubscriber
+  _redisSubscriber: redisSubscriber,
 };

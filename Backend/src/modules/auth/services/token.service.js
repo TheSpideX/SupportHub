@@ -27,12 +27,14 @@ let isInitialized = false;
  * @returns {string}
  */
 const generateToken = (payload, type = "access") => {
-  if (!tokenConfig || !tokenConfig[type]) {
+  if (!tokenConfig || !tokenConfig.secrets || !tokenConfig.secrets[type]) {
     logger.error(`Token configuration for ${type} is missing`);
     throw new Error(`Token configuration for ${type} is missing`);
   }
 
-  const { secret, expiresIn, algorithm } = tokenConfig[type];
+  const secret = tokenConfig.secrets[type];
+  const expiresIn = tokenConfig.expiry[type];
+  const algorithm = tokenConfig.jwt?.algorithms?.[type] || "HS256";
 
   if (!secret) {
     logger.error(`Secret for ${type} token is missing`);
@@ -124,12 +126,9 @@ exports.generateAuthTokens = async (user, sessionData = {}) => {
   const csrfToken = crypto.randomBytes(32).toString("hex");
 
   // Store CSRF token in Redis with user ID association
-  await redisClient.set(
-    `csrf:${csrfToken}`,
-    user._id.toString(),
-    "EX",
-    tokenConfig.access.expiresIn
-  );
+  await redisClient.set(`csrf:${csrfToken}`, user._id.toString(), {
+    EX: tokenConfig.expiry.access,
+  });
 
   return {
     accessToken,

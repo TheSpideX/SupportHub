@@ -70,21 +70,26 @@ const UserSchema = new mongoose.Schema(
         required: true,
         select: false, // This makes it not returned by default
         minlength: [8, "Password must be at least 8 characters"],
-        validate: [{
-          validator: function(password) {
-            // Only validate password if it's being modified (not during login)
-            if (this.isModified('security.password')) {
-              return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password);
-            }
-            return true;
+        validate: [
+          {
+            validator: function (password) {
+              // Only validate password if it's being modified (not during login)
+              if (this.isModified("security.password")) {
+                return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
+                  password
+                );
+              }
+              return true;
+            },
+            message:
+              "Password must contain uppercase, lowercase, number, and special character",
           },
-          message: "Password must contain uppercase, lowercase, number, and special character"
-        }],
+        ],
       },
       passwordChangedAt: Date,
       tokenVersion: {
         type: Number,
-        default: 0
+        default: 0,
       },
       loginAttempts: {
         type: Number,
@@ -94,23 +99,25 @@ const UserSchema = new mongoose.Schema(
       lockUntil: {
         type: Date,
       },
-      activeSessions: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Session'
-      }],
+      activeSessions: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Session",
+        },
+      ],
       deviceHierarchy: {
         type: Map,
         of: {
           deviceId: String,
           sessions: [String],
           lastActive: Date,
-          isVerified: Boolean
-        }
+          isVerified: Boolean,
+        },
       },
       tokenVersion: {
         type: Number,
-        default: 0
-      }
+        default: 0,
+      },
     },
     role: {
       type: String,
@@ -175,22 +182,26 @@ const UserSchema = new mongoose.Schema(
       lastMetricsUpdate: Date,
     },
     // WebSocket-specific fields
-    activeSessions: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Session'
-    }],
-    activeDevices: [{
-      type: String,
-      ref: 'Device'
-    }],
+    activeSessions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Session",
+      },
+    ],
+    activeDevices: [
+      {
+        type: String,
+        ref: "Device",
+      },
+    ],
     tokenVersion: {
       type: Number,
-      default: 0
+      default: 0,
     },
     lastSocketActivity: {
       type: Date,
-      default: Date.now
-    }
+      default: Date.now,
+    },
   },
   {
     timestamps: true,
@@ -202,7 +213,12 @@ const UserSchema = new mongoose.Schema(
 // Add schema-level validation
 UserSchema.pre("validate", function (next) {
   // Complex validation that requires multiple fields
-  if (this.isModified("security.passwordHistory")) {
+  if (
+    this.isModified("security.passwordHistory") &&
+    this.security &&
+    this.security.passwordHistory &&
+    Array.isArray(this.security.passwordHistory)
+  ) {
     const uniquePasswords = new Set(
       this.security.passwordHistory.map((ph) => ph.hash)
     );
@@ -252,37 +268,40 @@ UserSchema.pre("save", async function (next) {
 });
 
 // Method to compare passwords
-UserSchema.methods.comparePassword = async function(candidatePassword) {
+UserSchema.methods.comparePassword = async function (candidatePassword) {
   try {
     // Debug log
-    console.log('comparePassword called with:', {
+    console.log("comparePassword called with:", {
       candidatePassword: !!candidatePassword,
       hasSecurityPassword: !!this.security?.password,
-      passwordField: this.security?.password ? 'exists' : 'missing'
+      passwordField: this.security?.password ? "exists" : "missing",
     });
-    
+
     // If security.password field is not selected, fetch it
     let userPassword = this.security?.password;
     if (!userPassword) {
-      const user = await mongoose.model('User').findById(this._id).select('+security.password');
+      const user = await mongoose
+        .model("User")
+        .findById(this._id)
+        .select("+security.password");
       if (!user) {
-        console.log('User not found when fetching password');
+        console.log("User not found when fetching password");
         return false;
       }
       userPassword = user.security?.password;
     }
-    
+
     if (!userPassword) {
-      console.log('Password field is still missing after fetch');
+      console.log("Password field is still missing after fetch");
       return false;
     }
-    
+
     // Compare passwords
     const isMatch = await bcrypt.compare(candidatePassword, userPassword);
-    console.log('Password comparison result:', isMatch);
+    console.log("Password comparison result:", isMatch);
     return isMatch;
   } catch (error) {
-    console.error('Error comparing passwords:', error);
+    console.error("Error comparing passwords:", error);
     return false;
   }
 };
@@ -314,25 +333,33 @@ UserSchema.methods.createPasswordResetToken = function () {
 };
 
 // Method to check if user account is locked
-UserSchema.methods.isLocked = function() {
-  console.log('Checking if account is locked:', {
+UserSchema.methods.isLocked = function () {
+  console.log("Checking if account is locked:", {
     hasSecurity: !!this.security,
     hasLockUntil: !!this.security?.lockUntil,
     lockUntil: this.security?.lockUntil,
-    currentTime: new Date()
+    currentTime: new Date(),
   });
-  
+
   // If lockUntil exists and is greater than current time, account is locked
-  if (this.security && this.security.lockUntil && this.security.lockUntil > Date.now()) {
+  if (
+    this.security &&
+    this.security.lockUntil &&
+    this.security.lockUntil > Date.now()
+  ) {
     return true;
   }
   return false;
 };
 
 // Method to unlock account if lock period has expired
-UserSchema.methods.checkAndUnlockAccount = async function() {
+UserSchema.methods.checkAndUnlockAccount = async function () {
   // If account is locked but lock period has expired, unlock it
-  if (this.security && this.security.lockUntil && this.security.lockUntil <= Date.now()) {
+  if (
+    this.security &&
+    this.security.lockUntil &&
+    this.security.lockUntil <= Date.now()
+  ) {
     this.security.lockUntil = undefined;
     this.security.loginAttempts = 0;
     await this.save();
@@ -390,76 +417,79 @@ UserSchema.methods.addLoginHistory = function (loginData) {
 // NEW METHODS BASED ON REQUIREMENTS
 
 // Find user by email (static method)
-UserSchema.statics.findByEmail = async function(email) {
+UserSchema.statics.findByEmail = async function (email) {
   return this.findOne({ email: email.toLowerCase() });
 };
 
 // Validate password (instance method)
-UserSchema.methods.validatePassword = async function(password) {
+UserSchema.methods.validatePassword = async function (password) {
   // First check if account is locked
   if (this.isLocked()) {
     return {
       isValid: false,
-      reason: 'ACCOUNT_LOCKED',
-      message: 'Account is temporarily locked due to too many failed attempts'
+      reason: "ACCOUNT_LOCKED",
+      message: "Account is temporarily locked due to too many failed attempts",
     };
   }
 
   // Get user with password field (which is normally excluded)
-  const user = await mongoose.model('User').findById(this._id).select('+security.password');
-  
+  const user = await mongoose
+    .model("User")
+    .findById(this._id)
+    .select("+security.password");
+
   if (!user) {
     return {
       isValid: false,
-      reason: 'USER_NOT_FOUND',
-      message: 'User not found'
+      reason: "USER_NOT_FOUND",
+      message: "User not found",
     };
   }
 
   try {
     const isMatch = await user.comparePassword(password);
-    
+
     if (isMatch) {
       // Reset login attempts on successful login
       await user.resetLoginAttempts();
       return {
-        isValid: true
+        isValid: true,
       };
     } else {
       // Increment login attempts on failed login
       await user.incrementLoginAttempts();
       return {
         isValid: false,
-        reason: 'INVALID_PASSWORD',
-        message: 'Invalid password',
-        attemptsRemaining: Math.max(0, 5 - (user.security.loginAttempts + 1))
+        reason: "INVALID_PASSWORD",
+        message: "Invalid password",
+        attemptsRemaining: Math.max(0, 5 - (user.security.loginAttempts + 1)),
       };
     }
   } catch (error) {
     return {
       isValid: false,
-      reason: 'VALIDATION_ERROR',
-      message: 'Password validation failed'
+      reason: "VALIDATION_ERROR",
+      message: "Password validation failed",
     };
   }
 };
 
 // Increment token version (for refresh token invalidation)
-UserSchema.methods.incrementTokenVersion = async function() {
+UserSchema.methods.incrementTokenVersion = async function () {
   this.security.tokenVersion += 1;
   return this.save();
 };
 
 // Check if user is active
-UserSchema.methods.isActive = function() {
+UserSchema.methods.isActive = function () {
   return this.status.isActive && !this.isLocked();
 };
 
 // Add device to trusted devices
-UserSchema.methods.addTrustedDevice = function(deviceInfo) {
+UserSchema.methods.addTrustedDevice = function (deviceInfo) {
   // Check if device already exists
   const existingDeviceIndex = this.security.trustedDevices.findIndex(
-    device => device.fingerprint === deviceInfo.fingerprint
+    (device) => device.fingerprint === deviceInfo.fingerprint
   );
 
   const deviceData = {
@@ -468,19 +498,19 @@ UserSchema.methods.addTrustedDevice = function(deviceInfo) {
     userAgent: deviceInfo.userAgent,
     lastUsed: new Date(),
     ipAddress: deviceInfo.ipAddress,
-    trusted: true
+    trusted: true,
   };
 
   if (existingDeviceIndex >= 0) {
     // Update existing device
     this.security.trustedDevices[existingDeviceIndex] = {
       ...this.security.trustedDevices[existingDeviceIndex],
-      ...deviceData
+      ...deviceData,
     };
   } else {
     // Add new device
     this.security.trustedDevices.push(deviceData);
-    
+
     // Keep only last 5 devices instead of 10
     if (this.security.trustedDevices.length > 5) {
       this.security.trustedDevices.shift();
@@ -491,27 +521,27 @@ UserSchema.methods.addTrustedDevice = function(deviceInfo) {
 };
 
 // Remove device from trusted devices
-UserSchema.methods.removeTrustedDevice = function(fingerprint) {
+UserSchema.methods.removeTrustedDevice = function (fingerprint) {
   this.security.trustedDevices = this.security.trustedDevices.filter(
-    device => device.fingerprint !== fingerprint
+    (device) => device.fingerprint !== fingerprint
   );
   return this.save();
 };
 
 // Check if device is trusted
-UserSchema.methods.isDeviceTrusted = function(fingerprint) {
+UserSchema.methods.isDeviceTrusted = function (fingerprint) {
   return this.security.trustedDevices.some(
-    device => device.fingerprint === fingerprint && device.trusted
+    (device) => device.fingerprint === fingerprint && device.trusted
   );
 };
 
 // Generate backup codes for 2FA
-UserSchema.methods.generateBackupCodes = function() {
+UserSchema.methods.generateBackupCodes = function () {
   const codes = [];
   for (let i = 0; i < 10; i++) {
     codes.push({
-      code: crypto.randomBytes(4).toString('hex'),
-      used: false
+      code: crypto.randomBytes(4).toString("hex"),
+      used: false,
     });
   }
   this.security.backupCodes = codes;
@@ -519,44 +549,49 @@ UserSchema.methods.generateBackupCodes = function() {
 };
 
 // Verify backup code
-UserSchema.methods.verifyBackupCode = async function(code) {
-  const backupCode = this.security.backupCodes.find(bc => bc.code === code && !bc.used);
-  
+UserSchema.methods.verifyBackupCode = async function (code) {
+  const backupCode = this.security.backupCodes.find(
+    (bc) => bc.code === code && !bc.used
+  );
+
   if (backupCode) {
     backupCode.used = true;
     await this.save();
     return true;
   }
-  
+
   return false;
 };
 
 // Check if IP is allowed
-UserSchema.methods.isIpAllowed = function(ipAddress) {
+UserSchema.methods.isIpAllowed = function (ipAddress) {
   // If IP restrictions are not enabled, all IPs are allowed
   if (!this.security.ipRestrictions.enabled) {
     return true;
   }
-  
+
   // Check if IP is explicitly blocked
   if (this.security.ipRestrictions.blockedIps.includes(ipAddress)) {
     return false;
   }
-  
+
   // Check if IP is explicitly allowed
   if (this.security.ipRestrictions.allowedIps.includes(ipAddress)) {
     return true;
   }
-  
+
   // If not in either list, use the allowUnknown setting
   return this.security.ipRestrictions.allowUnknown;
 };
 
 // Add indexes
-UserSchema.index({ email: 1 }, { 
-  unique: true,
-  name: 'email_unique_index'
-});
+UserSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    name: "email_unique_index",
+  }
+);
 UserSchema.index({ role: 1 });
 UserSchema.index({ "profile.firstName": 1, "profile.lastName": 1 });
 UserSchema.index({ "security.lockUntil": 1 });
@@ -566,87 +601,86 @@ UserSchema.index({ "security.loginAttempts": 1 });
 UserSchema.index({ "security.trustedDevices.fingerprint": 1 });
 
 // Add a static method to help with debugging
-UserSchema.statics.findByIdWithLogging = async function(id) {
-  console.log('Looking up user by ID:', id);
-  console.log('ID type:', typeof id);
-  console.log('Is valid ObjectId:', mongoose.Types.ObjectId.isValid(id));
-  
+UserSchema.statics.findByIdWithLogging = async function (id) {
+  console.log("Looking up user by ID:", id);
+  console.log("ID type:", typeof id);
+  console.log("Is valid ObjectId:", mongoose.Types.ObjectId.isValid(id));
+
   try {
     const user = await this.findById(id);
-    console.log('User found:', !!user);
+    console.log("User found:", !!user);
     return user;
   } catch (error) {
-    console.error('Error finding user by ID:', error);
+    console.error("Error finding user by ID:", error);
     return null;
   }
 };
 
 // Add a method to check if a user exists with a specific ID
-UserSchema.statics.checkUserExists = async function(id) {
+UserSchema.statics.checkUserExists = async function (id) {
   try {
     // Try different formats of the ID
-    const formats = [
-      id,
-      id.toString(),
-      new mongoose.Types.ObjectId(id)
-    ];
-    
+    const formats = [id, id.toString(), new mongoose.Types.ObjectId(id)];
+
     for (const format of formats) {
       console.log(`Checking user existence with ID format: ${format}`);
       const exists = await this.exists({ _id: format });
       console.log(`User exists with format ${format}:`, !!exists);
-      
+
       if (exists) {
         return { exists: true, format };
       }
     }
-    
+
     return { exists: false };
   } catch (error) {
-    console.error('Error checking user existence:', error);
+    console.error("Error checking user existence:", error);
     return { exists: false, error: error.message };
   }
 };
 
 // Add WebSocket-related methods
-UserSchema.methods.getRoomId = function() {
+UserSchema.methods.getRoomId = function () {
   return `user:${this._id}`;
 };
 
-UserSchema.methods.propagateSecurityEvent = async function(eventType, eventData) {
-  const Room = mongoose.model('Room');
+UserSchema.methods.propagateSecurityEvent = async function (
+  eventType,
+  eventData
+) {
+  const Room = mongoose.model("Room");
   const userRoom = await Room.findOne({ roomId: this.getRoomId() });
-  
+
   if (!userRoom) return null;
-  
+
   // Create security event
-  const SecurityEvent = mongoose.model('SecurityEvent');
+  const SecurityEvent = mongoose.model("SecurityEvent");
   const event = new SecurityEvent({
     userId: this._id,
     eventType,
     metadata: eventData,
     roomId: userRoom.roomId,
-    propagationPath: [userRoom.roomId]
+    propagationPath: [userRoom.roomId],
   });
-  
+
   await event.save();
-  
+
   // Return event for further propagation
   return event;
 };
 
-UserSchema.methods.invalidateAllTokens = async function() {
+UserSchema.methods.invalidateAllTokens = async function () {
   this.tokenVersion += 1;
   await this.save();
-  
+
   // Propagate token invalidation event
-  return this.propagateSecurityEvent('token_invalidated', {
+  return this.propagateSecurityEvent("token_invalidated", {
     tokenVersion: this.tokenVersion,
-    reason: 'user_initiated'
+    reason: "user_initiated",
   });
 };
 
-UserSchema.methods.updateSocketActivity = function() {
+UserSchema.methods.updateSocketActivity = function () {
   this.lastSocketActivity = new Date();
   return this.save();
 };

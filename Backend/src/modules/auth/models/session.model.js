@@ -94,7 +94,7 @@ const SessionSchema = new mongoose.Schema(
     },
     deviceId: {
       type: String,
-      required: true,
+      required: false, // Make optional for initial session creation
       index: true,
       ref: "Device",
     },
@@ -120,13 +120,17 @@ const SessionSchema = new mongoose.Schema(
     hierarchy: {
       userRoom: {
         type: String,
-        required: true,
+        required: false, // Make optional for initial session creation
         index: true,
       },
       deviceRoom: {
         type: String,
-        required: true,
+        required: false, // Make optional for initial session creation
         index: true,
+      },
+      sessionRoom: {
+        type: String,
+        required: false,
       },
     },
     roomSubscriptions: [
@@ -230,14 +234,12 @@ SessionSchema.path("tabs").validate(function (tabs) {
 
 // Validate hierarchical integrity
 SessionSchema.pre("save", function (next) {
-  // Ensure the session has both userId and deviceId
-  if (!this.userId || !this.deviceId) {
-    return next(
-      new Error(
-        "Session must have both userId and deviceId for proper hierarchy"
-      )
-    );
+  // Ensure the session has userId
+  if (!this.userId) {
+    return next(new Error("Session must have userId for proper hierarchy"));
   }
+
+  // deviceId is now optional
 
   // Ensure hierarchyPath is properly set
   if (this.isNew || !this.hierarchyPath) {
