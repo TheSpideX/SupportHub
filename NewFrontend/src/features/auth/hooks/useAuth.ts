@@ -15,10 +15,10 @@ import {
 import { getAuthService } from '../services';
 import { LoginCredentials, RegistrationData, PasswordResetData, User } from '../types/auth.types';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import { logger } from '@/utils/logger';
+import { toast } from "react-toastify";
+import { logger } from "@/utils/logger";
 import { RootState } from '@/store';
-import { APP_ROUTES } from '@/utils/routes';
+import { APP_ROUTES } from "@/config/routes";
 
 /**
  * Custom hook for authentication state and operations
