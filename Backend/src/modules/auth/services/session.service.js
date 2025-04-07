@@ -1,13 +1,13 @@
 const { redisClient } = require("../../../config/redis");
 const logger = require("../../../utils/logger");
 const Session = require("../models/session.model");
-const config = require('../config');
+const config = require("../config");
 const { roomRegistry } = config;
-const socketService = require('./socket.service');
+const socketService = require("./socket.service");
 const cookie = require("cookie");
 const crypto = require("crypto");
 const tokenService = require("./token.service");
-const sessionConfig = require('../config/session.config');
+const sessionConfig = require("../config/session.config");
 
 // Add this line to define the cleanupIntervals array
 const cleanupIntervals = [];
@@ -18,12 +18,12 @@ const ROOM_TYPES = {
   USER: roomRegistry.roomTypes.user.prefix,
   DEVICE: roomRegistry.roomTypes.device.prefix,
   SESSION: roomRegistry.roomTypes.session.prefix,
-  TAB: roomRegistry.roomTypes.tab.prefix
+  TAB: roomRegistry.roomTypes.tab.prefix,
 };
 
 // Helper function for room management using config
 const createRoomName = (type, id) => {
-  const prefix = type.endsWith(':') ? type : `${type}:`;
+  const prefix = type.endsWith(":") ? type : `${type}:`;
   return `${prefix}${id}`;
 };
 
@@ -61,8 +61,42 @@ exports.createSession = async ({
   sessionData = {},
 }) => {
   try {
-    // Create a session document
+    // IMPROVEMENT: Check for maximum concurrent sessions
+    const activeSessions = await Session.countDocuments({
+      userId: userId.toString(),
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    });
+
+    // If max sessions exceeded, terminate the oldest session
+    if (activeSessions >= sessionConfig.maxConcurrentSessions) {
+      logger.info(
+        `User ${userId} has reached max concurrent sessions (${sessionConfig.maxConcurrentSessions}). Terminating oldest session.`
+      );
+
+      // Find and terminate the oldest session
+      const oldestSession = await Session.findOne({
+        userId: userId.toString(),
+        isActive: true,
+      })
+        .sort({ lastActivity: 1 })
+        .limit(1);
+
+      if (oldestSession) {
+        await exports.terminateSession(
+          oldestSession._id,
+          userId,
+          "max_sessions_exceeded"
+        );
+      }
+    }
+
+    // Generate a unique session ID with improved entropy
+    const sessionId = crypto.randomBytes(32).toString("hex");
+
+    // Create a session document with enhanced security metadata
     const session = await Session.create({
+      _id: sessionId,
       userId: userId.toString(),
       isActive: true,
       expiresAt: new Date(Date.now() + sessionConfig.store.ttl * 1000),
@@ -72,20 +106,35 @@ exports.createSession = async ({
         ...deviceInfo,
       },
       lastActivity: new Date(),
+      securityMetadata: {
+        createdAt: new Date(),
+        ipAddress,
+        geoLocation: deviceInfo?.geoLocation || null,
+        deviceFingerprint: deviceInfo?.fingerprint || null,
+      },
       ...sessionData,
     });
 
-    // Store session in Redis for faster access
+    // Store session in Redis for faster access with enhanced metadata
     const sessionKey = `session:${session._id}`;
     const sessionValue = JSON.stringify({
       userId: session.userId,
       isActive: session.isActive,
       expiresAt: session.expiresAt,
       lastActivity: session.lastActivity,
+      ipAddress: ipAddress,
+      deviceInfo: {
+        userAgent,
+        fingerprint: deviceInfo?.fingerprint || null,
+      },
     });
 
     // Use the redisClient wrapper which handles fallback
-    const ttlSeconds = calculateTTLSeconds(session.expiresAt, Date.now(), Math.floor(sessionConfig.store.ttl));
+    const ttlSeconds = calculateTTLSeconds(
+      session.expiresAt,
+      Date.now(),
+      Math.floor(sessionConfig.store.ttl)
+    );
     await setWithExpiry(sessionKey, sessionValue, ttlSeconds);
 
     return session;
@@ -250,20 +299,20 @@ exports.endAllUserSessionsExceptCurrent = async (userId, currentSessionId) => {
     const sessions = await Session.find({
       userId: userId.toString(),
       _id: { $ne: currentSessionId },
-      isActive: true
+      isActive: true,
     });
-    
+
     if (!sessions || sessions.length === 0) {
       return 0;
     }
-    
+
     // End each session
-    const endPromises = sessions.map(session => 
-      exports.endSession(session._id, 'user_terminated_all')
+    const endPromises = sessions.map((session) =>
+      exports.endSession(session._id, "user_terminated_all")
     );
-    
+
     await Promise.all(endPromises);
-    
+
     return sessions.length;
   } catch (error) {
     logger.error("Failed to end all user sessions", error);
@@ -280,16 +329,16 @@ exports.endAllUserSessionsExceptCurrent = async (userId, currentSessionId) => {
 exports.getSessionInfo = async (sessionId, options = {}) => {
   try {
     const session = await exports.getSessionById(sessionId);
-    
+
     if (!session) {
       return null;
     }
-    
+
     // Calculate remaining time
     const now = Date.now();
     const expiresAt = session.expiresAt || now;
     const remainingTime = Math.max(0, expiresAt - now);
-    
+
     // Filter sensitive information
     return {
       sessionId,
@@ -300,7 +349,7 @@ exports.getSessionInfo = async (sessionId, options = {}) => {
       expiresAt: session.expiresAt,
       remainingTime,
       createdAt: session.createdAt,
-      warnings: session.warnings || []
+      warnings: session.warnings || [],
     };
   } catch (error) {
     logger.error("Failed to get session info", {
@@ -321,10 +370,10 @@ exports.getSessionInfo = async (sessionId, options = {}) => {
 exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
   try {
     const sessionKey = `session:${sessionId}`;
-    
+
     // Get session from Redis or DB
     let session = await getSessionFromCache(sessionId);
-    
+
     if (!session) {
       // Fallback to DB if not in cache
       session = await Session.findById(sessionId);
@@ -333,17 +382,17 @@ exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
         return false;
       }
     }
-    
+
     // Initialize activeTabs array if it doesn't exist
     if (!session.activeTabs) {
       session.activeTabs = [];
     }
-    
+
     // Find existing tab
     const existingTabIndex = session.activeTabs.findIndex(
-      tab => tab.tabId === tabId
+      (tab) => tab.tabId === tabId
     );
-    
+
     // Update or add tab
     const now = Date.now();
     const tabData = {
@@ -371,27 +420,25 @@ exports.updateTabActivity = async (sessionId, tabId, data = {}) => {
     );
 
     // Update session in Redis
-    const expiresAt = session.expiresAt || new Date(Date.now() + sessionConfig.store.ttl * 1000);
+    const expiresAt =
+      session.expiresAt ||
+      new Date(Date.now() + sessionConfig.store.ttl * 1000);
     const ttlSeconds = Math.max(1, Math.ceil((expiresAt - now) / 1000));
-    
-    await setWithExpiry(
-      sessionKey,
-      JSON.stringify(session),
-      ttlSeconds
-    );
-    
+
+    await setWithExpiry(sessionKey, JSON.stringify(session), ttlSeconds);
+
     // Update in database asynchronously
     Session.findByIdAndUpdate(
       sessionId,
-      { 
+      {
         lastActiveAt: new Date(now),
-        activeTabs: session.activeTabs
+        activeTabs: session.activeTabs,
       },
       { new: true }
-    ).catch(err => {
-      logger.error('Failed to update session in database:', err);
+    ).catch((err) => {
+      logger.error("Failed to update session in database:", err);
     });
-    
+
     return true;
   } catch (error) {
     logger.error("Failed to update tab activity", error);
@@ -409,23 +456,23 @@ exports.markTabInactive = async (sessionId, tabId) => {
   try {
     const sessionKey = `session:${sessionId}`;
     const session = await exports.getSessionById(sessionId);
-    
+
     if (!session) {
       logger.warn(`Cannot mark tab inactive: Session ${sessionId} not found`);
       return false;
     }
-    
+
     // Initialize activeTabs array if it doesn't exist
     if (!session.activeTabs) {
       session.activeTabs = [];
       return true; // No tabs to mark inactive
     }
-    
+
     // Remove the tab from active tabs
     session.activeTabs = session.activeTabs.filter(
       (tab) => tab.tabId !== tabId
     );
-    
+
     // Update session
     const now = Date.now();
     await setWithExpiry(
@@ -433,7 +480,7 @@ exports.markTabInactive = async (sessionId, tabId) => {
       JSON.stringify(session),
       Math.ceil((session.expiresAt - now) / 1000)
     );
-    
+
     return true;
   } catch (error) {
     logger.error("Failed to mark tab as inactive", {
@@ -456,22 +503,22 @@ exports.markTabActive = async (sessionId, tabId, data = {}) => {
   try {
     const sessionKey = `session:${sessionId}`;
     const session = await exports.getSessionById(sessionId);
-    
+
     if (!session) {
       logger.warn(`Cannot mark tab active: Session ${sessionId} not found`);
       return false;
     }
-    
+
     // Initialize activeTabs array if it doesn't exist
     if (!session.activeTabs) {
       session.activeTabs = [];
     }
-    
+
     // Check if tab already exists
     const existingTabIndex = session.activeTabs.findIndex(
       (tab) => tab.tabId === tabId
     );
-    
+
     // Update or add tab
     const now = Date.now();
     const tabData = {
@@ -504,7 +551,7 @@ exports.markTabActive = async (sessionId, tabId, data = {}) => {
       JSON.stringify(session),
       Math.ceil((session.expiresAt - now) / 1000)
     );
-    
+
     return true;
   } catch (error) {
     logger.error("Failed to mark tab as active", {
@@ -546,22 +593,29 @@ exports.updateSessionActivity = async (sessionId, timestamp = Date.now()) => {
   try {
     const sessionKey = `session:${sessionId}`;
     const session = await exports.getSessionById(sessionId);
-    
+
     if (!session) {
       logger.warn(`Cannot update activity: Session ${sessionId} not found`);
       return false;
     }
-    
+
     // Update last activity timestamp
     session.lastActiveAt = timestamp;
-    
+
     // Calculate expiration time in seconds, with validation
-    const expiresAt = session.expiresAt instanceof Date ? session.expiresAt.getTime() : 
-                      typeof session.expiresAt === 'string' ? new Date(session.expiresAt).getTime() : 
-                      typeof session.expiresAt === 'number' ? session.expiresAt : null;
-    
+    const expiresAt =
+      session.expiresAt instanceof Date
+        ? session.expiresAt.getTime()
+        : typeof session.expiresAt === "string"
+        ? new Date(session.expiresAt).getTime()
+        : typeof session.expiresAt === "number"
+        ? session.expiresAt
+        : null;
+
     if (!expiresAt) {
-      logger.warn(`Invalid expiresAt value for session ${sessionId}: ${session.expiresAt}`);
+      logger.warn(
+        `Invalid expiresAt value for session ${sessionId}: ${session.expiresAt}`
+      );
       // Use default expiration as fallback
       const ttlSeconds = Math.ceil(sessionConfig.maxAge / 1000);
       await setWithExpiry(sessionKey, JSON.stringify(session), ttlSeconds);
@@ -569,7 +623,7 @@ exports.updateSessionActivity = async (sessionId, timestamp = Date.now()) => {
       const ttlSeconds = Math.max(1, Math.ceil((expiresAt - timestamp) / 1000));
       await setWithExpiry(sessionKey, JSON.stringify(session), ttlSeconds);
     }
-    
+
     return true;
   } catch (error) {
     logger.error("Failed to update session activity", {
@@ -590,7 +644,7 @@ let isInitialized = false;
 exports.initialize = function (options = {}) {
   // Prevent duplicate initialization
   if (exports.isInitialized) {
-    logger.debug('Session service already initialized, skipping');
+    logger.debug("Session service already initialized, skipping");
     return;
   }
 
@@ -641,7 +695,7 @@ exports.initialize = function (options = {}) {
       logger.error("Error cleaning up connection throttling data:", error);
     }
   }, 5 * 60 * 1000); // Run every 5 minutes
-  
+
   // Add this interval to the cleanup list
   cleanupIntervals.push(throttleCleanupInterval);
 };
@@ -826,7 +880,6 @@ exports.cleanup = async function () {
   }
 };
 
-
 /**
  * Set up WebSocket handlers for session namespace
  */
@@ -946,7 +999,7 @@ exports.setupSessionWebSockets = function (io) {
               // Get session info
               const sessionId = decoded.sessionId;
               const session = await exports.getSessionById(sessionId);
-              
+
               if (!session) {
                 logger.warn(
                   `Socket connection rejected after refresh: Session ${sessionId} not found`
@@ -1171,27 +1224,31 @@ exports.setupSessionWebSockets = function (io) {
  */
 exports.initializeSessionWebSocket = (io) => {
   if (!io) {
-    logger.error("Cannot initialize session WebSocket: io instance not provided");
+    logger.error(
+      "Cannot initialize session WebSocket: io instance not provided"
+    );
     return null;
   }
 
   // Create session namespace if it doesn't exist
   const sessionNamespace = io.of("/session");
-  
+
   // Apply rate limiting middleware
-  sessionNamespace.use(rateLimitMiddleware.socketRateLimit({
-    type: 'socketConnection',
-    windowMs: securityConfig.socket.rateLimiting.windowMs,
-    max: securityConfig.socket.rateLimiting.connectionsPerIP
-  }));
-  
+  sessionNamespace.use(
+    rateLimitMiddleware.socketRateLimit({
+      type: "socketConnection",
+      windowMs: securityConfig.socket.rateLimiting.windowMs,
+      max: securityConfig.socket.rateLimiting.connectionsPerIP,
+    })
+  );
+
   // Apply message rate limiting
-  sessionNamespace.on('connection', (socket) => {
+  sessionNamespace.on("connection", (socket) => {
     rateLimitMiddleware.socketMessageRateLimit(io, {
       windowMs: 60000, // 1 minute
-      max: securityConfig.socket.rateLimiting.messagesPerMinute
+      max: securityConfig.socket.rateLimiting.messagesPerMinute,
     })(socket);
-    
+
     // Socket authentication middleware using HTTP-only cookies
     sessionNamespace.use(async (socket, next) => {
       try {
@@ -1210,7 +1267,7 @@ exports.initializeSessionWebSocket = (io) => {
         // Parse cookies
         const parsedCookies = cookie.parse(cookies);
         const accessToken = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
-        
+
         if (!accessToken) {
           logger.warn("Socket connection rejected: No access token found");
           return next(new Error("Authentication required"));
@@ -1225,7 +1282,9 @@ exports.initializeSessionWebSocket = (io) => {
           const session = await exports.getSessionById(sessionId);
 
           if (!session) {
-            logger.warn(`Socket connection rejected: Session ${sessionId} not found`);
+            logger.warn(
+              `Socket connection rejected: Session ${sessionId} not found`
+            );
             return next(new Error("Session not found"));
           }
 
@@ -1238,34 +1297,50 @@ exports.initializeSessionWebSocket = (io) => {
           };
 
           // Register socket connection with token service
-          await tokenService.registerSocketConnection(socket, socket.data.userId, sessionId);
+          await tokenService.registerSocketConnection(
+            socket,
+            socket.data.userId,
+            sessionId
+          );
 
           // Schedule token expiration check
           tokenService.scheduleTokenExpirationCheck(
-            io, 
-            socket.data.userId, 
-            accessToken, 
+            io,
+            socket.data.userId,
+            accessToken,
             sessionConfig.tokenWarningThreshold || 300
           );
 
-          logger.debug(`Socket authenticated: ${socket.id} for session ${sessionId}`);
+          logger.debug(
+            `Socket authenticated: ${socket.id} for session ${sessionId}`
+          );
           next();
         } catch (error) {
           // Try to refresh token if access token is expired
-          if (error.name === "TokenExpiredError" && parsedCookies[cookieConfig.names.REFRESH_TOKEN]) {
+          if (
+            error.name === "TokenExpiredError" &&
+            parsedCookies[cookieConfig.names.REFRESH_TOKEN]
+          ) {
             try {
-              const refreshToken = parsedCookies[cookieConfig.names.REFRESH_TOKEN];
-              const refreshResult = await tokenService.refreshAccessToken(refreshToken);
+              const refreshToken =
+                parsedCookies[cookieConfig.names.REFRESH_TOKEN];
+              const refreshResult = await tokenService.refreshAccessToken(
+                refreshToken
+              );
 
               if (refreshResult && refreshResult.accessToken) {
-                const decoded = await tokenService.verifyAccessToken(refreshResult.accessToken);
+                const decoded = await tokenService.verifyAccessToken(
+                  refreshResult.accessToken
+                );
 
                 // Get session info
                 const sessionId = decoded.sessionId;
                 const session = await exports.getSessionById(sessionId);
-                
+
                 if (!session) {
-                  logger.warn(`Socket connection rejected after refresh: Session ${sessionId} not found`);
+                  logger.warn(
+                    `Socket connection rejected after refresh: Session ${sessionId} not found`
+                  );
                   return next(new Error("Session not found"));
                 }
 
@@ -1278,20 +1353,32 @@ exports.initializeSessionWebSocket = (io) => {
                 };
 
                 // Register socket connection with token service
-                await tokenService.registerSocketConnection(socket, socket.data.userId, sessionId);
+                await tokenService.registerSocketConnection(
+                  socket,
+                  socket.data.userId,
+                  sessionId
+                );
 
-                logger.debug(`Socket authenticated after token refresh: ${socket.id}`);
+                logger.debug(
+                  `Socket authenticated after token refresh: ${socket.id}`
+                );
                 next();
               } else {
                 logger.warn("Socket connection rejected: Token refresh failed");
                 return next(new Error("Authentication failed"));
               }
             } catch (refreshError) {
-              logger.warn("Socket connection rejected: Token refresh error", refreshError);
+              logger.warn(
+                "Socket connection rejected: Token refresh error",
+                refreshError
+              );
               return next(new Error("Authentication failed"));
             }
           } else {
-            logger.warn("Socket connection rejected: Token verification failed", error);
+            logger.warn(
+              "Socket connection rejected: Token verification failed",
+              error
+            );
             return next(new Error("Authentication failed"));
           }
         }
@@ -1319,7 +1406,10 @@ exports.initializeSessionWebSocket = (io) => {
         const rooms = {
           userRoom: createRoomName(ROOM_TYPES.USER, socket.data.userId),
           deviceRoom: createRoomName(ROOM_TYPES.DEVICE, socket.data.deviceId),
-          sessionRoom: createRoomName(ROOM_TYPES.SESSION, socket.data.sessionId),
+          sessionRoom: createRoomName(
+            ROOM_TYPES.SESSION,
+            socket.data.sessionId
+          ),
           tabRoom: socket.data.tabId
             ? createRoomName(ROOM_TYPES.TAB, socket.data.tabId)
             : null,
@@ -1370,21 +1460,25 @@ exports.initializeSessionWebSocket = (io) => {
 
             const parsedCookies = cookie.parse(cookies);
             const accessToken = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
-            
+
             if (!accessToken) {
               return socket.emit("token:status", { valid: false });
             }
 
-            const timeRemaining = tokenService.getTokenTimeRemaining(accessToken);
-            
+            const timeRemaining =
+              tokenService.getTokenTimeRemaining(accessToken);
+
             socket.emit("token:status", {
               valid: timeRemaining > 0,
               expiresIn: timeRemaining,
-              warningThreshold: sessionConfig.tokenWarningThreshold || 300
+              warningThreshold: sessionConfig.tokenWarningThreshold || 300,
             });
           } catch (error) {
             logger.error("Error checking token status:", error);
-            socket.emit("token:status", { valid: false, error: "Failed to check token status" });
+            socket.emit("token:status", {
+              valid: false,
+              error: "Failed to check token status",
+            });
           }
         });
 
@@ -1401,7 +1495,7 @@ exports.initializeSessionWebSocket = (io) => {
             socket.to(rooms.userRoom).emit("token:refreshed", {
               timestamp: Date.now(),
               sessionId: socket.data.sessionId,
-              deviceId: socket.data.deviceId
+              deviceId: socket.data.deviceId,
             });
           } catch (error) {
             logger.error("Error handling token refresh notification:", error);
@@ -1561,16 +1655,18 @@ exports.initializeSessionWebSocket = (io) => {
  */
 exports.sendTokenExpirationWarning = (io, userId, timeRemaining) => {
   if (!io) return;
-  
+
   try {
-    io.of('/session').to(`user:${userId}`).emit('token:expiring', {
+    io.of("/session").to(`user:${userId}`).emit("token:expiring", {
       timeRemaining,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
-    
-    logger.debug(`Sent token expiration warning to user ${userId}, ${timeRemaining}s remaining`);
+
+    logger.debug(
+      `Sent token expiration warning to user ${userId}, ${timeRemaining}s remaining`
+    );
   } catch (error) {
-    logger.error('Failed to send token expiration warning', error);
+    logger.error("Failed to send token expiration warning", error);
   }
 };
 
@@ -1583,14 +1679,16 @@ exports.sendTokenExpirationWarning = (io, userId, timeRemaining) => {
  */
 exports.broadcastSessionEvent = (io, sessionId, eventName, data = {}) => {
   if (!io) return;
-  
+
   try {
-    io.of('/session').to(`session:${sessionId}`).emit(eventName, {
-      ...data,
-      sessionId,
-      timestamp: Date.now()
-    });
-    
+    io.of("/session")
+      .to(`session:${sessionId}`)
+      .emit(eventName, {
+        ...data,
+        sessionId,
+        timestamp: Date.now(),
+      });
+
     logger.debug(`Broadcast ${eventName} to session ${sessionId}`);
   } catch (error) {
     logger.error(`Failed to broadcast session event ${eventName}`, error);
@@ -1606,14 +1704,16 @@ exports.broadcastSessionEvent = (io, sessionId, eventName, data = {}) => {
  */
 exports.notifySecurityEvent = (io, userId, eventType, data = {}) => {
   if (!io) return;
-  
+
   try {
-    io.of('/session').to(`user:${userId}`).emit(`security:${eventType}`, {
-      ...data,
-      userId,
-      timestamp: Date.now()
-    });
-    
+    io.of("/session")
+      .to(`user:${userId}`)
+      .emit(`security:${eventType}`, {
+        ...data,
+        userId,
+        timestamp: Date.now(),
+      });
+
     logger.debug(`Sent security event ${eventType} to user ${userId}`);
   } catch (error) {
     logger.error(`Failed to send security event ${eventType}`, error);
@@ -1655,22 +1755,33 @@ module.exports = exports;
  * @param {number} defaultTTL - Default TTL in seconds if calculation fails
  * @returns {number} - TTL in seconds (always >= 1)
  */
-const calculateTTLSeconds = (expiresAt, now = Date.now(), defaultTTL = 3600) => {
+const calculateTTLSeconds = (
+  expiresAt,
+  now = Date.now(),
+  defaultTTL = 3600
+) => {
   try {
     // Convert expiresAt to milliseconds timestamp
-    const expiryTime = expiresAt instanceof Date ? expiresAt.getTime() : 
-                      typeof expiresAt === 'string' ? new Date(expiresAt).getTime() : 
-                      typeof expiresAt === 'number' ? expiresAt : null;
-    
+    const expiryTime =
+      expiresAt instanceof Date
+        ? expiresAt.getTime()
+        : typeof expiresAt === "string"
+        ? new Date(expiresAt).getTime()
+        : typeof expiresAt === "number"
+        ? expiresAt
+        : null;
+
     // If conversion failed or result is invalid, use default
     if (!expiryTime || isNaN(expiryTime)) {
       return defaultTTL;
     }
-    
+
     // Calculate TTL in seconds, with minimum of 1 second
     return Math.max(1, Math.ceil((expiryTime - now) / 1000));
   } catch (error) {
-    logger.warn(`TTL calculation error: ${error.message}. Using default: ${defaultTTL}s`);
+    logger.warn(
+      `TTL calculation error: ${error.message}. Using default: ${defaultTTL}s`
+    );
     return defaultTTL;
   }
 };
@@ -1680,13 +1791,14 @@ const calculateTTLSeconds = (expiresAt, now = Date.now(), defaultTTL = 3600) => 
  * @param {string} key - Redis key
  * @param {string} value - Value to store
  * @param {number} ttlSeconds - TTL in seconds
- */ 
+ */
 const setWithExpiry = async (key, value, ttlSeconds) => {
   // Ensure ttlSeconds is valid
-  const validTtl = Number.isFinite(ttlSeconds) && ttlSeconds > 0 
-    ? ttlSeconds 
-    : Math.ceil(sessionConfig.store.ttl);
-    
+  const validTtl =
+    Number.isFinite(ttlSeconds) && ttlSeconds > 0
+      ? ttlSeconds
+      : Math.ceil(sessionConfig.store.ttl);
+
   await redisClient.set(key, value, "EX", validTtl);
 };
 
@@ -1699,42 +1811,64 @@ const setWithExpiry = async (key, value, ttlSeconds) => {
 exports.acknowledgeSessionWarning = async (sessionId, warningType) => {
   try {
     if (!sessionId) {
-      return { success: false, message: 'Session ID is required', statusCode: 400 };
+      return {
+        success: false,
+        message: "Session ID is required",
+        statusCode: 400,
+      };
     }
-    
-    if (!['IDLE', 'ABSOLUTE', 'SECURITY'].includes(warningType)) {
-      return { success: false, message: 'Invalid warning type', statusCode: 400 };
+
+    if (!["IDLE", "ABSOLUTE", "SECURITY"].includes(warningType)) {
+      return {
+        success: false,
+        message: "Invalid warning type",
+        statusCode: 400,
+      };
     }
-    
+
     // Update warning acknowledgment in session
     const session = await Session.findByIdAndUpdate(
       sessionId,
-      { 
+      {
         $set: { lastWarningAcknowledged: new Date() },
-        $push: { 
+        $push: {
           warningsSent: {
             warningType,
             timestamp: new Date(),
-            acknowledged: true
-          }
-        }
+            acknowledged: true,
+          },
+        },
       },
       { new: true }
     );
-    
+
     if (!session) {
-      return { success: false, message: 'Session not found', statusCode: 404, code: 'SESSION_NOT_FOUND' };
+      return {
+        success: false,
+        message: "Session not found",
+        statusCode: 404,
+        code: "SESSION_NOT_FOUND",
+      };
     }
-    
-    logger.debug(`Session warning ${warningType} acknowledged for session ${sessionId}`);
-    
-    return { 
+
+    logger.debug(
+      `Session warning ${warningType} acknowledged for session ${sessionId}`
+    );
+
+    return {
       success: true,
-      session
+      session,
     };
   } catch (error) {
-    logger.error(`Failed to acknowledge warning for session ${sessionId}:`, error);
-    return { success: false, message: 'Failed to acknowledge warning', statusCode: 500 };
+    logger.error(
+      `Failed to acknowledge warning for session ${sessionId}:`,
+      error
+    );
+    return {
+      success: false,
+      message: "Failed to acknowledge warning",
+      statusCode: 500,
+    };
   }
 };
 
@@ -1749,65 +1883,67 @@ exports.acknowledgeSessionWarning = async (sessionId, warningType) => {
 exports.updateTabActivity = async (sessionId, tabId, activity, timestamp) => {
   try {
     if (!sessionId || !tabId) {
-      return { 
-        success: false, 
-        message: 'Session ID and Tab ID are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "Session ID and Tab ID are required",
+        statusCode: 400,
       };
     }
-    
+
     // Find the session
     const session = await Session.findById(sessionId);
-    
+
     if (!session) {
-      return { 
-        success: false, 
-        message: 'Session not found', 
-        statusCode: 404, 
-        code: 'SESSION_NOT_FOUND' 
+      return {
+        success: false,
+        message: "Session not found",
+        statusCode: 404,
+        code: "SESSION_NOT_FOUND",
       };
     }
-    
+
     // Update tab activity in session
     const updateResult = await Session.findOneAndUpdate(
-      { _id: sessionId, 'tabs.id': tabId },
-      { 
-        $set: { 
+      { _id: sessionId, "tabs.id": tabId },
+      {
+        $set: {
           lastActiveAt: new Date(),
-          'tabs.$.lastActivity': activity,
-          'tabs.$.lastActiveAt': timestamp || new Date()
-        }
+          "tabs.$.lastActivity": activity,
+          "tabs.$.lastActiveAt": timestamp || new Date(),
+        },
       },
       { new: true }
     );
-    
+
     // If tab doesn't exist in session yet, add it
     if (!updateResult) {
-      await Session.findByIdAndUpdate(
-        sessionId,
-        {
-          $push: {
-            tabs: {
-              id: tabId,
-              lastActivity: activity,
-              lastActiveAt: timestamp || new Date(),
-              active: true
-            }
+      await Session.findByIdAndUpdate(sessionId, {
+        $push: {
+          tabs: {
+            id: tabId,
+            lastActivity: activity,
+            lastActiveAt: timestamp || new Date(),
+            active: true,
           },
-          $set: { lastActiveAt: new Date() }
-        }
-      );
+        },
+        $set: { lastActiveAt: new Date() },
+      });
     }
-    
-    logger.debug(`Tab ${tabId} activity updated for session ${sessionId}: ${activity}`);
-    
+
+    logger.debug(
+      `Tab ${tabId} activity updated for session ${sessionId}: ${activity}`
+    );
+
     return { success: true };
   } catch (error) {
-    logger.error(`Failed to update tab activity for session ${sessionId}:`, error);
-    return { 
-      success: false, 
-      message: 'Failed to update tab activity', 
-      statusCode: 500 
+    logger.error(
+      `Failed to update tab activity for session ${sessionId}:`,
+      error
+    );
+    return {
+      success: false,
+      message: "Failed to update tab activity",
+      statusCode: 500,
     };
   }
 };
@@ -1822,67 +1958,64 @@ exports.updateTabActivity = async (sessionId, tabId, activity, timestamp) => {
 exports.updateTabFocus = async (sessionId, tabId, hasFocus) => {
   try {
     if (!sessionId || !tabId) {
-      return { 
-        success: false, 
-        message: 'Session ID and Tab ID are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "Session ID and Tab ID are required",
+        statusCode: 400,
       };
     }
-    
+
     // Find the session
     const session = await Session.findById(sessionId);
-    
+
     if (!session) {
-      return { 
-        success: false, 
-        message: 'Session not found', 
-        statusCode: 404, 
-        code: 'SESSION_NOT_FOUND' 
+      return {
+        success: false,
+        message: "Session not found",
+        statusCode: 404,
+        code: "SESSION_NOT_FOUND",
       };
     }
-    
+
     // Update tab focus state
     const updateResult = await Session.findOneAndUpdate(
-      { _id: sessionId, 'tabs.id': tabId },
-      { 
-        $set: { 
+      { _id: sessionId, "tabs.id": tabId },
+      {
+        $set: {
           lastActiveAt: new Date(),
-          'tabs.$.hasFocus': hasFocus,
-          'tabs.$.lastFocusChange': new Date()
-        }
+          "tabs.$.hasFocus": hasFocus,
+          "tabs.$.lastFocusChange": new Date(),
+        },
       },
       { new: true }
     );
-    
+
     // If tab doesn't exist in session yet, add it
     if (!updateResult) {
-      await Session.findByIdAndUpdate(
-        sessionId,
-        {
-          $push: {
-            tabs: {
-              id: tabId,
-              hasFocus: hasFocus,
-              lastFocusChange: new Date(),
-              active: true,
-              lastActiveAt: new Date()
-            }
+      await Session.findByIdAndUpdate(sessionId, {
+        $push: {
+          tabs: {
+            id: tabId,
+            hasFocus: hasFocus,
+            lastFocusChange: new Date(),
+            active: true,
+            lastActiveAt: new Date(),
           },
-          $set: { lastActiveAt: new Date() }
-        }
-      );
+        },
+        $set: { lastActiveAt: new Date() },
+      });
     }
-    
+
     return {
       success: true,
-      message: 'Tab focus updated successfully'
+      message: "Tab focus updated successfully",
     };
   } catch (error) {
-    logger.error('Error updating tab focus:', error);
+    logger.error("Error updating tab focus:", error);
     return {
       success: false,
-      message: 'Failed to update tab focus',
-      statusCode: 500
+      message: "Failed to update tab focus",
+      statusCode: 500,
     };
   }
 };
@@ -1896,61 +2029,61 @@ exports.updateTabFocus = async (sessionId, tabId, hasFocus) => {
 exports.acknowledgeWarning = async (sessionId, warningId) => {
   try {
     if (!sessionId || !warningId) {
-      return { 
-        success: false, 
-        message: 'Session ID and Warning ID are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "Session ID and Warning ID are required",
+        statusCode: 400,
       };
     }
-    
+
     // Find the session
     const session = await Session.findById(sessionId);
-    
+
     if (!session) {
-      return { 
-        success: false, 
-        message: 'Session not found', 
-        statusCode: 404, 
-        code: 'SESSION_NOT_FOUND' 
+      return {
+        success: false,
+        message: "Session not found",
+        statusCode: 404,
+        code: "SESSION_NOT_FOUND",
       };
     }
-    
+
     // Update the warning status
     const updatedSession = await Session.findOneAndUpdate(
-      { _id: sessionId, 'warningsSent._id': warningId },
-      { 
-        $set: { 
-          'warningsSent.$.acknowledged': true,
-          'warningsSent.$.acknowledgedAt': new Date()
-        }
+      { _id: sessionId, "warningsSent._id": warningId },
+      {
+        $set: {
+          "warningsSent.$.acknowledged": true,
+          "warningsSent.$.acknowledgedAt": new Date(),
+        },
       },
       { new: true }
     );
-    
+
     if (!updatedSession) {
       return {
         success: false,
-        message: 'Warning not found',
+        message: "Warning not found",
         statusCode: 404,
-        code: 'WARNING_NOT_FOUND'
+        code: "WARNING_NOT_FOUND",
       };
     }
-    
+
     return {
       success: true,
-      message: 'Warning acknowledged successfully',
+      message: "Warning acknowledged successfully",
       sessionInfo: {
         id: updatedSession._id,
         expiresAt: updatedSession.expiresAt,
-        warningsSent: updatedSession.warningsSent
-      }
+        warningsSent: updatedSession.warningsSent,
+      },
     };
   } catch (error) {
-    logger.error('Error acknowledging warning:', error);
+    logger.error("Error acknowledging warning:", error);
     return {
       success: false,
-      message: 'Failed to acknowledge warning',
-      statusCode: 500
+      message: "Failed to acknowledge warning",
+      statusCode: 500,
     };
   }
 };
@@ -1969,35 +2102,35 @@ exports.acknowledgeWarning = async (sessionId, warningId) => {
 exports.syncSession = async (sessionId, options) => {
   try {
     const { tabId, clientInfo, userId, scope, deviceId } = options;
-    
+
     if (!sessionId || !userId) {
-      return { 
-        success: false, 
-        message: 'Session ID and User ID are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "Session ID and User ID are required",
+        statusCode: 400,
       };
     }
-    
+
     // Find the session
     const session = await Session.findById(sessionId);
-    
+
     if (!session) {
-      return { 
-        success: false, 
-        message: 'Session not found', 
-        statusCode: 404, 
-        code: 'SESSION_NOT_FOUND' 
+      return {
+        success: false,
+        message: "Session not found",
+        statusCode: 404,
+        code: "SESSION_NOT_FOUND",
       };
     }
-    
+
     // Update session activity
     await exports.updateSessionActivity(sessionId);
-    
+
     // Update tab activity if tabId provided
     if (tabId) {
-      await exports.updateTabActivity(sessionId, tabId, 'sync', new Date());
+      await exports.updateTabActivity(sessionId, tabId, "sync", new Date());
     }
-    
+
     // Prepare event data for broadcasting
     const eventData = {
       sessionId,
@@ -2006,20 +2139,20 @@ exports.syncSession = async (sessionId, options) => {
       deviceId,
       scope,
       timestamp: new Date(),
-      sessionInfo: await exports.getSessionInfo(sessionId)
+      sessionInfo: await exports.getSessionInfo(sessionId),
     };
-    
+
     return {
       success: true,
-      message: 'Session synced successfully',
-      eventData
+      message: "Session synced successfully",
+      eventData,
     };
   } catch (error) {
-    logger.error('Error syncing session:', error);
+    logger.error("Error syncing session:", error);
     return {
       success: false,
-      message: 'Failed to sync session',
-      statusCode: 500
+      message: "Failed to sync session",
+      statusCode: 500,
     };
   }
 };
@@ -2035,19 +2168,19 @@ exports.syncSession = async (sessionId, options) => {
 exports.broadcastSessionEvent = async (io, sessionId, eventName, eventData) => {
   try {
     if (!io || !sessionId || !eventName) {
-      logger.warn('Missing required parameters for broadcasting session event');
+      logger.warn("Missing required parameters for broadcasting session event");
       return false;
     }
-    
+
     // Broadcast to session room
     io.to(`session:${sessionId}`).emit(eventName, {
       ...eventData,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
-    
+
     return true;
   } catch (error) {
-    logger.error('Error broadcasting session event:', error);
+    logger.error("Error broadcasting session event:", error);
     return false;
   }
 };
@@ -2061,75 +2194,75 @@ exports.broadcastSessionEvent = async (io, sessionId, eventName, eventData) => {
 exports.extendSession = async (sessionId, reason) => {
   try {
     if (!sessionId) {
-      return { 
-        success: false, 
-        message: 'Session ID is required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "Session ID is required",
+        statusCode: 400,
       };
     }
-    
+
     // Calculate new expiry time (add configured extension time)
     const session = await Session.findById(sessionId);
-    
+
     if (!session) {
-      return { 
-        success: false, 
-        message: 'Session not found', 
-        statusCode: 404 
+      return {
+        success: false,
+        message: "Session not found",
+        statusCode: 404,
       };
     }
-    
+
     // Get extension duration from config
     const extensionMinutes = sessionConfig.extensionDuration || 30;
     const extensionMs = extensionMinutes * 60 * 1000;
-    
+
     // Calculate new expiry time
     const newExpiryTime = new Date(Date.now() + extensionMs);
-    
+
     // Update session with new expiry time
     const updatedSession = await Session.findByIdAndUpdate(
       sessionId,
       {
         $set: {
           expiresAt: newExpiryTime,
-          lastExtendedAt: new Date()
+          lastExtendedAt: new Date(),
         },
         $push: {
           extensions: {
             timestamp: new Date(),
-            reason: reason || 'user-requested',
+            reason: reason || "user-requested",
             expiryBefore: session.expiresAt,
-            expiryAfter: newExpiryTime
-          }
-        }
+            expiryAfter: newExpiryTime,
+          },
+        },
       },
       { new: true }
     );
-    
+
     logger.debug(`Session ${sessionId} extended to ${newExpiryTime}`);
-    
+
     // Format session info for response
     const sessionInfo = {
       id: updatedSession._id,
       expiresAt: updatedSession.expiresAt,
       lastActiveAt: updatedSession.lastActiveAt,
-      lastExtendedAt: updatedSession.lastExtendedAt
+      lastExtendedAt: updatedSession.lastExtendedAt,
     };
-    
-    return { 
+
+    return {
       success: true,
       sessionInfo,
       eventData: {
         expiresAt: newExpiryTime,
-        reason: reason || 'user-requested'
-      }
+        reason: reason || "user-requested",
+      },
     };
   } catch (error) {
     logger.error(`Failed to extend session ${sessionId}:`, error);
-    return { 
-      success: false, 
-      message: 'Failed to extend session', 
-      statusCode: 500 
+    return {
+      success: false,
+      message: "Failed to extend session",
+      statusCode: 500,
     };
   }
 };
@@ -2143,23 +2276,24 @@ exports.extendSession = async (sessionId, reason) => {
 exports.pollSessionEvents = async (sessionId, lastEventId) => {
   try {
     if (!sessionId) {
-      throw new Error('Session ID is required');
+      throw new Error("Session ID is required");
     }
-    
+
     // Update session activity
     await exports.updateSessionActivity(sessionId);
-    
+
     // Get events since lastEventId
     const events = await SessionEvent.find({
       sessionId,
-      _id: { $gt: lastEventId || '000000000000000000000000' }
+      _id: { $gt: lastEventId || "000000000000000000000000" },
     })
-    .sort({ createdAt: 1 })
-    .limit(100);
-    
+      .sort({ createdAt: 1 })
+      .limit(100);
+
     return {
       events,
-      lastEventId: events.length > 0 ? events[events.length - 1]._id : lastEventId
+      lastEventId:
+        events.length > 0 ? events[events.length - 1]._id : lastEventId,
     };
   } catch (error) {
     logger.error(`Failed to poll events for session ${sessionId}:`, error);
@@ -2175,16 +2309,21 @@ exports.pollSessionEvents = async (sessionId, lastEventId) => {
  * @param {string} deviceId - Device ID
  * @returns {Object} Result object with success status and connection ID
  */
-exports.registerWebSocketConnection = async (userId, sessionId, tabId, deviceId) => {
+exports.registerWebSocketConnection = async (
+  userId,
+  sessionId,
+  tabId,
+  deviceId
+) => {
   try {
     if (!userId || !sessionId || !tabId || !deviceId) {
-      return { 
-        success: false, 
-        message: 'User ID, Session ID, Tab ID, and Device ID are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "User ID, Session ID, Tab ID, and Device ID are required",
+        statusCode: 400,
       };
     }
-    
+
     // Create connection record
     const connection = await WebSocketConnection.create({
       userId,
@@ -2192,34 +2331,33 @@ exports.registerWebSocketConnection = async (userId, sessionId, tabId, deviceId)
       tabId,
       deviceId,
       connectedAt: new Date(),
-      lastActiveAt: new Date()
+      lastActiveAt: new Date(),
     });
-    
+
     // Update session with connection info
-    await Session.findByIdAndUpdate(
-      sessionId,
-      {
-        $push: {
-          webSocketConnections: connection._id
-        },
-        $set: {
-          lastActiveAt: new Date()
-        }
-      }
+    await Session.findByIdAndUpdate(sessionId, {
+      $push: {
+        webSocketConnections: connection._id,
+      },
+      $set: {
+        lastActiveAt: new Date(),
+      },
+    });
+
+    logger.debug(
+      `WebSocket connection registered for session ${sessionId}, tab ${tabId}`
     );
-    
-    logger.debug(`WebSocket connection registered for session ${sessionId}, tab ${tabId}`);
-    
-    return { 
+
+    return {
       success: true,
-      connectionId: connection._id
+      connectionId: connection._id,
     };
   } catch (error) {
     logger.error(`Failed to register WebSocket connection:`, error);
-    return { 
-      success: false, 
-      message: 'Failed to register WebSocket connection', 
-      statusCode: 500 
+    return {
+      success: false,
+      message: "Failed to register WebSocket connection",
+      statusCode: 500,
     };
   }
 };
@@ -2233,41 +2371,37 @@ exports.registerWebSocketConnection = async (userId, sessionId, tabId, deviceId)
 exports.unregisterWebSocketConnection = async (sessionId, connectionId) => {
   try {
     if (!sessionId || !connectionId) {
-      return { 
-        success: false, 
-        message: 'Session ID and Connection ID are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message: "Session ID and Connection ID are required",
+        statusCode: 400,
       };
     }
-    
+
     // Update connection status
-    await WebSocketConnection.findByIdAndUpdate(
-      connectionId,
-      {
-        disconnectedAt: new Date(),
-        active: false
-      }
-    );
-    
+    await WebSocketConnection.findByIdAndUpdate(connectionId, {
+      disconnectedAt: new Date(),
+      active: false,
+    });
+
     // Update session
-    await Session.findByIdAndUpdate(
-      sessionId,
-      {
-        $pull: {
-          webSocketConnections: connectionId
-        }
-      }
+    await Session.findByIdAndUpdate(sessionId, {
+      $pull: {
+        webSocketConnections: connectionId,
+      },
+    });
+
+    logger.debug(
+      `WebSocket connection ${connectionId} unregistered for session ${sessionId}`
     );
-    
-    logger.debug(`WebSocket connection ${connectionId} unregistered for session ${sessionId}`);
-    
+
     return { success: true };
   } catch (error) {
     logger.error(`Failed to unregister WebSocket connection:`, error);
-    return { 
-      success: false, 
-      message: 'Failed to unregister WebSocket connection', 
-      statusCode: 500 
+    return {
+      success: false,
+      message: "Failed to unregister WebSocket connection",
+      statusCode: 500,
     };
   }
 };
@@ -2283,16 +2417,17 @@ exports.unregisterWebSocketConnection = async (sessionId, connectionId) => {
 exports.registerDevice = async (userId, deviceId, deviceName, deviceType) => {
   try {
     if (!userId || !deviceId || !deviceName || !deviceType) {
-      return { 
-        success: false, 
-        message: 'User ID, Device ID, Device Name, and Device Type are required', 
-        statusCode: 400 
+      return {
+        success: false,
+        message:
+          "User ID, Device ID, Device Name, and Device Type are required",
+        statusCode: 400,
       };
     }
-    
+
     // Check if device already exists
     let device = await Device.findOne({ userId, deviceId });
-    
+
     if (device) {
       // Update existing device
       device = await Device.findOneAndUpdate(
@@ -2301,8 +2436,8 @@ exports.registerDevice = async (userId, deviceId, deviceName, deviceType) => {
           $set: {
             deviceName,
             deviceType,
-            lastActiveAt: new Date()
-          }
+            lastActiveAt: new Date(),
+          },
         },
         { new: true }
       );
@@ -2313,27 +2448,27 @@ exports.registerDevice = async (userId, deviceId, deviceName, deviceType) => {
         deviceId,
         deviceName,
         deviceType,
-        lastActiveAt: new Date()
+        lastActiveAt: new Date(),
       });
     }
-    
+
     logger.debug(`Device ${deviceId} registered for user ${userId}`);
-    
+
     return {
       success: true,
       deviceInfo: {
         deviceId: device.deviceId,
         deviceName: device.deviceName,
         deviceType: device.deviceType,
-        lastActiveAt: device.lastActiveAt
-      }
+        lastActiveAt: device.lastActiveAt,
+      },
     };
   } catch (error) {
     logger.error(`Failed to register device:`, error);
     return {
       success: false,
-      message: 'Failed to register device',
-      statusCode: 500
+      message: "Failed to register device",
+      statusCode: 500,
     };
   }
 };

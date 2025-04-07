@@ -1,7 +1,7 @@
 /**
  * Auth Routes
  * Handles core authentication operations
- * 
+ *
  * These routes provide both primary HTTP endpoints and fallbacks for
  * WebSocket functionality when connections are unavailable.
  */
@@ -16,12 +16,15 @@ const validate = require("../../../middleware/validate");
 const schemas = require("../validations/schemas");
 const { asyncHandler } = require("../../../utils/errorHandlers");
 
+// IMPROVEMENT: Apply global rate limiting to all auth routes
+router.use(rateLimitMiddleware.authGlobalRateLimit());
+
 // Health check endpoint
 router.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
     module: "auth",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
