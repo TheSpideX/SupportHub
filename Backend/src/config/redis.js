@@ -22,6 +22,7 @@ const MemoryStore = {
   data: new Map(),
   hashData: new Map(), // For hash operations
   setData: new Map(), // For set operations
+  listData: new Map(), // For list operations
   get: async (key) => MemoryStore.data.get(key),
   set: async (key, value, mode, duration) => {
     MemoryStore.data.set(key, value);
@@ -113,6 +114,69 @@ const MemoryStore = {
       }
     }
     return removed;
+  },
+  // List operations
+  lpush: async (key, ...values) => {
+    let list = MemoryStore.listData.get(key);
+    if (!list) {
+      list = [];
+      MemoryStore.listData.set(key, list);
+    }
+
+    // Add values to the beginning of the list
+    for (let i = values.length - 1; i >= 0; i--) {
+      list.unshift(values[i]);
+    }
+
+    return list.length;
+  },
+  lrange: async (key, start, stop) => {
+    const list = MemoryStore.listData.get(key);
+    if (!list) {
+      return [];
+    }
+
+    // Convert negative indices
+    let s = start < 0 ? list.length + start : start;
+    let e = stop < 0 ? list.length + stop : stop;
+
+    // Ensure indices are within bounds
+    s = Math.max(0, s);
+    e = Math.min(list.length - 1, e);
+
+    // Return empty array if invalid range
+    if (s > e || s >= list.length) {
+      return [];
+    }
+
+    // Extract the range
+    return list.slice(s, e + 1);
+  },
+  ltrim: async (key, start, stop) => {
+    const list = MemoryStore.listData.get(key);
+    if (!list) {
+      return "OK";
+    }
+
+    // Convert negative indices
+    let s = start < 0 ? list.length + start : start;
+    let e = stop < 0 ? list.length + stop : stop;
+
+    // Ensure indices are within bounds
+    s = Math.max(0, s);
+    e = Math.min(list.length - 1, e);
+
+    // If range is invalid, clear the list
+    if (s > e || s >= list.length) {
+      list.length = 0;
+    } else {
+      // Extract the range and replace the list
+      const newList = list.slice(s, e + 1);
+      list.length = 0;
+      newList.forEach((item) => list.push(item));
+    }
+
+    return "OK";
   },
   scan: async (cursor, match, count) => {
     // Simple implementation of scan for in-memory
@@ -441,6 +505,54 @@ const redisWrapper = {
       redisCircuitBreaker.recordFailure();
       logger.error("Redis sRem error, using fallback:", error);
       return await MemoryStore.sRem(key, ...members);
+    }
+  },
+
+  // Add lpush method
+  lpush: async (key, ...values) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.lpush(key, ...values);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.lpush(key, ...values);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis lpush error, using fallback:", error);
+      return await MemoryStore.lpush(key, ...values);
+    }
+  },
+
+  // Add lrange method
+  lrange: async (key, start, stop) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.lrange(key, start, stop);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.lrange(key, start, stop);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis lrange error, using fallback:", error);
+      return await MemoryStore.lrange(key, start, stop);
+    }
+  },
+
+  // Add ltrim method
+  ltrim: async (key, start, stop) => {
+    try {
+      if (redisAvailable && redisCircuitBreaker.isAllowed()) {
+        const result = await redisClient.ltrim(key, start, stop);
+        redisCircuitBreaker.recordSuccess();
+        return result;
+      }
+      return await MemoryStore.ltrim(key, start, stop);
+    } catch (error) {
+      redisCircuitBreaker.recordFailure();
+      logger.error("Redis ltrim error, using fallback:", error);
+      return await MemoryStore.ltrim(key, start, stop);
     }
   },
   // For EXPIRE command (sets TTL in seconds)

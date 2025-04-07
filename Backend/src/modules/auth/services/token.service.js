@@ -87,8 +87,19 @@ const verifyToken = (token, type = "access") => {
  * @returns {boolean}
  */
 const isTokenBlacklisted = async (token) => {
-  const blacklisted = await redisClient.get(`blacklist:${token}`);
-  return !!blacklisted;
+  try {
+    // Decode token to get token ID or generate hash
+    const decoded = jwt.decode(token);
+    const tokenId =
+      decoded?.jti || crypto.createHash("sha256").update(token).digest("hex");
+
+    // Check if token is in blacklist
+    const blacklisted = await redisClient.get(`blacklist:${tokenId}`);
+    return !!blacklisted;
+  } catch (error) {
+    logger.error("Error checking token blacklist:", error);
+    return false; // Fail open to prevent blocking valid tokens
+  }
 };
 
 /**
@@ -143,6 +154,40 @@ exports.generateAuthTokens = async (user, sessionData = {}) => {
  * @param {string} refreshToken
  * @returns {Object} new access and refresh tokens
  */
+/**
+ * Rotate refresh token
+ * @param {string} refreshToken - Refresh token
+ * @param {Object} user - User object
+ * @returns {Promise<Object>} - New token pair
+ */
+exports.rotateRefreshToken = async (refreshToken, user) => {
+  try {
+    // Verify the refresh token
+    const decoded = await exports.verifyRefreshToken(refreshToken);
+
+    // Blacklist the old refresh token
+    await exports.blacklistToken(refreshToken, "refresh");
+
+    // Generate new tokens
+    const sessionId =
+      decoded.sessionId || crypto.randomBytes(16).toString("hex");
+    const deviceId = decoded.deviceId || crypto.randomBytes(16).toString("hex");
+
+    // Generate new token pair
+    const tokenPair = await exports.generateAuthTokens(user, {
+      sessionId,
+      deviceId,
+      ipAddress: decoded.ip || "0.0.0.0",
+      userAgent: decoded.ua || "Unknown",
+    });
+
+    return tokenPair;
+  } catch (error) {
+    logger.error("Token rotation failed:", error);
+    throw new Error("Token rotation failed");
+  }
+};
+
 exports.refreshToken = async (refreshToken) => {
   logger.debug("Starting token refresh process");
 
@@ -414,7 +459,7 @@ exports.blacklistToken = async (token, type = "access") => {
 
     // Add token to blacklist with expiry
     const ttlSeconds = Math.max(1, ttl + 60); // Add 60s buffer, ensure minimum 1 second
-    await redisClient.set(`blacklist:${tokenId}`, "1", "EX", ttlSeconds);
+    await redisClient.set(`blacklist:${tokenId}`, "1", { EX: ttlSeconds });
 
     // Track blacklist size periodically
     if (Math.random() < 0.01) {

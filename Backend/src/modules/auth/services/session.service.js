@@ -207,7 +207,19 @@ exports.getSessionById = async (sessionId) => {
     }
 
     // If not in Redis, try to get from MongoDB
-    const dbSession = await Session.findById(sessionId);
+    let dbSession;
+
+    try {
+      // Try to find by ObjectId first
+      dbSession = await Session.findById(sessionId);
+    } catch (error) {
+      // If not a valid ObjectId, try to find by string ID
+      if (error.name === "CastError" && error.kind === "ObjectId") {
+        dbSession = await Session.findOne({ sessionId: sessionId });
+      } else {
+        throw error;
+      }
+    }
 
     if (!dbSession) {
       // Return a default session object instead of throwing an error
@@ -1789,6 +1801,45 @@ exports.notifySecurityEvent = (io, userId, eventType, data = {}) => {
     logger.debug(`Sent security event ${eventType} to user ${userId}`);
   } catch (error) {
     logger.error(`Failed to send security event ${eventType}`, error);
+  }
+};
+
+/**
+ * Clean up expired sessions
+ * @returns {Promise<Object>} - Cleanup result
+ */
+exports.cleanupExpiredSessions = async () => {
+  try {
+    const now = new Date();
+
+    // Find and update all expired sessions
+    const result = await Session.updateMany(
+      {
+        $or: [
+          { expiresAt: { $lt: now } },
+          { lastActivity: { $lt: new Date(now - 24 * 60 * 60 * 1000) } }, // Inactive for 24 hours
+        ],
+        status: { $ne: "ended" },
+      },
+      {
+        $set: {
+          status: "expired",
+          isActive: false,
+          endedAt: now,
+          endReason: "expired",
+        },
+      }
+    );
+
+    logger.info(`Cleaned up ${result.modifiedCount} expired sessions`);
+
+    return {
+      count: result.modifiedCount,
+      timestamp: now,
+    };
+  } catch (error) {
+    logger.error("Failed to clean up expired sessions:", error);
+    throw error;
   }
 };
 
