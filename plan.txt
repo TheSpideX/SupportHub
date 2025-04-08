@@ -1,0 +1,81 @@
+Detailed Plan for Remodeling the Frontend Authentication System
+1. Standardize WebSocket Configuration
+Update Socket Configuration:
+Ensure the SOCKET_CONFIG in  NewFrontend/src/config/socket.ts aligns with the backend's configuration
+Standardize on using only the /auth namespace
+Ensure withCredentials: true is set for HTTP-only cookies
+Verify the WebSocket URL points to the backend port (4290)
+Update API Configuration:
+Ensure the API configuration includes WebSocket URLs and settings
+Add CSRF token handling for WebSocket connections
+2. Enhance WebSocketAuthService
+Complete WebSocketAuthService Implementation:
+Add missing functionality for room joining
+Implement proper error handling
+Add CSRF token handling
+Implement leader election mechanism
+Add cross-device synchronization
+Integrate with TokenService:
+Update TokenService to work with WebSocketAuthService
+Implement token refresh through WebSocket
+Handle HTTP-only cookies properly
+Integrate with SessionService:
+Update SessionService to use WebSocketAuthService for session management
+Implement session timeout warnings and handling
+Integrate with SecurityService:
+Update SecurityService to provide device fingerprinting
+Implement security event handling
+3. Update Auth Initialization
+Update Auth Initialization Process:
+Initialize WebSocketAuthService during auth initialization
+Connect to WebSocket server after successful authentication
+Set up event listeners for auth events
+Update Cross-Tab Synchronization:
+Implement leader election mechanism
+Set up BroadcastChannel for cross-tab communication
+Handle auth events across tabs
+4. Update Auth Components
+Update AuthMonitor Component:
+Use WebSocketAuthService for monitoring auth state
+Handle session timeout warnings
+Display appropriate notifications
+Update Auth Provider:
+Integrate WebSocketAuthService
+Provide auth state to components
+5. Clean Up Legacy Code
+Remove Redundant Code:
+Remove references to /session namespace
+Remove duplicate WebSocket implementations
+Clean up unused code
+Consolidate WebSocket Logic:
+Move all WebSocket logic to the auth feature directory
+Ensure consistent naming and approach
+6. Testing
+Test Authentication Flow:
+Test login and logout
+Test token refresh
+Test session timeout
+Test Cross-Tab Synchronization:
+Test leader election
+Test auth state synchronization across tabs
+Test selective logout
+Test Cross-Device Synchronization:
+Test session termination across devices
+Test device fingerprinting
+Implementation Plan
+Let's start implementing the changes according to the plan:
+
+First, let's update the socket configuration to ensure it aligns with the backend
+Then, enhance the WebSocketAuthService to include all required functionality
+Update the auth initialization process to use WebSocketAuthService
+Update the auth components to use WebSocketAuthService
+Clean up legacy code and consolidate WebSocket logic
+Test the implementation
+Let me know if you'd like to proceed with this plan, and we can start implementing the changes.
+
+Beta
+Drop images to attach as context
+(png, jpg, jpeg)
+
+
+ltes do the frontend

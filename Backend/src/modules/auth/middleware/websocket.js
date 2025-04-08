@@ -20,62 +20,124 @@ const { validateObject } = require("./validate");
  */
 const authenticateSocket = async (socket, next) => {
   try {
-    // Access cookies from handshake
-    const cookies = socket.request.headers.cookie;
-    if (!cookies) {
-      return next(new Error("Authentication required"));
+    // Try to get token from multiple sources
+    let token;
+
+    // DIRECT CONSOLE LOGS FOR DEBUGGING
+    console.log("========== WEBSOCKET AUTH DEBUG ==========");
+    console.log("Socket ID:", socket.id);
+    console.log("Handshake auth:", JSON.stringify(socket.handshake.auth));
+    console.log("Handshake query:", JSON.stringify(socket.handshake.query));
+    console.log("Cookie header:", socket.request.headers.cookie);
+    console.log("==========================================");
+
+    // 1. Try to get token from auth data
+    if (socket.handshake.auth && socket.handshake.auth.token) {
+      token = socket.handshake.auth.token;
+      console.log("Found token in auth data:", token.substring(0, 20) + "...");
     }
 
-    // IMPROVEMENT: Use a proper cookie parsing library
-    const parsedCookies = require("cookie").parse(cookies);
-    const token = parsedCookies["accessToken"]; // Use the correct cookie name from config
+    // 2. If not found, try to get from cookies
+    if (!token && socket.request.headers.cookie) {
+      const parsedCookies = require("cookie").parse(
+        socket.request.headers.cookie
+      );
+      const cookieConfig = require("../config/cookie.config");
+      token = parsedCookies[cookieConfig.names.ACCESS_TOKEN];
+      if (token) {
+        console.log("Found token in cookies:", token.substring(0, 20) + "...");
+      }
+    }
+
+    // 3. If still not found, check query parameters
+    if (!token && socket.handshake.query && socket.handshake.query.token) {
+      token = socket.handshake.query.token;
+      console.log(
+        "Found token in query parameters:",
+        token.substring(0, 20) + "..."
+      );
+    }
 
     if (!token) {
-      return next(new Error("Access token not found"));
+      console.log("No access token found in any source");
+      return next(new Error("No access token found"));
     }
+
+    // Log token for debugging
+    console.log("Token found:", token.substring(0, 20) + "...");
 
     // IMPROVEMENT: Use the token service for verification
     const tokenService = require("../services/token.service");
-    const decoded = await tokenService.verifyAccessToken(token);
+    try {
+      const decoded = await tokenService.verifyAccessToken(token);
+      console.log("Token verified successfully");
+      console.log("Decoded token:", decoded);
 
-    // IMPROVEMENT: Check if token is blacklisted
-    const isBlacklisted = await tokenService.isTokenBlacklisted(token);
-    if (isBlacklisted) {
-      return next(new Error("Token has been revoked"));
+      // IMPROVEMENT: Check if token is blacklisted
+      const isBlacklisted = await tokenService.isTokenBlacklisted(token);
+      if (isBlacklisted) {
+        return next(new Error("Token has been revoked"));
+      }
+
+      // IMPROVEMENT: Validate session
+      const sessionService = require("../services/session.service");
+      const session = await sessionService.getSessionById(decoded.sessionId);
+
+      if (!session || !session.isActive) {
+        console.log("Session expired or invalid");
+        return next(new Error("Session expired or invalid"));
+      }
+
+      // Store session in socket for later use
+      socket.session = session;
+
+      // IMPROVEMENT: Validate device if deviceId is provided
+      if (decoded.deviceId) {
+        const deviceService = require("../services/device.service");
+        const device = await deviceService.getDeviceById(decoded.deviceId);
+
+        if (!device) {
+          console.log("Device not found");
+          return next(new Error("Device not found"));
+        }
+
+        // Store device in socket for later use
+        socket.device = device;
+      }
+
+      // IMPROVEMENT: Enhanced user data with more context
+      socket.user = {
+        id: decoded.sub || decoded.userId,
+        role: decoded.role || "user",
+        sessionId: decoded.sessionId,
+        deviceId: socket.handshake.auth.deviceId || decoded.deviceId,
+        tabId: socket.handshake.auth.tabId,
+        tokenExpiry: decoded.exp,
+        authenticated: true,
+        authTime: Date.now(),
+      };
+
+      console.log("Authentication successful for user:", socket.user.id);
+      console.log("Device ID:", socket.user.deviceId);
+      console.log("Tab ID:", socket.user.tabId);
+
+      next();
+    } catch (error) {
+      console.error("Authentication error:", error.message);
+
+      // IMPROVEMENT: More detailed error messages
+      if (error.name === "TokenExpiredError") {
+        return next(new Error("Authentication token expired"));
+      } else if (error.code === "TOKEN_REVOKED") {
+        return next(new Error("Authentication token revoked"));
+      }
+
+      // Default error message
+      return next(new Error("Invalid authentication: " + error.message));
     }
-
-    // IMPROVEMENT: Enhanced user data with more context
-    socket.user = {
-      id: decoded.sub || decoded.userId,
-      sessionId: decoded.sessionId,
-      deviceId: socket.handshake.query.deviceId || decoded.deviceId,
-      tabId: socket.handshake.query.tabId,
-      tokenExpiry: decoded.exp,
-      authenticated: true,
-      authTime: Date.now(),
-    };
-
-    // IMPROVEMENT: Log successful authentication
-    const logger = require("../../../utils/logger");
-    logger.debug(`Socket authenticated: ${socket.id}`, {
-      userId: socket.user.id,
-      sessionId: socket.user.sessionId,
-      deviceId: socket.user.deviceId,
-    });
-
-    next();
   } catch (error) {
-    const logger = require("../../../utils/logger");
-    logger.debug(`Socket authentication failed: ${error.message}`);
-
-    // IMPROVEMENT: More detailed error messages
-    if (error.code === "TOKEN_EXPIRED") {
-      return next(new Error("Authentication token expired"));
-    } else if (error.code === "TOKEN_REVOKED") {
-      return next(new Error("Authentication token revoked"));
-    }
-
-    next(new Error("Invalid authentication"));
+    console.error("Unexpected error in authenticateSocket:", error);
+    return next(new Error("Authentication failed: " + error.message));
   }
 };
 

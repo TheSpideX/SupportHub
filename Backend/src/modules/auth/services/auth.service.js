@@ -10,7 +10,11 @@ const sessionService = require("./session.service");
 const securityService = require("./security.service");
 const socketService = require("./socket.service");
 const config = require("../config");
-const { security: securityConfig, cookie: cookieConfig } = config;
+const {
+  security: securityConfig,
+  cookie: cookieConfig,
+  token: tokenConfig,
+} = config;
 const { roomRegistry } = config;
 const logger = require("../../../utils/logger");
 const { AuthError } = require("../../../utils/errors");
@@ -46,9 +50,9 @@ class AuthService {
     const { maxAge, rememberMe } = options;
 
     // Calculate expiration times
-    const accessExpires = maxAge || config.auth.jwt.expiresIn * 1000;
+    const accessExpires = maxAge || tokenConfig.expiry.access * 1000;
     const refreshExpires = rememberMe
-      ? config.auth.jwt.refreshExpiresIn * 1000
+      ? tokenConfig.expiry.refresh * 1000
       : accessExpires;
 
     // Set access token cookie
@@ -116,9 +120,17 @@ class AuthService {
    * @param {Object} deviceInfo - Device information
    * @param {Boolean} rememberMe - Whether to extend token lifetime
    * @param {Object} res - Express response object for setting cookies
+   * @param {String} deviceId - Optional device ID for existing devices
    * @returns {Promise<Object>} User and session data (tokens handled via cookies)
    */
-  async login(email, password, deviceInfo = {}, rememberMe = false, res) {
+  async login(
+    email,
+    password,
+    deviceInfo = {},
+    rememberMe = false,
+    res,
+    deviceId
+  ) {
     try {
       // Find user by email - select the security.password field
       const user = await User.findOne({ email }).select("+security.password");
@@ -231,13 +243,18 @@ class AuthService {
         );
       }
 
-      // Return user data and session info
+      // Return user data, session info, and tokens
       return {
         user: this.sanitizeUser(user),
         session: {
           id: session.id,
           expiresAt: session.expiresAt,
+          deviceId: session.deviceId,
         },
+        // Include tokens in the result for backward compatibility
+        tokens,
+        // Flag to indicate if this is a known device
+        isKnownDevice: !!deviceId,
       };
     } catch (error) {
       logger.error("Login error:", error);
