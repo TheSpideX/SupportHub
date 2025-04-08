@@ -11,8 +11,10 @@
 
 import { io, Socket } from "socket.io-client";
 import { logger } from "@/utils/logger";
-import { API_CONFIG } from "@/config/api";
+import SOCKET_CONFIG from "@/config/socket";
 import EventEmitter from "eventemitter3";
+import { TokenService } from "./TokenService";
+import { SecurityService } from "./SecurityService";
 
 // Event types
 export enum AuthEventType {
@@ -30,6 +32,14 @@ export enum AuthEventType {
   DEVICE_DISCONNECTED = "device:disconnected",
   ROOM_JOINED = "room:joined",
   SECURITY_EVENT = "security:event",
+
+  // Socket.IO native events
+  CONNECT = "connect",
+  DISCONNECT = "disconnect",
+
+  // Custom events for session management
+  SESSION_UPDATE = "session:update",
+  ACTIVITY_UPDATE = "activity:update",
 }
 
 // Room types
@@ -63,16 +73,16 @@ export interface WebSocketAuthConfig {
 
 // Default configuration
 const defaultConfig: WebSocketAuthConfig = {
-  url: API_CONFIG.WS_URL || "http://localhost:4290",
-  namespace: "/auth",
-  reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 30000,
+  url: SOCKET_CONFIG.BASE_URL,
+  namespace: SOCKET_CONFIG.NAMESPACES.AUTH,
+  reconnection: SOCKET_CONFIG.CONNECTION.RECONNECTION.ENABLED,
+  reconnectionAttempts: SOCKET_CONFIG.CONNECTION.RECONNECTION.MAX_ATTEMPTS,
+  reconnectionDelay: SOCKET_CONFIG.CONNECTION.RECONNECTION.DELAY,
+  reconnectionDelayMax: SOCKET_CONFIG.CONNECTION.RECONNECTION.MAX_DELAY,
+  timeout: SOCKET_CONFIG.CONNECTION.TIMEOUT,
   autoConnect: true,
-  withCredentials: true,
-  transports: ["polling", "websocket"],
+  withCredentials: SOCKET_CONFIG.CONNECTION.WITH_CREDENTIALS,
+  transports: SOCKET_CONFIG.CONNECTION.TRANSPORTS,
 };
 
 /**
@@ -88,6 +98,7 @@ export class WebSocketAuthService {
   private isLeaderTab: boolean = false;
   private eventEmitter: EventEmitter = new EventEmitter();
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private leaderElectionInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempts: number = 0;
   private lastActivity: number = Date.now();
   private rooms: Record<RoomType, string | null> = {
@@ -97,6 +108,9 @@ export class WebSocketAuthService {
     [RoomType.TAB]: null,
   };
   private broadcastChannel: BroadcastChannel | null = null;
+  private tokenService: TokenService | null = null;
+  private securityService: SecurityService | null = null;
+  private csrfToken: string | null = null;
 
   // Singleton instance
   private static instance: WebSocketAuthService | null = null;
@@ -105,10 +119,24 @@ export class WebSocketAuthService {
    * Get singleton instance
    */
   public static getInstance(
-    config?: Partial<WebSocketAuthConfig>
+    config?: Partial<WebSocketAuthConfig>,
+    tokenService?: TokenService,
+    securityService?: SecurityService
   ): WebSocketAuthService {
     if (!WebSocketAuthService.instance) {
-      WebSocketAuthService.instance = new WebSocketAuthService(config);
+      WebSocketAuthService.instance = new WebSocketAuthService(
+        config,
+        tokenService,
+        securityService
+      );
+    } else if (tokenService || securityService) {
+      // Update services if provided
+      if (tokenService) {
+        WebSocketAuthService.instance.setTokenService(tokenService);
+      }
+      if (securityService) {
+        WebSocketAuthService.instance.setSecurityService(securityService);
+      }
     }
     return WebSocketAuthService.instance;
   }
@@ -116,8 +144,20 @@ export class WebSocketAuthService {
   /**
    * Constructor
    */
-  private constructor(config?: Partial<WebSocketAuthConfig>) {
+  private constructor(
+    config?: Partial<WebSocketAuthConfig>,
+    tokenService?: TokenService,
+    securityService?: SecurityService
+  ) {
     this.config = { ...defaultConfig, ...config };
+
+    // Set services if provided
+    if (tokenService) {
+      this.tokenService = tokenService;
+    }
+    if (securityService) {
+      this.securityService = securityService;
+    }
 
     // Generate tab ID
     this.tabId = this.generateTabId();
@@ -139,24 +179,88 @@ export class WebSocketAuthService {
     // Initialize device ID
     this.initDeviceId();
 
+    // Get CSRF token if token service is available
+    if (this.tokenService) {
+      this.csrfToken = this.tokenService.getCsrfToken();
+    }
+
     logger.info("WebSocketAuthService initialized", {
       tabId: this.tabId,
       deviceId: this.deviceId,
       component: "WebSocketAuthService",
     });
+
+    // Start leader election process
+    this.startLeaderElection();
   }
 
   /**
    * Initialize device ID
    */
   private initDeviceId(): void {
+    // Try to get device ID from security service first
+    if (this.securityService) {
+      this.securityService
+        .getDeviceFingerprint()
+        .then((fingerprint) => {
+          if (fingerprint) {
+            this.deviceId = fingerprint;
+            // Store in session storage for future use
+            if (typeof sessionStorage !== "undefined") {
+              sessionStorage.setItem("device_fingerprint", fingerprint);
+            }
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            "Failed to get device fingerprint from security service",
+            {
+              error,
+              component: "WebSocketAuthService",
+            }
+          );
+          this.fallbackDeviceId();
+        });
+    } else {
+      this.fallbackDeviceId();
+    }
+  }
+
+  /**
+   * Fallback method to get device ID from storage or generate a new one
+   */
+  private fallbackDeviceId(): void {
     // Try to get device ID from session storage
     if (typeof sessionStorage !== "undefined") {
       const storedDeviceId = sessionStorage.getItem("device_fingerprint");
       if (storedDeviceId) {
         this.deviceId = storedDeviceId;
+      } else {
+        // Generate a simple device fingerprint as fallback
+        const fallbackFingerprint = this.generateFallbackFingerprint();
+        this.deviceId = fallbackFingerprint;
+        sessionStorage.setItem("device_fingerprint", fallbackFingerprint);
       }
     }
+  }
+
+  /**
+   * Generate a fallback device fingerprint
+   */
+  private generateFallbackFingerprint(): string {
+    const components = [
+      navigator.userAgent,
+      navigator.language,
+      new Date().getTimezoneOffset(),
+      screen.width + "x" + screen.height,
+      navigator.hardwareConcurrency,
+      // Use a safer alternative to the deprecated navigator.platform
+      navigator.userAgent,
+    ];
+
+    return btoa(components.join("|"))
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .substring(0, 32);
   }
 
   /**
@@ -257,6 +361,24 @@ export class WebSocketAuthService {
   }
 
   /**
+   * Set token service
+   */
+  public setTokenService(tokenService: TokenService): void {
+    this.tokenService = tokenService;
+    // Update CSRF token
+    this.csrfToken = tokenService.getCsrfToken();
+  }
+
+  /**
+   * Set security service
+   */
+  public setSecurityService(securityService: SecurityService): void {
+    this.securityService = securityService;
+    // Re-initialize device ID with security service
+    this.initDeviceId();
+  }
+
+  /**
    * Connect to WebSocket server
    */
   public connect(): void {
@@ -291,6 +413,17 @@ export class WebSocketAuthService {
       component: "WebSocketAuthService",
     });
 
+    // Get CSRF token if available
+    if (this.tokenService) {
+      this.csrfToken = this.tokenService.getCsrfToken();
+    }
+
+    // Get security context if available
+    let securityContext = null;
+    if (this.securityService) {
+      securityContext = this.securityService.getSecurityContext();
+    }
+
     // Create socket connection
     this.socket = io(`${url}${namespace}`, {
       autoConnect: this.config.autoConnect,
@@ -305,6 +438,19 @@ export class WebSocketAuthService {
         tabId: this.tabId,
         deviceId: this.deviceId,
         timestamp: Date.now(),
+        csrfToken: this.csrfToken,
+        securityContext: securityContext
+          ? JSON.stringify(securityContext)
+          : undefined,
+        isLeader: this.isLeaderTab,
+      },
+      extraHeaders: {
+        [SOCKET_CONFIG.CONNECTION.SECURITY.CSRF_HEADER]: this.csrfToken || "",
+        [SOCKET_CONFIG.CONNECTION.SECURITY.DEVICE_ID_HEADER]:
+          this.deviceId || "",
+        [SOCKET_CONFIG.CONNECTION.SECURITY.TAB_ID_HEADER]: this.tabId,
+        [SOCKET_CONFIG.CONNECTION.SECURITY.TIMESTAMP_HEADER]:
+          Date.now().toString(),
       },
     });
 
@@ -378,6 +524,12 @@ export class WebSocketAuthService {
 
     // Start heartbeat
     this.startHeartbeat();
+
+    // Join rooms
+    this.joinRooms();
+
+    // Participate in leader election
+    this.participateInLeaderElection();
   }
 
   /**
@@ -662,13 +814,15 @@ export class WebSocketAuthService {
     // Start new interval
     this.heartbeatInterval = setInterval(() => {
       if (this.socket?.connected) {
-        this.socket.emit("heartbeat", {
+        this.socket.emit(SOCKET_CONFIG.EVENTS.HEARTBEAT, {
           tabId: this.tabId,
           timestamp: Date.now(),
           isLeader: this.isLeaderTab,
+          deviceId: this.deviceId,
+          sessionId: this.sessionId,
         });
       }
-    }, 30000); // 30 seconds
+    }, SOCKET_CONFIG.HEARTBEAT.INTERVAL);
   }
 
   /**
@@ -757,6 +911,212 @@ export class WebSocketAuthService {
   }
 
   /**
+   * Join rooms based on authentication state
+   */
+  private joinRooms(): void {
+    if (!this.socket?.connected) {
+      logger.warn("Cannot join rooms: Socket not connected", {
+        component: "WebSocketAuthService",
+      });
+      return;
+    }
+
+    // Get user ID from token service if available
+    let userId = null;
+    if (this.tokenService) {
+      // Use getUserId method if available
+      userId = this.tokenService.getUserId() || null;
+    }
+
+    // Skip if no user ID or session ID
+    if (!userId && !this.sessionId) {
+      logger.warn("Cannot join rooms: No user ID or session ID", {
+        component: "WebSocketAuthService",
+      });
+      return;
+    }
+
+    // Emit join rooms event
+    this.socket.emit("auth:join", {
+      userId: userId,
+      deviceId: this.deviceId,
+      sessionId: this.sessionId,
+      tabId: this.tabId,
+      timestamp: Date.now(),
+      isLeader: this.isLeaderTab,
+    });
+
+    logger.debug("Joining rooms", {
+      userId,
+      deviceId: this.deviceId,
+      sessionId: this.sessionId,
+      tabId: this.tabId,
+      component: "WebSocketAuthService",
+    });
+  }
+
+  /**
+   * Start leader election process
+   */
+  private startLeaderElection(): void {
+    // Clear existing interval
+    if (this.leaderElectionInterval) {
+      clearInterval(this.leaderElectionInterval);
+      this.leaderElectionInterval = null;
+    }
+
+    // Check if we're already the leader
+    this.checkLeaderStatus();
+
+    // Start leader election interval
+    this.leaderElectionInterval = setInterval(() => {
+      this.checkLeaderStatus();
+    }, SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.HEARTBEAT_INTERVAL);
+  }
+
+  /**
+   * Check leader status
+   */
+  private checkLeaderStatus(): void {
+    if (typeof localStorage === "undefined") return;
+
+    const now = Date.now();
+    const leaderId = localStorage.getItem(
+      SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.LEADER_ID_KEY
+    );
+    const lastHeartbeat = localStorage.getItem(
+      SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.LAST_HEARTBEAT_KEY
+    );
+
+    // Check if leader is active
+    if (leaderId && lastHeartbeat) {
+      const heartbeatTime = parseInt(lastHeartbeat, 10);
+      const isLeaderActive =
+        now - heartbeatTime <
+        SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.HEARTBEAT_TIMEOUT;
+
+      if (isLeaderActive) {
+        // Leader is active
+        this.isLeaderTab = leaderId === this.tabId;
+
+        // If we are the leader, update heartbeat
+        if (this.isLeaderTab) {
+          localStorage.setItem(
+            SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.LAST_HEARTBEAT_KEY,
+            now.toString()
+          );
+        }
+      } else {
+        // Leader is inactive, start election
+        this.startElection();
+      }
+    } else {
+      // No leader, start election
+      this.startElection();
+    }
+  }
+
+  /**
+   * Start leader election
+   */
+  private startElection(): void {
+    // Calculate priority score
+    const priorityScore = this.calculatePriorityScore();
+
+    // Set as leader
+    localStorage.setItem(
+      SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.LEADER_ID_KEY,
+      this.tabId
+    );
+    localStorage.setItem(
+      SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.LAST_HEARTBEAT_KEY,
+      Date.now().toString()
+    );
+    localStorage.setItem(`${this.tabId}_priority`, priorityScore.toString());
+
+    // Update leader status
+    this.isLeaderTab = true;
+
+    // Broadcast leader elected event
+    this.broadcastMessage({
+      type: "LEADER_ELECTED",
+      leaderId: this.tabId,
+      priority: priorityScore,
+      timestamp: Date.now(),
+    });
+
+    // Emit leader elected event
+    this.eventEmitter.emit(AuthEventType.LEADER_ELECTED, {
+      leaderId: this.tabId,
+      priority: priorityScore,
+      timestamp: Date.now(),
+    });
+
+    logger.info(`Tab ${this.tabId} elected as leader`, {
+      priority: priorityScore,
+      component: "WebSocketAuthService",
+    });
+
+    // If socket is connected, notify server
+    if (this.socket?.connected) {
+      this.socket.emit("leader:elected", {
+        tabId: this.tabId,
+        deviceId: this.deviceId,
+        sessionId: this.sessionId,
+        timestamp: Date.now(),
+        priority: priorityScore,
+      });
+    }
+  }
+
+  /**
+   * Calculate priority score for leader election
+   */
+  private calculatePriorityScore(): number {
+    const factors = SOCKET_CONFIG.CROSS_TAB.LEADER_ELECTION.PRIORITY_FACTORS;
+    let score = 0;
+
+    // Visibility factor
+    if (document.visibilityState === "visible") {
+      score += factors.VISIBILITY;
+    }
+
+    // Creation time factor (older tabs get higher priority)
+    const creationTime = parseInt(this.tabId.split("_")[2], 10) || Date.now();
+    const ageInMinutes = (Date.now() - creationTime) / (60 * 1000);
+    score += Math.min(ageInMinutes, 60) * (factors.CREATION_TIME / 60);
+
+    // Activity factor
+    const timeSinceActivity = Date.now() - this.lastActivity;
+    const activityScore = Math.max(
+      0,
+      factors.ACTIVITY - timeSinceActivity / (60 * 1000)
+    );
+    score += activityScore;
+
+    // Random factor to break ties
+    score += Math.random() * factors.RANDOM;
+
+    return score;
+  }
+
+  /**
+   * Participate in leader election
+   */
+  private participateInLeaderElection(): void {
+    if (!this.socket?.connected) return;
+
+    // Notify server about leader status
+    this.socket.emit("leader:status", {
+      tabId: this.tabId,
+      deviceId: this.deviceId,
+      sessionId: this.sessionId,
+      isLeader: this.isLeaderTab,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
    * Clean up resources
    */
   private cleanup(): void {
@@ -776,6 +1136,12 @@ export class WebSocketAuthService {
 
     // Stop heartbeat
     this.stopHeartbeat();
+
+    // Stop leader election
+    if (this.leaderElectionInterval) {
+      clearInterval(this.leaderElectionInterval);
+      this.leaderElectionInterval = null;
+    }
 
     // Reset rooms
     this.rooms = {
@@ -848,6 +1214,39 @@ export class WebSocketAuthService {
    */
   public getRoom(type: RoomType): string | null {
     return this.rooms[type];
+  }
+
+  /**
+   * Get socket ID
+   */
+  public getSocketId(): string | null {
+    return this.socket?.id || null;
+  }
+
+  /**
+   * Emit an event to the server
+   */
+  public emit(event: string, data: any): void {
+    if (!this.socket?.connected) {
+      logger.warn(`Cannot emit event ${event}: Socket not connected`, {
+        component: "WebSocketAuthService",
+      });
+      return;
+    }
+
+    this.socket.emit(event, data);
+  }
+
+  /**
+   * Send activity update
+   */
+  public activity(): void {
+    this.emit("activity", {
+      tabId: this.tabId,
+      deviceId: this.deviceId,
+      timestamp: Date.now(),
+      isLeader: this.isLeaderTab,
+    });
   }
 }
 

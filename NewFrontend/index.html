@@ -14,6 +14,33 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Load Primus client library from backend -->
+    <script src="http://localhost:4290/primus/primus.js"></script>
+    <!-- Fallback in case the above fails -->
+    <script>
+      // Check if Primus loaded correctly
+      window.addEventListener("load", function () {
+        if (!window.Primus) {
+          console.error(
+            "Primus client library failed to load. Attempting to load again..."
+          );
+          // Create a script element
+          var script = document.createElement("script");
+          script.src = "http://localhost:4290/primus/primus.js";
+          script.onerror = function () {
+            console.error("Failed to load Primus client library again.");
+          };
+          script.onload = function () {
+            console.log(
+              "Primus client library loaded successfully on second attempt."
+            );
+          };
+          document.head.appendChild(script);
+        } else {
+          console.log("Primus client library loaded successfully.");
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

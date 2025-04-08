@@ -1,68 +1,80 @@
-## WebSocket Middleware Plan
-
-Based on your architecture document and existing code, here's a plan for updating middleware files to support your WebSocket authentication system:
-
-### Existing Middleware to Update:
-
-1. **`authenticate.js`**:
-   - Add WebSocket token validation functions
-   - Support cookie-based authentication for WebSockets
-   - Handle token refresh coordination with WebSockets
-
-2. **`csrf.js`**:
-   - Update to support WebSocket connections
-   - Ensure CSRF tokens work across HTTP and WebSocket contexts
-   - Add WebSocket-specific CSRF validation
-
-3. **`session.js`**:
-   - Add WebSocket session tracking
-   - Implement session synchronization across tabs
-   - Support hierarchical room session management
-
-4. **`rate-limit.js`**:
-   - Add WebSocket-specific rate limiting
-   - Implement connection throttling for WebSockets
-   - Share rate limit counters between HTTP and WebSockets
-
-### New Middleware Files Needed:
-
-1. **`socket-auth.js`**:
-   - WebSocket-specific authentication middleware
-   - Handle socket handshake authentication
-   - Validate HTTP-only cookies during connection
-
-2. **`socket-rooms.js`**:
-   - Manage room subscriptions
-   - Implement hierarchical room structure
-   - Handle room join/leave authorization
-
-3. **`socket-events.js`**:
-   - Event propagation middleware
-   - Filter and route events based on room hierarchy
-   - Implement selective event propagation
-
-4. **`cross-tab.js`**:
-   - Leader election middleware
-   - Cross-tab state synchronization
-   - Connection sharing coordination
-
-### Middleware to Remove/Consolidate:
-
-None of the existing middleware should be removed, but some functionality might be consolidated.
-
-### Controller Changes:
-
-No new controllers are needed. The existing controllers should be updated to:
-1. Use the WebSocket services when appropriate
-2. Emit events to the correct rooms
-3. Handle WebSocket-specific error cases
-
-### Implementation Priority:
-
-1. First: `socket-auth.js` - Core authentication
-2. Second: `authenticate.js` updates - Token handling
-3. Third: `socket-rooms.js` - Room management
-4. Fourth: `socket-events.js` - Event propagation
-5. Fifth: Cross-tab coordination
-
-This approach maintains your existing HTTP authentication while adding WebSocket support, ensuring a single source of truth for authentication logic.
+client:743 [vite] connecting...
+client:866 [vite] connected.
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus client library found {component: 'PrimusAuthService'}
+logger.ts:137 [storage.utils.ts] Storage type localStorage available: true {}
+logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true {}
+logger.ts:137 [storage.utils.ts] Storage type cookie available: true {}
+logger.ts:137 [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s {}
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
+logger.ts:137 [TokenService.ts] TokenService initialized in standby mode (no authenticated user) {}
+logger.ts:137 [TokenService.ts] Created new TokenService instance {}
+logger.ts:127 [RefreshQueueService.ts] RefreshQueueService initialized {}
+logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
+logger.ts:137 [SessionService.ts] SessionService initialized {}
+logger.ts:127 [TokenService.ts] Using existing TokenService instance {}
+logger.ts:137 [auth/init][init.ts] Initializing authentication system {component: 'auth/init'}
+logger.ts:127 [TokenService.ts] TokenService already initialized, returning existing instance {}
+logger.ts:137 [SecurityService.ts] Security context initialized {}
+logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
+logger.ts:137 [SecurityService.ts] SecurityService initialized {}
+logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
+logger.ts:137 [SessionService.ts] SessionService initialized {}
+logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService {}
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
+logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
+logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:137 [AuthService.ts] AuthService initialized {}
+logger.ts:127 [AuthService.ts] Cross-tab communication already initialized for AuthService {}
+logger.ts:137 [TokenService.ts] CSRF protection initialized {}
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
+logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
+logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true; csrf_token=da183bac5a5f31206ebf85f4424d8e92', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:137 [App][App.tsx] Starting auth initialization (attempt #1) {component: 'App'}
+logger.ts:137 [AuthService.ts] Initializing auth service and checking for existing session {}
+logger.ts:137 [AuthService.ts] Cookie check: Found auth cookies {}
+logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
+logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true; csrf_token=da183bac5a5f31206ebf85f4424d8e92', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:127 [App][App.tsx] Auth initialization already triggered, skipping {component: 'App'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
+logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
+login:42 Primus client library loaded successfully.
+logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
+logger.ts:137 [init.ts] User is not authenticated after initialization {}
+logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
+logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:137 [AuthService.ts] No valid session found, initializing as unauthenticated {}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
+logger.ts:137 [App][App.tsx] No active session found, user is not authenticated {component: 'App'}
+logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
+logger.ts:137 [App][App.tsx] Auth initialized successfully {component: 'App'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}

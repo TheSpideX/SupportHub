@@ -43,7 +43,11 @@ import { authApi } from "@/features/auth/api/auth-api";
 import { apiClient } from "@/api/apiClient";
 import { AUTH_CONSTANTS } from "../constants/auth.constants";
 import { API_CONFIG } from "../../../config/api";
-import { getSessionSocketManager } from '@/services/socket/socket';
+import {
+  PrimusAuthService,
+  AuthEventType,
+  webSocketAuthService,
+} from "./PrimusAuthService";
 
 export interface SessionServiceConfig {
   apiBaseUrl: string;
@@ -86,28 +90,26 @@ export class SessionService {
   private sessionInterval: ReturnType<typeof setInterval> | null = null;
   private syncInterval: number;
   private isAuthenticated: boolean = false;
-  private api: any; // Using any for now, should be properly typed
   private lastActivity: number = Date.now();
   private sessionId: string | null = null;
   private monitoringInterval: number | null = null;
   private activityListeners: { [key: string]: EventListener } = {};
   private lastActivityTime: number = Date.now();
-  private csrfToken: string | null = null;
-  private deviceInfo: { [key: string]: any } | null = null;
   private socketSyncInterval: any = null;
-  private isInitialized = false;
+  private webSocketAuthService: PrimusAuthService | null = null;
 
   constructor(
     tokenService: TokenService,
     securityService: SecurityService,
-    config: Partial<SessionServiceConfig> = {}
+    config: Partial<SessionServiceConfig> = {},
+    webSocketAuthService?: PrimusAuthService
   ) {
     this.tokenService = tokenService;
     this.securityService = securityService;
+    this.webSocketAuthService = webSocketAuthService || webSocketAuthService;
     this.config = { ...defaultConfig, ...config };
     this.syncInterval = this.config.syncInterval;
     this.boundActivityHandler = this.handleUserActivity.bind(this);
-    this.api = apiClient; // Assuming apiClient is imported
 
     // Initialize cross-tab communication if enabled
     if (
@@ -315,7 +317,8 @@ export class SessionService {
 
     // Additionally, send activity to server via WebSocket
     try {
-      getSessionSocketManager().activity();
+      // Send activity event through WebSocket
+      this.webSocketAuthService?.activity();
     } catch (error) {
       logger.debug("Could not send activity via WebSocket", error);
     }
@@ -705,7 +708,7 @@ export class SessionService {
     }
 
     // Clean up socket resources
-    getSessionSocketManager().destroy();
+    this.webSocketAuthService?.disconnect();
 
     if (this.socketSyncInterval) {
       clearInterval(this.socketSyncInterval);
@@ -1208,17 +1211,15 @@ export class SessionService {
         }
 
         // Initialize WebSocket for session synchronization
-        await this.initializeSessionSocket();
+        await this.initializeWebSocket();
       }
 
       // Cross-tab communication is always initialized regardless of auth state
       this.initCrossTabCommunication();
 
-      this.isInitialized = true;
       logger.info("SessionService initialized");
     } catch (error) {
       logger.error("Failed to initialize SessionService:", error);
-      this.isInitialized = false;
       throw error;
     }
   }
@@ -1226,26 +1227,25 @@ export class SessionService {
   /**
    * Initialize WebSocket connection for session synchronization
    */
-  private async initializeSessionSocket(): Promise<void> {
+  private async initializeWebSocket(): Promise<void> {
     try {
       // Check if we have an active session by checking for cookie existence
-      const hasSession = document.cookie.includes(`${AUTH_CONSTANTS.COOKIES.ACCESS_TOKEN}_exists=true`);
-      
+      const hasSession = document.cookie.includes(
+        `${AUTH_CONSTANTS.COOKIES.ACCESS_TOKEN}_exists=true`
+      );
+
       if (!hasSession) {
         logger.warn("No active session for WebSocket connection");
         return;
       }
-      
-      // Get device fingerprint if available
-      const deviceFingerprint = await this.securityService.getDeviceFingerprint();
-      
-      // Initialize socket with device fingerprint only (token is in HTTP-only cookie)
-      getSessionSocketManager().initialize(deviceFingerprint);
-      
+
+      // Connect to WebSocket
+      this.webSocketAuthService?.connect();
+
       // Set up socket event listeners
-      this.setupSessionSocketListeners();
-      
-      logger.info("Session socket initialized successfully");
+      this.setupWebSocketListeners();
+
+      logger.info("WebSocket initialized successfully");
     } catch (error) {
       logger.error("Failed to initialize session socket", error);
     }
@@ -1269,9 +1269,9 @@ export class SessionService {
       // Broadcast to other tabs via BroadcastChannel
       // Only if this is not an update that originated from another tab
       if (!data.hasOwnProperty("_source") || data._source !== "tab") {
-        logger.debug("Broadcasting session update to other tabs", { 
-          source: "server", 
-          hasChannel: !!this.broadcastChannel 
+        logger.debug("Broadcasting session update to other tabs", {
+          source: "server",
+          hasChannel: !!this.broadcastChannel,
         });
         this.broadcastSessionUpdate(enhancedData);
       }
@@ -1327,17 +1327,27 @@ export class SessionService {
   /**
    * Set up socket event listeners
    */
-  private setupSessionSocketListeners(): void {
-    getSessionSocketManager().on('session-update', (data) => {
+  private setupWebSocketListeners(): void {
+    if (!this.webSocketAuthService) return;
+
+    // Use the correct event types from AuthEventType
+    // For session updates
+    this.webSocketAuthService.on(AuthEventType.SESSION_UPDATE, (data: any) => {
       this.handleSocketSessionUpdate(data);
     });
-    
-    getSessionSocketManager().on('activity-update', (data) => {
+
+    // For activity updates
+    this.webSocketAuthService.on(AuthEventType.ACTIVITY_UPDATE, (data: any) => {
       this.handleSocketActivityUpdate(data);
     });
-    
-    getSessionSocketManager().on('status', (status) => {
-      logger.debug('Socket status changed:', status);
+
+    // For connection status
+    this.webSocketAuthService.on(AuthEventType.CONNECTED, () => {
+      logger.debug("WebSocket connected");
+    });
+
+    this.webSocketAuthService.on(AuthEventType.DISCONNECTED, () => {
+      logger.debug("WebSocket disconnected");
     });
   }
 }

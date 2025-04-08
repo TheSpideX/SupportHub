@@ -44,6 +44,12 @@ router.post(
   asyncHandler(authController.logout)
 );
 
+router.get(
+  "/check",
+  authMiddleware.authenticateToken,
+  asyncHandler(authController.checkAuth)
+);
+
 router.post(
   "/register",
   rateLimitMiddleware.registrationRateLimit(),

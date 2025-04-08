@@ -1,8 +1,8 @@
 /**
- * WebSocket Configuration
+ * Primus WebSocket Configuration
  *
- * This file contains all WebSocket-related configuration settings.
- * It's used by the WebSocketService and SessionSocketManager.
+ * This file contains all Primus WebSocket-related configuration settings.
+ * It's used by the PrimusAuthService.
  *
  * IMPORTANT: WebSocket connections should use the backend port (4290)
  * instead of the frontend port (5173). This is necessary because
@@ -25,11 +25,12 @@ export const SOCKET_CONFIG = {
       ? "http://localhost:4290"
       : "http://localhost:4290"),
 
-  // Socket.IO namespaces
-  NAMESPACES: {
-    AUTH: "/auth", // Authentication namespace - used for all auth-related functionality
-    PUBLIC: "/public", // Public (unauthenticated) namespace
-    // NOTE: We no longer use the /session namespace - everything goes through /auth
+  // Server configuration
+  SERVER: {
+    // Server URL (default: backend server URL)
+    URL: import.meta.env.VITE_API_URL || "http://localhost:4290",
+    // Primus path
+    PATH: "/primus",
   },
 
   // Connection settings
@@ -52,8 +53,8 @@ export const SOCKET_CONFIG = {
     // Then upgrade to websocket for better performance
     TRANSPORTS: ["polling", "websocket"],
 
-    // Socket.IO path
-    PATH: "/socket.io",
+    // Primus transformer
+    TRANSFORMER: "websockets",
 
     // Authentication
     // IMPORTANT: This must be true for HTTP-only cookies to be sent
@@ -76,6 +77,13 @@ export const SOCKET_CONFIG = {
       // Timestamp for request freshness validation
       TIMESTAMP_HEADER: "X-Request-Timestamp",
       TIMESTAMP_PARAM: "timestamp",
+
+      // Cookie names for authentication
+      COOKIE_NAMES: {
+        ACCESS_TOKEN: "access_token",
+        REFRESH_TOKEN: "refresh_token",
+        CSRF_TOKEN: "csrf_token",
+      },
     },
   },
 

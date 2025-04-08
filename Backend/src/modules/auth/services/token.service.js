@@ -599,6 +599,14 @@ exports.setTokenCookies = (res, tokens) => {
       ...baseOptions,
       maxAge: tokenConfig.expiry.access * 1000,
     });
+
+    // Set a visible flag cookie to indicate the presence of the HTTP-only cookie
+    // This flag can be read by JavaScript to detect if the HTTP-only cookie exists
+    res.cookie("access_token_exists", "true", {
+      ...baseOptions,
+      httpOnly: false, // Make this cookie visible to JavaScript
+      maxAge: tokenConfig.expiry.access * 1000,
+    });
   } else {
     logger.warn("Access token is missing when setting cookies");
   }
@@ -607,6 +615,13 @@ exports.setTokenCookies = (res, tokens) => {
   if (tokens.refreshToken) {
     res.cookie(cookieNames.REFRESH_TOKEN, tokens.refreshToken, {
       ...baseOptions,
+      maxAge: tokenConfig.expiry.refresh * 1000,
+    });
+
+    // Set a visible flag cookie to indicate the presence of the HTTP-only cookie
+    res.cookie("refresh_token_exists", "true", {
+      ...baseOptions,
+      httpOnly: false, // Make this cookie visible to JavaScript
       maxAge: tokenConfig.expiry.refresh * 1000,
     });
   } else {
@@ -641,6 +656,11 @@ exports.clearTokenCookies = (res) => {
   res.clearCookie(cookieNames.ACCESS_TOKEN, baseOptions);
   res.clearCookie(cookieNames.REFRESH_TOKEN, baseOptions);
   res.clearCookie(cookieNames.CSRF_TOKEN, { ...baseOptions, httpOnly: false });
+
+  // Clear flag cookies
+  res.clearCookie("access_token_exists", { ...baseOptions, httpOnly: false });
+  res.clearCookie("refresh_token_exists", { ...baseOptions, httpOnly: false });
+  res.clearCookie("app_session_exists", { ...baseOptions, httpOnly: false });
 };
 
 /**

@@ -1,14 +1,15 @@
 /**
  * Socket Service Index
  * Exports the WebSocket service for authentication and session management
+ * Now using Primus instead of Socket.IO
  */
 
 import {
-  webSocketService,
-  WebSocketService,
+  primusSocketService as webSocketService,
+  PrimusSocketService as WebSocketService,
   RoomType,
-  EventType,
-} from "./WebSocketService";
+  EventType
+} from "./PrimusSocketService";
 
 // Create a global type declaration for the socket service
 declare global {
@@ -36,8 +37,13 @@ export const initializeWebSocketService = (): WebSocketService => {
   return webSocketService;
 };
 
-// Export the WebSocket service and types
-export { webSocketService, WebSocketService, RoomType, EventType };
+// Export all the types and services
+export {
+  webSocketService,
+  WebSocketService,
+  RoomType,
+  EventType
+};
 
 // Export the instance as default
 export default webSocketService;

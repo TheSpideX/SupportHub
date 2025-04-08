@@ -97,6 +97,15 @@ exports.login = asyncHandler(async (req, res) => {
   // Set tokens in HTTP-only cookies if not already set by the auth service
   if (result.tokens && !res.headersSent) {
     tokenService.setTokenCookies(res, result.tokens);
+
+    // Set a session flag cookie that JavaScript can read
+    res.cookie("app_session_exists", "true", {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      maxAge: result.session.expiresAt - Date.now(),
+    });
   }
 
   // Register device if it's new
@@ -247,6 +256,23 @@ exports.refreshToken = async (req, res) => {
     });
   }
 };
+
+/**
+ * Check if user is authenticated
+ * @route GET /api/auth/check
+ * @access Private - Requires authentication
+ */
+exports.checkAuth = asyncHandler(async (req, res) => {
+  // If middleware passes, user is authenticated
+  res.status(200).json({
+    success: true,
+    authenticated: true,
+    message: "User is authenticated",
+    data: {
+      user: authService.sanitizeUser(req.user),
+    },
+  });
+});
 
 /**
  * Logout user

@@ -1,12 +1,16 @@
-import { AuthService } from './services/AuthService';
-import { TokenService } from './services/TokenService';
-import { SessionService } from './services/SessionService';
-import { SecurityService } from './services/SecurityService';
-import { setAuthState, clearAuthState } from './store/authSlice';
-import { AuthInitOptions, SecurityLevel, ErrorHandlingConfig } from './types/auth.types';
-import { logger } from '@/utils/logger';
-import { AUTH_CONSTANTS } from './constants/auth.constants';
-import { initializeSessionSocket } from '@/services/socket/socket';
+import { AuthService } from "./services/AuthService";
+import { TokenService } from "./services/TokenService";
+import { SessionService } from "./services/SessionService";
+import { SecurityService } from "./services/SecurityService";
+import { PrimusAuthService } from "./services/PrimusAuthService";
+import { setAuthState, clearAuthState } from "./store/authSlice";
+import {
+  AuthInitOptions,
+  SecurityLevel,
+  ErrorHandlingConfig,
+} from "./types/auth.types";
+import { logger } from "@/utils/logger";
+import { AUTH_CONSTANTS } from "./constants/auth.constants";
 
 // Define AuthInstance interface
 interface AuthInstance {
@@ -20,11 +24,14 @@ interface AuthInstance {
   isAuthenticated: () => boolean;
   getCurrentUser: () => any;
   extendSession: () => void;
+  connectWebSocket: () => void;
+  disconnectWebSocket: () => void;
   // Add service properties
   authService: AuthService;
   tokenService: TokenService;
   sessionService: SessionService;
   securityService: SecurityService;
+  webSocketAuthService: PrimusAuthService;
 }
 
 // Extended config interface to include additional options
@@ -49,119 +56,136 @@ interface ExtendedAuthInitOptions extends AuthInitOptions {
 }
 
 const defaultConfig: ExtendedAuthInitOptions = {
-  apiUrl: '/api',
+  apiUrl: "/api",
   csrfProtection: true,
   sessionTimeout: 30 * 60 * 1000, // 30 minutes
   refreshThreshold: 5 * 60 * 1000, // 5 minutes
   enableCrossTabs: true,
-  securityLevel: 'medium',
+  securityLevel: "medium",
   errorHandling: {
-    retryStrategy: 'exponential',
+    retryStrategy: "exponential",
     maxRetries: 3,
-    notificationLevel: 'user-friendly'
-  }
+    notificationLevel: "user-friendly",
+  },
 };
 
 // Add a global instance variable
 let authInstance: AuthInstance | null = null;
 
-export function initAuth(config: Partial<ExtendedAuthInitOptions> = {}): AuthInstance {
+export function initAuth(
+  config: Partial<ExtendedAuthInitOptions> = {}
+): AuthInstance {
   // Return existing instance if already initialized
   if (authInstance) {
-    logger.debug('Auth already initialized, returning existing instance', { component: 'auth/init' });
+    logger.debug("Auth already initialized, returning existing instance", {
+      component: "auth/init",
+    });
     return authInstance;
   }
-  
-  const COMPONENT = 'auth/init';
-  logger.info('Initializing authentication system', { component: COMPONENT });
-  
+
+  const COMPONENT = "auth/init";
+  logger.info("Initializing authentication system", { component: COMPONENT });
+
   // 1. Validate configuration
   const mergedConfig = { ...defaultConfig, ...config };
-  
+
   // 2. Set up token management
   const tokenService = new TokenService({
     apiBaseUrl: mergedConfig.apiUrl,
     enableCrossTabs: mergedConfig.enableCrossTabs,
-    refreshThreshold: mergedConfig.refreshThreshold
+    refreshThreshold: mergedConfig.refreshThreshold,
   });
-  
-  // 3. Initialize services
-  const securityService = new SecurityService({
-    apiBaseUrl: mergedConfig.apiUrl,
-    securityLevel: mergedConfig.securityLevel,
-    enableFingerprinting: true
-  }, tokenService);
 
-  const sessionService = new SessionService(
-    tokenService,
-    securityService,
+  // 3. Initialize services
+  const securityService = new SecurityService(
     {
-      sessionTimeout: mergedConfig.sessionTimeout
-    }
+      apiBaseUrl: mergedConfig.apiUrl,
+      securityLevel: mergedConfig.securityLevel,
+      enableFingerprinting: true,
+    },
+    tokenService
   );
 
-  const authService = new AuthService({
-    apiBaseUrl: mergedConfig.apiUrl,
-    // Remove errorHandling or update the AuthServiceConfig type to include it
-  }, tokenService, sessionService, securityService);
-  
+  const sessionService = new SessionService(tokenService, securityService, {
+    sessionTimeout: mergedConfig.sessionTimeout,
+  });
+
+  const authService = new AuthService(
+    {
+      apiBaseUrl: mergedConfig.apiUrl,
+      // Remove errorHandling or update the AuthServiceConfig type to include it
+    },
+    tokenService,
+    sessionService,
+    securityService
+  );
+
+  // Initialize Primus auth service
+  const webSocketAuthService = PrimusAuthService.getInstance(
+    undefined, // Use default config
+    tokenService,
+    securityService
+  );
+
   // 4. Connect to state management
   if (mergedConfig.stateManager) {
     const { dispatch } = mergedConfig.stateManager;
-    
+
     // Use subscribe method instead of onAuthStateChange
     authService.subscribe((state) => {
       if (state.isAuthenticated && state.user) {
-        dispatch(setAuthState({
-          user: state.user,
-          isAuthenticated: true,
-          sessionExpiry: state.sessionExpiry
-        }));
+        dispatch(
+          setAuthState({
+            user: state.user,
+            isAuthenticated: true,
+            sessionExpiry: state.sessionExpiry,
+          })
+        );
       } else {
         dispatch(clearAuthState());
       }
     });
   }
-  
+
   // 5. Set up event listeners
-  window.addEventListener('storage', (event) => {
+  window.addEventListener("storage", (event) => {
     if (mergedConfig.enableCrossTabs) {
       // Use the correct method from AuthService.ts
       authService.processStorageEvent(event);
     }
   });
-  
+
   // 6. Configure cross-tab synchronization
-  if (mergedConfig.enableCrossTabs && typeof BroadcastChannel !== 'undefined') {
-    const authChannel = new BroadcastChannel('auth_channel');
+  if (mergedConfig.enableCrossTabs && typeof BroadcastChannel !== "undefined") {
+    const authChannel = new BroadcastChannel("auth_channel");
     // Use the correct method from AuthService.ts
     authService.initCrossTabCommunication();
   }
-  
+
   // 7. Initialize security measures
   if (mergedConfig.csrfProtection) {
     // Use the correct method from TokenService.ts
     tokenService.setupCsrfProtection();
   }
-  
+
   // 8. Register service worker for auth if PWA features enabled
-  if (mergedConfig.offlineSupport?.enabled && 'serviceWorker' in navigator) {
-    import('./service-workers/auth-sw').then((module) => {
+  if (mergedConfig.offlineSupport?.enabled && "serviceWorker" in navigator) {
+    import("./service-workers/auth-sw").then((module) => {
       // Use registerAuthServiceWorker from pwa.utils instead
-      import('./utils/pwa.utils').then((pwUtils) => {
+      import("./utils/pwa.utils").then((pwUtils) => {
         pwUtils.registerAuthServiceWorker();
       });
     });
   }
-  
+
   // 9. Set up cache strategies for auth UI components
   if (mergedConfig.performance?.lazyLoadComponents) {
-    import('./utils/pwa.utils').then((module) => {
+    import("./utils/pwa.utils").then((module) => {
       // Use authCacheManager.prefetchAuthResources instead
       module.authCacheManager.prefetchAuthResources();
     });
   }
-  
+
   // 10. Return auth instance with public methods
   // Make sure the auth state is properly initialized
   authService.initializeAuthState().then(() => {
@@ -169,18 +193,40 @@ export function initAuth(config: Partial<ExtendedAuthInitOptions> = {}): AuthIns
     if (mergedConfig.stateManager) {
       const { dispatch } = mergedConfig.stateManager;
       const currentState = authService.getAuthState();
-      
-      dispatch(setAuthState({
-        user: currentState.user,
+
+      logger.info("Auth state after initialization:", {
         isAuthenticated: currentState.isAuthenticated,
-        sessionExpiry: currentState.sessionExpiry,
-        isInitialized: true // Make sure to set this flag
-      }));
+        hasUser: !!currentState.user,
+        component: "AuthInit",
+      });
+
+      dispatch(
+        setAuthState({
+          user: currentState.user,
+          isAuthenticated: currentState.isAuthenticated,
+          sessionExpiry: currentState.sessionExpiry,
+          isInitialized: true, // Make sure to set this flag
+        })
+      );
     }
 
-    // Initialize socket if user is authenticated
+    // Initialize WebSocket if user is authenticated
     if (authService.getAuthState().isAuthenticated) {
-      initializeSessionSocket();
+      logger.info(
+        "User is authenticated after initialization - connecting WebSocket"
+      );
+      webSocketAuthService.connect();
+    } else {
+      logger.info("User is not authenticated after initialization");
+      // Try to validate session one more time
+      authService.validateSession().then((isValid) => {
+        if (isValid) {
+          logger.info(
+            "Session validated on second attempt - connecting WebSocket"
+          );
+          webSocketAuthService.connect();
+        }
+      });
     }
   });
 
@@ -195,11 +241,15 @@ export function initAuth(config: Partial<ExtendedAuthInitOptions> = {}): AuthIns
     isAuthenticated: () => authService.getAuthState().isAuthenticated,
     getCurrentUser: () => authService.getAuthState().user,
     extendSession: sessionService.extendSession.bind(sessionService),
+    connectWebSocket: webSocketAuthService.connect.bind(webSocketAuthService),
+    disconnectWebSocket:
+      webSocketAuthService.disconnect.bind(webSocketAuthService),
     // Add service properties
     authService,
     tokenService,
     sessionService,
-    securityService
+    securityService,
+    webSocketAuthService,
   };
 
   // Store the instance before returning
@@ -220,13 +270,13 @@ export function getAuthInstance(): AuthInstance | null {
 }
 
 export const handleAuthFailure = (error) => {
-  console.error('Auth initialization failed:', error);
-  
+  console.error("Auth initialization failed:", error);
+
   // Clear any existing tokens
   authInstance.tokenService.clearTokens();
-  
+
   // Redirect to login page with the correct path
-  window.location.href = '/login'; // Update from AUTH_CONSTANTS.ROUTES.LOGIN if it was '/auth/login'
-  
+  window.location.href = "/login"; // Update from AUTH_CONSTANTS.ROUTES.LOGIN if it was '/auth/login'
+
   return false;
 };

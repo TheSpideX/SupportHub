@@ -13,6 +13,7 @@ import { logger } from "@/utils/logger";
 import { TokenService } from "./TokenService";
 import { SessionService } from "./SessionService";
 import { SecurityService } from "./SecurityService";
+import { PrimusAuthService, webSocketAuthService } from "./PrimusAuthService";
 import { AUTH_CONSTANTS } from "../constants/auth.constants";
 import {
   createAuthError,
@@ -64,6 +65,7 @@ export class AuthService {
   private tokenService: TokenService;
   private sessionService: SessionService;
   private securityService: SecurityService;
+  private webSocketAuthService: PrimusAuthService | null = null;
   private authState: AuthState;
   private stateChangeListeners: Array<(state: AuthState) => void> = [];
   private broadcastChannel: BroadcastChannel | null = null;
@@ -106,6 +108,7 @@ export class AuthService {
     tokenService: TokenService,
     sessionService: SessionService,
     securityService: SecurityService,
+    webSocketAuthService?: PrimusAuthService,
     private store?: any // Redux store
   ) {
     this.config = { ...defaultConfig, ...config };
@@ -115,6 +118,11 @@ export class AuthService {
     this.tokenService = tokenService;
     this.sessionService = sessionService;
     this.securityService = securityService;
+
+    // Get WebSocketAuthService instance if not provided
+    this.webSocketAuthService =
+      webSocketAuthService ||
+      PrimusAuthService.getInstance(undefined, tokenService, securityService);
 
     // If store is not provided, try to get it from the global context
     if (!this.store) {
@@ -212,9 +220,20 @@ export class AuthService {
           .then((isValid) => {
             if (isValid) {
               // Session is valid, keep user authenticated
+              logger.info(
+                "Session validated successfully, user is authenticated"
+              );
+
+              // Connect to WebSocket after successful validation
+              if (this.webSocketAuthService) {
+                logger.info("Connecting to WebSocket after session validation");
+                this.webSocketAuthService.connect();
+              }
+
               resolve();
             } else {
               // Handle invalid session
+              logger.warn("Session validation failed, clearing tokens");
               this.tokenService.clearTokens();
               this.updateAuthState({
                 isAuthenticated: false,
@@ -356,10 +375,13 @@ export class AuthService {
   /**
    * Login with credentials
    */
-  public async login(credentials: LoginCredentials, deviceInfo?: any): Promise<boolean> {
+  public async login(
+    credentials: LoginCredentials,
+    deviceInfo?: any
+  ): Promise<boolean> {
     try {
       logger.info("Attempting login");
-      
+
       // Call login API
       const response = await this.authApi.login(credentials, deviceInfo);
 
@@ -367,6 +389,9 @@ export class AuthService {
       if (response && response.success) {
         // Initialize token service after successful authentication
         TokenService.getInstance().initializeAfterAuthentication();
+
+        // Connect to WebSocket
+        this.webSocketAuthService?.connect();
 
         // Update auth state with user data
         this.updateAuthState({
@@ -419,16 +444,19 @@ export class AuthService {
    */
   private broadcastLoginEvent(user: any): void {
     // Use localStorage for cross-tab communication
-    localStorage.setItem("auth_login_event", JSON.stringify({
-      timestamp: Date.now(),
-      user: user
-    }));
-    
+    localStorage.setItem(
+      "auth_login_event",
+      JSON.stringify({
+        timestamp: Date.now(),
+        user: user,
+      })
+    );
+
     // Also use BroadcastChannel if available
     if (this.broadcastChannel) {
       this.broadcastChannel.postMessage({
         type: "LOGIN",
-        payload: { user }
+        payload: { user },
       });
     }
   }
@@ -513,6 +541,9 @@ export class AuthService {
       // Stop session tracking
       this.sessionService.stopSessionTracking();
 
+      // Disconnect WebSocket
+      this.webSocketAuthService?.disconnect();
+
       // Update auth state
       this.updateAuthState({
         isAuthenticated: false,
@@ -575,7 +606,7 @@ export class AuthService {
       },
       false
     );
-    
+
     // Add redirect to login page
     if (typeof window !== "undefined") {
       logger.info(`Redirecting to login after cross-tab logout`);
@@ -785,7 +816,7 @@ export class AuthService {
       logger.debug("Fetching user data");
 
       // Use the correct endpoint from the backend: /api/auth/me
-      const response = await apiClient.get('/api/auth/me');
+      const response = await apiClient.get("/api/auth/me");
 
       this.lastFetchTimestamp = Date.now();
 
@@ -1123,8 +1154,22 @@ export class AuthService {
    */
   private hasSessionCookies(): boolean {
     // Check for the existence flags which are readable by JavaScript
-    return document.cookie.includes("access_token_exists=true") || 
-           document.cookie.includes("app_session_exists=true");
+    const hasCookieFlags =
+      document.cookie.includes("access_token_exists=true") ||
+      document.cookie.includes("app_session_exists=true");
+
+    // If we have cookie flags, return true
+    if (hasCookieFlags) {
+      return true;
+    }
+
+    // As a fallback, we'll try to validate the session with the backend
+    // even if we don't see the cookie flags, since HTTP-only cookies
+    // might still be present but not visible to JavaScript
+    logger.debug(
+      "No cookie flags found, but HTTP-only cookies might still exist"
+    );
+    return true; // Always attempt to validate with the backend
   }
 
   /**
@@ -1134,60 +1179,82 @@ export class AuthService {
     try {
       // Check for session cookies first
       const hasSession = this.hasSessionCookies();
-      
+
       if (!hasSession) {
         logger.debug("No session cookies found, skipping session validation");
         return false;
       }
-      
-      logger.debug("Session cookies found, validating with server");
-      
+
+      logger.debug("Attempting to validate session with server");
+
+      // Add detailed logging for debugging
+      logger.info("Cookie state:", {
+        cookieString: document.cookie,
+        hasVisibleCookies: document.cookie.length > 0,
+        component: "AuthService",
+      });
+
       // Make request to validate session endpoint
-      const response = await apiClient.get(
-        `/api/auth/session/status`,
-        { 
-          withCredentials: true,
-          headers: {
-            "X-CSRF-Token": this.getCsrfToken()
-          }
-        }
-      );
-      
-      if (response.data.authenticated) {
+      logger.debug("Making request to validate session", {
+        endpoint: `/api/auth/session/status`,
+        csrfToken: this.getCsrfToken() ? "present" : "missing",
+        component: "AuthService",
+      });
+
+      const response = await apiClient.get(`/api/auth/session/status`, {
+        withCredentials: true,
+        headers: {
+          "X-CSRF-Token": this.getCsrfToken() || "",
+        },
+      });
+
+      // Log the response for debugging
+      logger.debug("Session validation response:", response.data);
+
+      // Check if session is authenticated - handle both formats
+      // Format 1: { authenticated: true, ... }
+      // Format 2: { active: true, authenticated: true, ... }
+      if (
+        response.data.authenticated ||
+        (response.data.active && response.data.authenticated)
+      ) {
         logger.info("Session validated successfully");
-        
+
         // If authenticated, fetch complete user data
-        const userResponse = await apiClient.get('/api/auth/me', { 
+        const userResponse = await apiClient.get("/api/auth/me", {
           withCredentials: true,
           headers: {
-            "X-CSRF-Token": this.getCsrfToken()
-          }
+            "X-CSRF-Token": this.getCsrfToken(),
+          },
         });
-        
+
+        // Log the user response for debugging
+        logger.debug("User data response:", userResponse.data);
+
         if (userResponse.data.success && userResponse.data.data) {
           const userData = userResponse.data.data;
-          
+
           // Update auth state with user data
           this.updateAuthState({
             isAuthenticated: true,
             user: userData,
-            sessionExpiry: response.data.data?.session?.expiresAt 
+            sessionExpiry: response.data.data?.session?.expiresAt
               ? new Date(response.data.data.session.expiresAt).getTime()
               : this.calculateDefaultExpiry(false),
             isLoading: false,
             error: null,
           });
-          
+
           // Store session metadata
           if (response.data.data?.session) {
             this.storeSessionMetadata(response.data.data.session);
             this.sessionService.startSessionTracking();
           }
-          
+
           return true;
         }
       }
-      
+
       return false;
     } catch (error) {
       logger.error("Session validation failed:", error);
@@ -1199,10 +1266,10 @@ export class AuthService {
    * Get CSRF token from cookie
    */
   private getCsrfToken(): string | null {
-    const cookies = document.cookie.split(';');
+    const cookies = document.cookie.split(";");
     for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'csrf_token') {
+      const [name, value] = cookie.trim().split("=");
+      if (name === "csrf_token") {
         return value;
       }
     }
@@ -1248,19 +1315,25 @@ export class AuthService {
    */
   public async initialize(): Promise<boolean> {
     try {
-      logger.info("Initializing auth service and checking for existing session");
+      logger.info(
+        "Initializing auth service and checking for existing session"
+      );
 
       // Check for session cookies first
       const hasSession = this.hasSessionCookies();
-      
-      logger.info(`Cookie check: ${hasSession ? "Found auth cookies" : "No auth cookies found"}`);
+
+      logger.info(
+        `Cookie check: ${
+          hasSession ? "Found auth cookies" : "No auth cookies found"
+        }`
+      );
 
       // If we have cookies, validate session with backend
       if (hasSession) {
         try {
           // Validate session with backend
           const isValid = await this.validateSession();
-          
+
           if (isValid) {
             // Start session monitoring
             this.sessionService.startSessionTracking();
@@ -1278,17 +1351,17 @@ export class AuthService {
         user: null,
         sessionExpiry: null,
         isInitialized: true,
-        isLoading: false
+        isLoading: false,
       });
-      
+
       return false;
     } catch (error) {
       // Error handling...
       logger.error("Error initializing auth service", {
         component: "AuthService",
-        error: error.message || String(error)
+        error: error.message || String(error),
       });
-      
+
       // Initialize with unauthenticated state on error
       this.updateAuthState({
         isAuthenticated: false,
@@ -1298,9 +1371,9 @@ export class AuthService {
         error: createAuthError(
           AUTH_ERROR_CODES.UNKNOWN,
           "Failed to initialize authentication"
-        )
+        ),
       });
-      
+
       return false;
     }
   }
@@ -1385,7 +1458,7 @@ export class AuthService {
    */
   private mapStringToUserRole(role: string): UserRole {
     if (!role) return UserRole.CUSTOMER;
-    
+
     switch (role.toUpperCase()) {
       case "ADMIN":
         return UserRole.ADMIN;
@@ -1408,38 +1481,40 @@ export class AuthService {
    */
   private initBroadcastChannel(): void {
     try {
-      if (typeof BroadcastChannel !== 'undefined') {
-        this.broadcastChannel = new BroadcastChannel('auth_channel');
-        
+      if (typeof BroadcastChannel !== "undefined") {
+        this.broadcastChannel = new BroadcastChannel("auth_channel");
+
         this.broadcastChannel.onmessage = (event) => {
           const { type, payload } = event.data;
-          
-          logger.debug('Received broadcast message', { type });
-          
+
+          logger.debug("Received broadcast message", { type });
+
           switch (type) {
-            case 'LOGOUT':
+            case "LOGOUT":
               this.handleLogoutSync();
               break;
-            case 'LOGIN':
+            case "LOGIN":
               this.handleLoginSync(payload.user);
               break;
-            case 'AUTH_STATE_CHANGE':
+            case "AUTH_STATE_CHANGE":
               this.handleAuthStateSync(payload.state);
               break;
             default:
-              logger.warn('Unknown broadcast message type', { type });
+              logger.warn("Unknown broadcast message type", { type });
           }
         };
-        
+
         // Listen for storage events as fallback
-        window.addEventListener('storage', this.handleStorageEvent);
+        window.addEventListener("storage", this.handleStorageEvent);
       } else {
-        logger.warn('BroadcastChannel not supported, falling back to localStorage');
-        window.addEventListener('storage', this.handleStorageEvent);
+        logger.warn(
+          "BroadcastChannel not supported, falling back to localStorage"
+        );
+        window.addEventListener("storage", this.handleStorageEvent);
       }
     } catch (error) {
-      logger.error('Failed to initialize broadcast channel', error);
-      window.addEventListener('storage', this.handleStorageEvent);
+      logger.error("Failed to initialize broadcast channel", error);
+      window.addEventListener("storage", this.handleStorageEvent);
     }
   }
 
@@ -1447,20 +1522,26 @@ export class AuthService {
    * Handle login sync from other tabs
    */
   private handleLoginSync(user: any): void {
-    logger.info('Handling login sync from another tab');
-    
+    logger.info("Handling login sync from another tab");
+
     // Update auth state without broadcasting to avoid loops
-    this.updateAuthState({
-      isAuthenticated: true,
-      user: user,
-      isLoading: false,
-      error: null
-    }, false);
-    
+    this.updateAuthState(
+      {
+        isAuthenticated: true,
+        user: user,
+        isLoading: false,
+        error: null,
+      },
+      false
+    );
+
     // Redirect to dashboard
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/login')) {
-      logger.info('Redirecting to dashboard after login in another tab');
-      window.location.href = '/dashboard';
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname.includes("/login")
+    ) {
+      logger.info("Redirecting to dashboard after login in another tab");
+      window.location.href = "/dashboard";
     }
   }
 
@@ -1470,21 +1551,25 @@ export class AuthService {
   private handleAuthStateSync(state: AuthState): void {
     // Update local state without broadcasting to avoid loops
     this.authState = state;
-    
+
     // Notify subscribers
     this.notifySubscribers();
-    
+
     // Redirect if needed
-    if (state.isAuthenticated && 
-        typeof window !== 'undefined' && 
-        window.location.pathname.includes('/login')) {
-      logger.info('Redirecting to dashboard after auth state change in another tab');
-      
+    if (
+      state.isAuthenticated &&
+      typeof window !== "undefined" &&
+      window.location.pathname.includes("/login")
+    ) {
+      logger.info(
+        "Redirecting to dashboard after auth state change in another tab"
+      );
+
       // Initialize socket before redirect to ensure connection
-      const { initializeSessionSocket } = require('@/services/socket');
+      const { initializeSessionSocket } = require("@/services/socket");
       initializeSessionSocket();
-      
-      window.location.href = '/dashboard';
+
+      window.location.href = "/dashboard";
     }
   }
 
@@ -1493,7 +1578,7 @@ export class AuthService {
    */
   private handleStorageEvent = (event: StorageEvent): void => {
     this.processStorageEvent(event);
-  }
+  };
 
   /**
    * Notify all subscribers of auth state changes
@@ -1503,12 +1588,12 @@ export class AuthService {
     this.stateChangeListeners.forEach((listener) => {
       listener(this.authState);
     });
-    
+
     // Dispatch event if store is available
     if (this.store) {
       this.store.dispatch(setAuthState(this.authState));
     }
-    
+
     logger.debug("Auth state subscribers notified", {
       isAuthenticated: this.authState.isAuthenticated,
     });

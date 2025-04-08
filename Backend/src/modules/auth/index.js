@@ -15,7 +15,7 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 const logger = require("../../utils/logger");
 const config = require("./config");
-const socketIO = require("../../config/socket");
+const primusConfig = require("../../config/primus");
 const roomRegistryService = require("./services/room-registry.service");
 const eventPropagation = require("./services/event-propagation.service");
 
@@ -33,7 +33,8 @@ const tokenService = require("./services/token.service");
 const sessionService = require("./services/session.service");
 const securityService = require("./services/security.service");
 const deviceService = require("./services/device.service");
-const socketService = require("./services/socket.service");
+const primusService = require("../../services/primus.service");
+const primusAdapterService = require("./services/primus-adapter.service");
 const offlineService = require("./services/offline.service");
 
 // Export controllers
@@ -48,8 +49,8 @@ const authMiddleware = require("./middleware/authenticate");
 const sessionMiddleware = require("./middleware/session");
 const csrfMiddleware = require("./middleware/csrf");
 const rateLimitMiddleware = require("./middleware/rate-limit");
-const { authenticateSocket } = require("./middleware/websocket");
-const socketAuthMiddleware = require("./middleware/websocket").authenticateSocket;
+// Import Primus authentication middleware
+const { authenticatePrimus } = require("./middleware/primus-auth");
 
 // Import routes
 const authRoutes = require("./routes");
@@ -57,10 +58,10 @@ const authRoutes = require("./routes");
 /**
  * Initialize the auth module
  * @param {Object} app - Express application
- * @param {Object} io - Socket.IO server instance
+ * @param {Object} primus - Primus server instance
  * @param {Object} config - Configuration object
  */
-const initializeAuthModule = (app, io, config = {}) => {
+const initializeAuthModule = (app, primus, config = {}) => {
   logger.info("Initializing Auth Module");
 
   // Apply middleware
@@ -86,29 +87,29 @@ const initializeAuthModule = (app, io, config = {}) => {
   });
 
   // Initialize security monitoring
-  securityService.initialize({ io });
+  securityService.initialize({ primus });
 
-  // Initialize WebSocket authentication if Socket.IO is provided
-  if (io) {
-    // Apply Socket.IO authentication middleware
-    io.use(socketAuthMiddleware);
+  // Initialize WebSocket authentication if Primus is provided
+  if (primus) {
+    // Authentication is handled at the connection level in Primus service
+    // No middleware needed here as it's already set up in the Primus service
 
     // Initialize room registry service
     roomRegistryService.initialize({
-      io,
+      primus,
       redis: config.redis,
       roomConfig: config.websocket?.rooms || {},
     });
 
     // Initialize event propagation engine
     eventPropagation.initialize({
-      io,
+      primus,
       roomRegistry: roomRegistryService,
       eventConfig: config.websocket?.events || {},
     });
 
-    // Setup Socket.IO event handlers
-    socketService.setupSocketHandlers(io, {
+    // Setup Primus event handlers
+    primusAdapterService.setupSocketHandlers(primus, {
       roomRegistry: roomRegistryService,
       eventPropagation,
       authService,
@@ -126,25 +127,25 @@ const initializeAuthModule = (app, io, config = {}) => {
 module.exports = {
   initialize: initializeAuthModule,
   init: initializeAuthModule,
-  shutdown: async function() {
+  shutdown: async function () {
     logger.info("Shutting down authentication module");
 
     try {
       // Perform cleanup tasks
       await sessionService.cleanup();
-      
+
       // Check if stopMonitoring exists before calling it
-      if (typeof securityService.stopMonitoring === 'function') {
+      if (typeof securityService.stopMonitoring === "function") {
         securityService.stopMonitoring();
       } else {
-        logger.warn('Security service stopMonitoring function not found');
+        logger.warn("Security service stopMonitoring function not found");
       }
-      
+
       // Cleanup WebSocket services if initialized
       if (roomRegistryService && roomRegistryService.isInitialized) {
         await roomRegistryService.cleanup();
       }
-      
+
       if (eventPropagation && eventPropagation.isInitialized) {
         await eventPropagation.cleanup();
       }
@@ -178,7 +179,7 @@ module.exports = {
     token: tokenService,
     session: sessionService,
     security: securityService,
-    socket: socketService,
+    primus: primusAdapterService,
     device: deviceService,
     offline: offlineService,
   },
@@ -188,7 +189,7 @@ module.exports = {
     session: sessionMiddleware,
     csrf: csrfMiddleware,
     rateLimit: rateLimitMiddleware,
-    socketAuth: socketAuthMiddleware,
+    socketAuth: authenticatePrimus,
   },
 };
 
@@ -196,7 +197,7 @@ module.exports = {
  * Initialize the authentication module
  * Sets up all required auth services and configurations
  */
-exports.init = async (app, io, config = {}) => {
+exports.init = async (app, primus, config = {}) => {
   try {
     logger.info("Initializing Auth Module");
 
@@ -225,15 +226,15 @@ exports.init = async (app, io, config = {}) => {
       logger.debug("Security service already initialized");
     }
 
-    // Initialize WebSocket services if Socket.IO is provided
-    if (io) {
-      // Apply Socket.IO authentication middleware
-      io.use(socketAuthMiddleware);
+    // Initialize WebSocket services if Primus is provided
+    if (primus) {
+      // Authentication is handled at the connection level in Primus service
+      // No middleware needed here as it's already set up in the Primus service
 
       // Initialize room registry service
       if (!roomRegistryService.isInitialized) {
         await roomRegistryService.initialize({
-          io,
+          primus,
           redis: config.redis,
           roomConfig: config.websocket?.rooms || {},
         });
@@ -244,7 +245,7 @@ exports.init = async (app, io, config = {}) => {
       // Initialize event propagation engine
       if (!eventPropagation.isInitialized) {
         await eventPropagation.initialize({
-          io,
+          primus,
           roomRegistry: roomRegistryService,
           eventConfig: config.websocket?.events || {},
         });
@@ -252,8 +253,8 @@ exports.init = async (app, io, config = {}) => {
         logger.debug("Event propagation engine already initialized");
       }
 
-      // Setup Socket.IO event handlers
-      socketService.setupSocketHandlers(io, {
+      // Setup Primus event handlers
+      primusAdapterService.setupSocketHandlers(primus, {
         roomRegistry: roomRegistryService,
         eventPropagation,
         authService,
@@ -286,12 +287,12 @@ const shutdownAuthModule = async function () {
     // Perform cleanup tasks
     await sessionService.cleanup();
     securityService.stopMonitoring();
-    
+
     // Cleanup WebSocket services if initialized
     if (roomRegistryService.isInitialized) {
       await roomRegistryService.cleanup();
     }
-    
+
     if (eventPropagation.isInitialized) {
       await eventPropagation.cleanup();
     }
