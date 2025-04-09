@@ -65,7 +65,15 @@ exports.login = asyncHandler(async (req, res) => {
     rememberMe = false,
     deviceInfo: clientDeviceInfo,
     deviceId,
+    tabId, // Extract tabId from request body
   } = req.body;
+
+  // Log the deviceId for debugging
+  logger.debug(`Login attempt with deviceId: ${deviceId}`, {
+    deviceId,
+    hasDeviceInfo: !!clientDeviceInfo,
+    clientDeviceId: clientDeviceInfo?.deviceId || "none",
+  });
 
   // Combine client-provided device info with server-detected info
   const deviceInfo = {
@@ -81,7 +89,17 @@ exports.login = asyncHandler(async (req, res) => {
     ),
     // Override with client-provided info if available
     ...(clientDeviceInfo || {}),
+    // Ensure deviceId is set in deviceInfo
+    deviceId: deviceId,
+    // Add tabId to deviceInfo
+    tabId: tabId,
   };
+
+  // Log the tabId for debugging
+  logger.debug(`Login attempt with tabId: ${tabId}`, {
+    tabId,
+    deviceId,
+  });
 
   // Authenticate user through auth service
   // Pass the response object to the login function so it can set cookies directly
@@ -91,20 +109,23 @@ exports.login = asyncHandler(async (req, res) => {
     deviceInfo,
     rememberMe,
     res,
-    deviceId
+    deviceId,
+    tabId // Pass tabId to the login function
   );
 
   // Set tokens in HTTP-only cookies if not already set by the auth service
   if (result.tokens && !res.headersSent) {
-    tokenService.setTokenCookies(res, result.tokens);
+    // Use the improved setTokenCookies method that also sets app_session_exists
+    tokenService.setTokenCookies(res, result.tokens, {
+      sessionExpiry: result.session.expiresAt,
+      rememberMe: result.session.rememberMe || false,
+    });
 
-    // Set a session flag cookie that JavaScript can read
-    res.cookie("app_session_exists", "true", {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: result.session.expiresAt - Date.now(),
+    logger.info("Set auth cookies during login", {
+      userId: result.user._id,
+      sessionId: result.session._id,
+      expiresAt: result.session.expiresAt,
+      rememberMe: result.session.rememberMe || false,
     });
   }
 
@@ -112,13 +133,41 @@ exports.login = asyncHandler(async (req, res) => {
   if (result.session.deviceId && !result.isKnownDevice) {
     // Notify user about new device login via WebSocket to other devices
     const userRoom = socketService.createRoomName("user", result.user._id);
-    if (req.io) {
-      req.io.to(userRoom).emit(EVENT_NAMES.NEW_DEVICE_LOGIN, {
-        deviceId: result.session.deviceId,
-        deviceInfo,
-        timestamp: Date.now(),
+    if (req.app.primus) {
+      // Use Primus to send the notification
+      req.app.primus.forEach(function (spark) {
+        if (spark.rooms && spark.rooms.has(userRoom)) {
+          spark.write({
+            event: EVENT_NAMES.NEW_DEVICE_LOGIN,
+            deviceId: result.session.deviceId,
+            deviceInfo,
+            timestamp: Date.now(),
+          });
+        }
       });
     }
+  }
+
+  // Schedule token expiration check for the access token
+  if (req.app.primus && result.tokens && result.tokens.accessToken) {
+    // Log that we're scheduling a token expiration check
+    logger.info(
+      `Scheduling token expiration check for user ${result.user._id}`,
+      {
+        userId: result.user._id,
+        sessionId: result.session._id,
+        deviceId: result.session.deviceId,
+      }
+    );
+
+    // Schedule the token expiration check with a shorter warning threshold (60 seconds)
+    tokenService.scheduleTokenExpirationCheck(
+      req.app.primus,
+      result.user._id,
+      result.tokens.accessToken,
+      result.session._id,
+      60 // 1 minute warning
+    );
   }
 
   // Return session metadata for frontend

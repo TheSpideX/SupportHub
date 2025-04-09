@@ -26,7 +26,7 @@ module.exports = {
     },
     sessionValidation: {
       windowMs: 2000, // 2 seconds
-      max: 10, // 10 requests per 2 seconds for page reloads
+      max: 50, // 50 requests per 2 seconds for page reloads
       message: "Too many session validation requests, please try again later",
     },
   },

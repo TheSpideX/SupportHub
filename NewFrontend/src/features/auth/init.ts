@@ -276,7 +276,7 @@ export const handleAuthFailure = (error) => {
   authInstance.tokenService.clearTokens();
 
   // Redirect to login page with the correct path
-  window.location.href = "/login"; // Update from AUTH_CONSTANTS.ROUTES.LOGIN if it was '/auth/login'
+  window.location.href = "/auth/login"; // Update from AUTH_CONSTANTS.ROUTES.LOGIN if it was '/auth/login'
 
   return false;
 };

@@ -19,6 +19,7 @@ export enum AuthEventType {
   SESSION_TIMEOUT_WARNING = "session:timeout_warning",
   TOKEN_REFRESHED = "token:refreshed",
   TOKEN_REFRESH_ERROR = "token:refresh_error",
+  TOKEN_EXPIRING = "token:expiring",
   USER_ACTIVITY = "user:activity",
   LEADER_ELECTED = "leader:elected",
   DEVICE_CONNECTED = "device:connected",
@@ -417,6 +418,7 @@ export class PrimusAuthService {
 
     // Token events
     this.primus.on("token:refreshed", this.handleTokenRefreshed.bind(this));
+    this.primus.on("token:expiring", this.handleTokenExpiring.bind(this));
     this.primus.on(
       "token:refresh_error",
       this.handleTokenRefreshError.bind(this)
@@ -725,6 +727,92 @@ export class PrimusAuthService {
 
     // Emit event
     this.eventEmitter.emit(AuthEventType.TOKEN_REFRESHED, {
+      ...data,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Handle token expiring notification
+   */
+  private handleTokenExpiring(data: any): void {
+    logger.warn("Token expiring notification received", {
+      expiresIn: data.expiresIn,
+      sessionId: data.sessionId,
+      component: "PrimusAuthService",
+      event: data.event,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Check if this is the leader tab
+    if (this.isLeaderTab) {
+      logger.info("Leader tab will refresh the token immediately", {
+        component: "PrimusAuthService",
+        tabId: this.tabId,
+        deviceId: this.deviceId,
+      });
+
+      // Refresh token immediately if we're the leader tab
+      if (this.tokenService) {
+        // Add a small delay to avoid race conditions
+        setTimeout(() => {
+          this.tokenService
+            ?.refreshToken()
+            .then((success) => {
+              logger.info(
+                "Token refresh initiated by expiration notification",
+                {
+                  success,
+                  component: "PrimusAuthService",
+                  tabId: this.tabId,
+                  deviceId: this.deviceId,
+                }
+              );
+            })
+            .catch((error) => {
+              logger.error(
+                "Failed to refresh token after expiration notification",
+                {
+                  error,
+                  component: "PrimusAuthService",
+                }
+              );
+
+              // Try again after a short delay
+              setTimeout(() => {
+                this.tokenService
+                  ?.refreshToken()
+                  .then((success) => {
+                    logger.info("Second attempt to refresh token succeeded", {
+                      success,
+                      component: "PrimusAuthService",
+                    });
+                  })
+                  .catch((retryError) => {
+                    logger.error("Second attempt to refresh token failed", {
+                      error: retryError,
+                      component: "PrimusAuthService",
+                    });
+                  });
+              }, 2000); // 2 second delay before retry
+            });
+        }, 100); // Small delay to avoid race conditions
+      } else {
+        logger.error("Cannot refresh token: TokenService not available", {
+          component: "PrimusAuthService",
+        });
+      }
+    } else {
+      logger.info("Non-leader tab received token expiring notification", {
+        component: "PrimusAuthService",
+        tabId: this.tabId,
+        deviceId: this.deviceId,
+        isLeaderTab: this.isLeaderTab,
+      });
+    }
+
+    // Emit event for other components to react
+    this.eventEmitter.emit(AuthEventType.TOKEN_EXPIRING, {
       ...data,
       timestamp: Date.now(),
     });

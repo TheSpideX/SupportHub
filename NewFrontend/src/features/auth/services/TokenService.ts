@@ -458,7 +458,17 @@ export class TokenService {
       // With HTTP-only cookies, we can't access the token directly
       // Use session metadata instead
       const sessionData = getSessionMetadata();
-      if (!sessionData || !sessionData.expiresAt) return;
+
+      // If no session data, schedule a refresh every 5 minutes as a fallback
+      if (!sessionData || !sessionData.expiresAt) {
+        logger.warn(
+          "No session metadata found, scheduling refresh every 5 minutes as fallback"
+        );
+        this.refreshTimeoutId = window.setTimeout(() => {
+          this.refreshToken();
+        }, 5 * 60 * 1000); // 5 minutes
+        return;
+      }
 
       // Calculate time until refresh (expiry - threshold)
       const expiresAt = new Date(sessionData.expiresAt).getTime();
@@ -468,21 +478,30 @@ export class TokenService {
 
       // Schedule refresh
       if (timeUntilRefresh > 0) {
+        // Never wait more than 5 minutes to refresh, even if expiry is far away
+        const refreshDelay = Math.min(timeUntilRefresh, 5 * 60 * 1000);
+
         this.refreshTimeoutId = window.setTimeout(() => {
           this.refreshToken();
-        }, timeUntilRefresh);
+        }, refreshDelay);
 
         logger.info(
           `Token refresh scheduled in ${Math.round(
-            timeUntilRefresh / 1000
+            refreshDelay / 1000
           )} seconds`
         );
       } else {
         // Token is already expired or close to expiry, refresh immediately
+        logger.info("Token is close to expiry, refreshing immediately");
         this.refreshToken();
       }
     } catch (error) {
       logger.error("Failed to schedule token refresh:", error);
+
+      // Schedule a fallback refresh in case of error
+      this.refreshTimeoutId = window.setTimeout(() => {
+        this.refreshToken();
+      }, 5 * 60 * 1000); // 5 minutes
     }
   }
 
@@ -648,6 +667,14 @@ export class TokenService {
    * Refreshes the access token using the refresh token
    */
   public async refreshToken(): Promise<boolean> {
+    // Log the refresh attempt with more details
+    logger.info("Token refresh requested", {
+      tabId: this._tabId,
+      deviceId: this.deviceFingerprint,
+      isLeaderTab: this.isLeaderTab(),
+      timestamp: new Date().toISOString(),
+    });
+
     // Check global lock first
     if (!this._getGlobalLock()) {
       logger.debug("Global refresh lock active, skipping refresh");
@@ -1268,13 +1295,21 @@ export class TokenService {
         return false;
       }
 
-      // Perform actual refresh logic
-      // IMPROVEMENT: Add device and tab information to the refresh request
+      // Perform actual refresh logic with device and tab information
       // This helps with cross-device synchronization
       const deviceId =
         sessionStorage.getItem("device_fingerprint") || this.deviceFingerprint;
       const tabId = sessionStorage.getItem("tab_id") || this._tabId;
       const isLeaderTab = this.isLeaderTab();
+
+      // Log the refresh attempt with detailed information
+      logger.info("Performing token refresh", {
+        deviceId,
+        tabId,
+        isLeaderTab,
+        timestamp: new Date().toISOString(),
+        endpoint: `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`,
+      });
 
       const response = await fetch(
         `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`,
@@ -1293,6 +1328,13 @@ export class TokenService {
           }),
         }
       );
+
+      // Log the response status
+      logger.info("Token refresh response received", {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+      });
 
       if (!response.ok) {
         throw new Error(`Token refresh failed with status: ${response.status}`);
@@ -1426,7 +1468,7 @@ export class TokenService {
 
     // Redirect to login page if needed
     if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      window.location.href = "/auth/login";
     }
   }
 

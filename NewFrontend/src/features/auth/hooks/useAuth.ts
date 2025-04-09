@@ -18,7 +18,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from "react-toastify";
 import { logger } from "@/utils/logger";
 import { RootState } from '@/store';
-import { APP_ROUTES } from "@/config/routes";
+import { APP_ROUTES } from '../../../config/routes';
 
 /**
  * Custom hook for authentication state and operations
@@ -50,17 +50,15 @@ export const useAuth = () => {
   const handleAuthError = (error: any) => {
     logger.error('Authentication error', { component: 'useAuth', error });
     
-    // Clear any stale auth state on critical errors
     if (error?.response?.status === 500 || 
         error?.response?.status === 401 || 
         error?.code === 'AUTHENTICATION_ERROR') {
       dispatch(clearAuthState());
       
-      // Redirect to login on auth errors - use correct path
-      navigate('/login', { replace: true });
+      // Use consistent login path
+      navigate(APP_ROUTES.AUTH.LOGIN, { replace: true });
     }
     
-    // Show user-friendly error message
     toast.error(error?.response?.data?.message || 'Authentication failed. Please try again.');
     
     throw error;

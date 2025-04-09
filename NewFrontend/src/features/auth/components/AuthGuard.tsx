@@ -2,7 +2,7 @@ import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useLocation, Navigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store";
-import { APP_ROUTES } from "@/config/routes";
+import { APP_ROUTES } from '../../../config/routes';
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { clearAuthState, setInitialized } from "@/features/auth/store";
@@ -20,10 +20,10 @@ interface AuthGuardProps {
  * AuthGuard component that protects routes requiring authentication
  * Implements the auth-system-architecture with HTTP-only cookie support
  */
-export const AuthGuard = ({ 
+export const AuthGuard: React.FC<AuthGuardProps> = ({ 
   children, 
   requiredPermissions = [] 
-}: AuthGuardProps) => {
+}) => {
   const location = useLocation();
   const dispatch = useDispatch();
   const { isAuthenticated, isInitialized } = useSelector((state: RootState) => state.auth);
@@ -166,7 +166,7 @@ export const AuthGuard = ({
       component: 'AuthGuard',
       from: location.pathname
     });
-    // Use direct path
+    
     return <Navigate to={APP_ROUTES.AUTH.LOGIN} replace />;
   }
   

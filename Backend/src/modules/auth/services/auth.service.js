@@ -5,6 +5,7 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const User = require("../models/user.model");
+const Session = require("../models/session.model");
 const tokenService = require("./token.service");
 const sessionService = require("./session.service");
 const securityService = require("./security.service");
@@ -14,6 +15,7 @@ const {
   security: securityConfig,
   cookie: cookieConfig,
   token: tokenConfig,
+  session: sessionConfig,
 } = config;
 const { roomRegistry } = config;
 const logger = require("../../../utils/logger");
@@ -129,7 +131,8 @@ class AuthService {
     deviceInfo = {},
     rememberMe = false,
     res,
-    deviceId
+    deviceId,
+    tabId
   ) {
     try {
       // Find user by email - select the security.password field
@@ -222,14 +225,144 @@ class AuthService {
         },
       });
 
-      // Create session
-      const session = await sessionService.createSession({
+      // Check for existing active session from the same device
+      let session;
+
+      // Log the device info for debugging
+      logger.debug("Device info received during login", {
+        deviceId: deviceInfo.deviceId || deviceId, // Use provided deviceId if available
+        fingerprint: deviceInfo.fingerprint,
+        userAgent: deviceInfo.userAgent,
         userId: user._id,
-        userAgent: deviceInfo.userAgent || "unknown",
-        ipAddress: deviceInfo.ip || "unknown",
-        deviceInfo: deviceInfo,
-        rememberMe,
       });
+
+      // First, clean up any expired sessions for this user to avoid hitting the limit
+      await sessionService.cleanupExpiredSessions(user._id);
+
+      // Ensure deviceId is set in deviceInfo
+      if (deviceId && !deviceInfo.deviceId) {
+        deviceInfo.deviceId = deviceId;
+        logger.info(`Using provided deviceId: ${deviceId}`);
+      } else if (deviceInfo.deviceId && !deviceId) {
+        // If deviceId is not provided but deviceInfo.deviceId is, use that
+        deviceId = deviceInfo.deviceId;
+        logger.info(`Using deviceId from deviceInfo: ${deviceId}`);
+      } else if (!deviceId && !deviceInfo.deviceId) {
+        // If neither is provided, generate a new deviceId
+        deviceId = `device-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 15)}`;
+        deviceInfo.deviceId = deviceId;
+        logger.info(`Generated new deviceId: ${deviceId}`);
+      }
+
+      if (deviceInfo.deviceId) {
+        // Log all sessions for this user to debug the issue
+        const allSessions = await Session.find({
+          userId: user._id.toString(),
+          isActive: true,
+          expiresAt: { $gt: new Date() },
+        })
+          .select("_id deviceId deviceInfo lastActivity")
+          .sort({ lastActivity: -1 });
+
+        logger.info(
+          `Found ${allSessions.length} active sessions for user ${user._id}`,
+          {
+            deviceId: deviceInfo.deviceId,
+            sessions: allSessions.map((s) => ({
+              id: s._id,
+              deviceId: s.deviceId,
+              deviceInfoDeviceId: s.deviceInfo?.deviceId || "none",
+              lastActivity: s.lastActivity,
+            })),
+          }
+        );
+
+        // Get tabId from the request if available
+        const tabId = deviceInfo.tabId || null;
+
+        // Try to find an existing active session for this device and tab
+        const existingSession =
+          await sessionService.findActiveSessionByDeviceId(
+            user._id,
+            deviceInfo.deviceId,
+            tabId
+          );
+
+        if (existingSession) {
+          logger.info(
+            `Reusing existing session for device ${deviceInfo.deviceId}`,
+            {
+              userId: user._id,
+              sessionId: existingSession._id,
+              deviceId: deviceInfo.deviceId,
+            }
+          );
+
+          // Update the existing session
+          session = await sessionService.updateSession(existingSession._id, {
+            lastActivity: new Date(),
+            expiresAt: new Date(
+              Date.now() +
+                (rememberMe ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000)
+            ), // 7 days or 24 hours
+            deviceInfo: deviceInfo,
+            deviceId: deviceInfo.deviceId, // Ensure deviceId is updated
+            rememberMe,
+          });
+        } else {
+          // Before creating a new session, clean up expired sessions for this user and device
+          await sessionService.cleanupExpiredSessions(
+            user._id,
+            deviceInfo.deviceId
+          );
+
+          // Check if we need to terminate any old sessions
+          const activeSessions = await sessionService.countActiveSessions(
+            user._id
+          );
+
+          if (activeSessions >= sessionConfig.maxConcurrentSessions) {
+            logger.info(
+              `User ${user._id} has ${activeSessions} active sessions, terminating oldest before creating new one`
+            );
+            await sessionService.terminateOldestSession(user._id);
+          }
+
+          // Create a new session
+          session = await sessionService.createSession({
+            userId: user._id,
+            userAgent: deviceInfo.userAgent || "unknown",
+            ipAddress: deviceInfo.ip || "unknown",
+            deviceInfo: deviceInfo,
+            deviceId: deviceInfo.deviceId, // Store deviceId at the top level for easier querying
+            tabId: deviceInfo.tabId, // Pass tabId to createSession
+            rememberMe,
+          });
+
+          logger.info(`Created new session for device ${deviceInfo.deviceId}`, {
+            userId: user._id,
+            sessionId: session._id,
+            deviceId: deviceInfo.deviceId,
+          });
+        }
+      } else {
+        // No device ID provided, create a new session
+        // This should rarely happen with proper frontend implementation
+        logger.warn("Login attempt without deviceId", {
+          userId: user._id,
+          userAgent: deviceInfo.userAgent,
+        });
+
+        session = await sessionService.createSession({
+          userId: user._id,
+          userAgent: deviceInfo.userAgent || "unknown",
+          ipAddress: deviceInfo.ip || "unknown",
+          deviceInfo: deviceInfo,
+          rememberMe,
+        });
+      }
 
       // Set HTTP-only cookies with tokens
       if (res) {

@@ -180,6 +180,13 @@ const startServer = async () => {
     // Setup Primus
     const primus = await primusConfig.setupPrimus(httpServer);
     app.set("primus", primus);
+    app.primus = primus; // Make Primus available directly on the app object
+
+    // Add middleware to make Primus available in request objects
+    app.use((req, res, next) => {
+      req.app = app; // This makes app.primus available as req.app.primus
+      next();
+    });
 
     // Add Primus client library route
     const primusRoutes = require("./src/routes/primus.routes");

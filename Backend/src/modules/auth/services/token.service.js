@@ -38,13 +38,27 @@ const generateToken = (payload, type = "access") => {
   }
 
   const secret = tokenConfig.secrets[type];
-  const expiresIn = tokenConfig.expiry[type];
+  // Use hardcoded values for token expiry
+  let expiresIn;
+  if (type === "access") {
+    expiresIn = 86400; // 24 hours for access token
+  } else if (type === "refresh") {
+    expiresIn = 604800; // 7 days for refresh token
+  } else {
+    expiresIn = tokenConfig.expiry[type];
+  }
   const algorithm = tokenConfig.jwt?.algorithms?.[type] || "HS256";
+
+  // Log token expiry for debugging
+  logger.info(`Generating ${type} token with expiry: ${expiresIn} seconds`);
 
   if (!secret) {
     logger.error(`Secret for ${type} token is missing`);
     throw new Error(`Secret for ${type} token is missing`);
   }
+
+  // Log token expiry for debugging
+  logger.info(`Generating ${type} token with expiry: ${expiresIn} seconds`);
 
   return jwt.sign(payload, secret, {
     expiresIn,
@@ -60,11 +74,8 @@ const generateToken = (payload, type = "access") => {
  */
 const verifyToken = (token, type = "access") => {
   try {
-    // Fix: Use the correct property path based on token config structure
-    const secret =
-      type === "access"
-        ? tokenConfig.access.secret
-        : tokenConfig.refresh.secret;
+    // Use the correct property path based on token config structure
+    const secret = tokenConfig.secrets[type];
 
     if (!secret) {
       logger.error(`Secret for ${type} token is missing`);
@@ -143,7 +154,7 @@ exports.generateAuthTokens = async (user, sessionData = {}) => {
 
   // Store CSRF token in Redis with user ID association
   await redisClient.set(`csrf:${csrfToken}`, user._id.toString(), {
-    EX: tokenConfig.expiry.access,
+    EX: 86400, // 24 hours (hardcoded)
   });
 
   return {
@@ -314,6 +325,15 @@ exports.verifyAccessToken = async (token) => {
       );
     }
 
+    // Log token verification attempt
+    logger.info("Verifying access token with secret", {
+      secretFirstChars: secret.substring(0, 5) + "...",
+      secretLength: secret.length,
+      tokenFirstChars: token.substring(0, 10) + "...",
+      tokenLength: token.length,
+      algorithm: tokenConfig.jwt.algorithms.access,
+    });
+
     // IMPROVEMENT: Check if token is blacklisted
     const blacklisted = await isTokenBlacklisted(token);
     if (blacklisted) {
@@ -321,9 +341,26 @@ exports.verifyAccessToken = async (token) => {
     }
 
     // Verify the token
-    const decoded = jwt.verify(token, secret, {
-      algorithms: [tokenConfig.jwt.algorithms.access], // Explicitly specify allowed algorithms
-    });
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret, {
+        algorithms: [tokenConfig.jwt.algorithms.access], // Explicitly specify allowed algorithms
+      });
+
+      logger.info("Token verified successfully", {
+        userId: decoded.sub || decoded.userId,
+        sessionId: decoded.sessionId,
+        expiresAt: decoded.exp
+          ? new Date(decoded.exp * 1000).toISOString()
+          : "unknown",
+      });
+    } catch (jwtError) {
+      logger.error(`JWT verification failed: ${jwtError.message}`, {
+        errorName: jwtError.name,
+        errorMessage: jwtError.message,
+      });
+      throw jwtError;
+    }
 
     // IMPROVEMENT: Additional validation checks
     if (!decoded.sub && !decoded.userId) {
@@ -543,12 +580,14 @@ exports.generateCsrfToken = async (userId) => {
 
   // Store CSRF token in Redis with user ID association
   if (userId) {
-    await redisClient.set(
-      `csrf:${csrfToken}`,
-      userId.toString(),
-      "EX",
-      tokenConfig.csrfToken.expiresIn
-    );
+    try {
+      await redisClient.set(`csrf:${csrfToken}`, userId.toString(), {
+        EX: 86400, // 24 hours (hardcoded)
+      });
+    } catch (error) {
+      logger.error(`Failed to store CSRF token in Redis: ${error.message}`);
+      // Continue even if Redis fails - we'll use fallback validation
+    }
   }
 
   return csrfToken;
@@ -576,8 +615,9 @@ exports.verifyCsrfToken = async (token, userId) => {
  * Set token cookies
  * @param {Object} res - Express response object
  * @param {Object} tokens - Access and refresh tokens
+ * @param {Object} options - Additional options
  */
-exports.setTokenCookies = (res, tokens) => {
+exports.setTokenCookies = (res, tokens, options = {}) => {
   // Check if tokens object exists
   if (!tokens) {
     logger.error("Cannot set token cookies: tokens object is undefined");
@@ -593,11 +633,45 @@ exports.setTokenCookies = (res, tokens) => {
     path: "/",
   };
 
+  // Get session expiry from options or use default
+  const sessionExpiry =
+    options.sessionExpiry || Date.now() + tokenConfig.expiry.refresh * 1000;
+  const rememberMe = options.rememberMe || false;
+
+  // Calculate cookie expiration times
+  const accessTokenMaxAge = 24 * 60 * 60 * 1000; // 24 hours (hardcoded)
+  const refreshTokenMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days (hardcoded)
+
+  // Log the token config for debugging
+  logger.info("Token config:", {
+    accessTokenExpiry: tokenConfig.expiry.access,
+    refreshTokenExpiry: tokenConfig.expiry.refresh,
+    hardcodedAccessTokenMaxAge: accessTokenMaxAge / 1000,
+    hardcodedRefreshTokenMaxAge: refreshTokenMaxAge / 1000,
+  });
+
+  // Log cookie expiration times for debugging
+  logger.debug("Setting cookies with expiration times:", {
+    accessTokenMaxAge: `${accessTokenMaxAge / 1000} seconds`,
+    refreshTokenMaxAge: `${refreshTokenMaxAge / 1000} seconds`,
+    rememberMe: rememberMe,
+    sessionExpiry: new Date(sessionExpiry).toISOString(),
+  });
+
   // Set access token cookie
   if (tokens.accessToken) {
+    // Calculate expiry date for access token
+    const accessTokenExpiry = new Date(Date.now() + accessTokenMaxAge);
+
+    // Log the expiry date for debugging
+    logger.info(
+      `Setting access token cookie with expiry: ${accessTokenExpiry.toISOString()}`
+    );
+
     res.cookie(cookieNames.ACCESS_TOKEN, tokens.accessToken, {
       ...baseOptions,
-      maxAge: tokenConfig.expiry.access * 1000,
+      maxAge: accessTokenMaxAge,
+      expires: accessTokenExpiry, // Add explicit expires date
     });
 
     // Set a visible flag cookie to indicate the presence of the HTTP-only cookie
@@ -605,7 +679,15 @@ exports.setTokenCookies = (res, tokens) => {
     res.cookie("access_token_exists", "true", {
       ...baseOptions,
       httpOnly: false, // Make this cookie visible to JavaScript
-      maxAge: tokenConfig.expiry.access * 1000,
+      maxAge: accessTokenMaxAge,
+      expires: accessTokenExpiry, // Use the same expiry date
+    });
+
+    // Also set auth_token cookie with the same expiry
+    res.cookie("auth_token", tokens.accessToken, {
+      ...baseOptions,
+      maxAge: accessTokenMaxAge,
+      expires: accessTokenExpiry, // Use the same expiry date
     });
   } else {
     logger.warn("Access token is missing when setting cookies");
@@ -613,16 +695,40 @@ exports.setTokenCookies = (res, tokens) => {
 
   // Set refresh token cookie
   if (tokens.refreshToken) {
+    // Calculate expiry date for refresh token
+    const refreshTokenExpiry = new Date(Date.now() + refreshTokenMaxAge);
+
+    // Log the expiry date for debugging
+    logger.info(
+      `Setting refresh token cookie with expiry: ${refreshTokenExpiry.toISOString()}`
+    );
+
     res.cookie(cookieNames.REFRESH_TOKEN, tokens.refreshToken, {
       ...baseOptions,
-      maxAge: tokenConfig.expiry.refresh * 1000,
+      maxAge: refreshTokenMaxAge,
+      expires: refreshTokenExpiry, // Add explicit expires date
     });
 
     // Set a visible flag cookie to indicate the presence of the HTTP-only cookie
     res.cookie("refresh_token_exists", "true", {
       ...baseOptions,
       httpOnly: false, // Make this cookie visible to JavaScript
-      maxAge: tokenConfig.expiry.refresh * 1000,
+      maxAge: refreshTokenMaxAge,
+      expires: refreshTokenExpiry, // Use the same expiry date
+    });
+
+    // Set app session exists cookie with the same expiry as the refresh token
+    // This ensures the session persists as long as the refresh token is valid
+    res.cookie("app_session_exists", "true", {
+      ...baseOptions,
+      httpOnly: false, // Make this cookie visible to JavaScript
+      maxAge: refreshTokenMaxAge, // Use refresh token expiry
+      expires: refreshTokenExpiry, // Use the same expiry date
+    });
+
+    logger.info("Set app_session_exists cookie with expiry:", {
+      maxAge: `${refreshTokenMaxAge / 1000} seconds`,
+      expiresAt: new Date(Date.now() + refreshTokenMaxAge).toISOString(),
     });
   } else {
     logger.warn("Refresh token is missing when setting cookies");
@@ -630,12 +736,39 @@ exports.setTokenCookies = (res, tokens) => {
 
   // Set CSRF token if provided
   if (tokens.csrfToken) {
+    // Use the same expiry as the access token for CSRF token
+    const csrfTokenExpiry = new Date(Date.now() + accessTokenMaxAge);
+
+    // Log the expiry date for debugging
+    logger.info(
+      `Setting CSRF token cookie with expiry: ${csrfTokenExpiry.toISOString()}`
+    );
+
     res.cookie(cookieNames.CSRF_TOKEN, tokens.csrfToken, {
       ...baseOptions,
       httpOnly: false, // CSRF token must be accessible to JavaScript
+      maxAge: accessTokenMaxAge, // Use access token expiry
+      expires: csrfTokenExpiry, // Use the same expiry date as access token
     });
   } else {
     logger.warn("CSRF token is missing when setting cookies");
+  }
+
+  // Set session ID cookie if provided
+  if (tokens.session && tokens.session._id) {
+    // Use the same expiry as the access token for session ID
+    const sessionIdExpiry = new Date(Date.now() + accessTokenMaxAge);
+
+    // Log the expiry date for debugging
+    logger.info(
+      `Setting session ID cookie with expiry: ${sessionIdExpiry.toISOString()}`
+    );
+
+    res.cookie("session_id", tokens.session._id, {
+      ...baseOptions,
+      maxAge: accessTokenMaxAge,
+      expires: sessionIdExpiry, // Use the same expiry date as access token
+    });
   }
 };
 
@@ -661,6 +794,8 @@ exports.clearTokenCookies = (res) => {
   res.clearCookie("access_token_exists", { ...baseOptions, httpOnly: false });
   res.clearCookie("refresh_token_exists", { ...baseOptions, httpOnly: false });
   res.clearCookie("app_session_exists", { ...baseOptions, httpOnly: false });
+
+  logger.debug("All auth cookies cleared successfully");
 };
 
 /**
@@ -815,6 +950,71 @@ exports.generateToken = generateToken;
 
 exports.generateAccessToken = (payload) => {
   return generateToken(payload, "access");
+};
+
+/**
+ * Refresh tokens for an existing session
+ * @param {string} userId - User ID
+ * @param {number} tokenVersion - Token version
+ * @param {string} sessionId - Session ID
+ * @param {boolean} rememberMe - Whether to generate long-lived tokens
+ * @returns {Object} Access and refresh tokens
+ */
+exports.refreshTokens = async (
+  userId,
+  tokenVersion,
+  sessionId,
+  rememberMe = false
+) => {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required to refresh tokens");
+    }
+
+    if (!sessionId) {
+      throw new Error("Session ID is required to refresh tokens");
+    }
+
+    // Get user from database
+    const user = await User.findById(userId);
+    if (!user) {
+      logger.error(`User not found for ID: ${userId}`);
+      throw new Error("User not found");
+    }
+
+    // Get session
+    const session = await sessionService.getSessionById(sessionId);
+    if (!session) {
+      logger.error(`Session not found for ID: ${sessionId}`);
+      throw new Error("Session not found");
+    }
+
+    // Base payload for both tokens
+    const basePayload = {
+      sub: userId,
+      userId: userId, // For backward compatibility
+      email: user.email,
+      role: user.role,
+      sessionId: sessionId,
+      tokenVersion: tokenVersion,
+      jti: uuidv4(), // Unique token ID
+    };
+
+    // Generate tokens
+    const accessToken = generateToken(basePayload, "access");
+    const refreshToken = generateToken(basePayload, "refresh");
+
+    logger.info(`Tokens refreshed for user ${userId}, session ${sessionId}`);
+
+    return {
+      accessToken,
+      refreshToken,
+      session: { _id: sessionId },
+    };
+  } catch (error) {
+    logger.error("Failed to refresh tokens", error);
+    throw error;
+  }
 };
 
 exports.generateRefreshToken = async (payload) => {
@@ -996,6 +1196,43 @@ exports.getTokenExpiration = (token) => {
 };
 
 /**
+ * Get time remaining until token expires
+ * @param {string} token - JWT token
+ * @returns {number} Seconds until expiration, 0 if expired or invalid
+ */
+exports.getTokenTimeRemaining = (token) => {
+  try {
+    const expTime = exports.getTokenExpiration(token);
+    if (!expTime) return 0;
+
+    const currentTime = Math.floor(Date.now() / 1000);
+    return Math.max(0, expTime - currentTime);
+  } catch (error) {
+    logger.error("Failed to get token time remaining", error);
+    return 0;
+  }
+};
+
+/**
+ * Check if a token is about to expire and should be refreshed
+ * @param {string} token - JWT token
+ * @param {number} thresholdSeconds - Seconds threshold before expiration to consider refreshing
+ * @returns {boolean} True if token should be refreshed
+ */
+exports.shouldRefreshToken = (
+  token,
+  thresholdSeconds = tokenConfig.refreshThreshold
+) => {
+  try {
+    const timeRemaining = exports.getTokenTimeRemaining(token);
+    return timeRemaining > 0 && timeRemaining <= thresholdSeconds;
+  } catch (error) {
+    logger.error("Failed to check if token should be refreshed", error);
+    return false;
+  }
+};
+
+/**
  * Check if token is about to expire
  * @param {string} token - JWT token
  * @param {number} thresholdSeconds - Seconds threshold before expiration
@@ -1016,18 +1253,54 @@ exports.isTokenExpiringSoon = (token, thresholdSeconds = 300) => {
 
 /**
  * Send token expiration warning via WebSocket
- * @param {Object} socket - WebSocket connection
+ * @param {Object} primus - Primus instance
  * @param {string} userId - User ID
  * @param {number} expiresIn - Seconds until expiration
+ * @param {string} sessionId - Session ID (optional)
  */
-exports.sendTokenExpirationWarning = (socket, userId, expiresIn) => {
-  if (!socket) return;
+exports.sendTokenExpirationWarning = (
+  primus,
+  userId,
+  expiresIn,
+  sessionId = null
+) => {
+  if (!primus) {
+    logger.warn(
+      "Cannot send token expiration warning: Primus instance not provided"
+    );
+    return;
+  }
 
   try {
-    socket.to(`user:${userId}`).emit("token:expiring", {
+    // Create the event data
+    const eventData = {
       expiresIn,
       timestamp: Date.now(),
+      event: "token:expiring",
+    };
+
+    // If session ID is provided, include it in the event data
+    if (sessionId) {
+      eventData.sessionId = sessionId;
+    }
+
+    // Send to user room
+    const userRoom = `user:${userId}`;
+    primus.forEach(function (spark) {
+      if (spark.rooms && spark.rooms.has(userRoom)) {
+        spark.write(eventData);
+      }
     });
+
+    // If session ID is provided, also send to session room
+    if (sessionId) {
+      const sessionRoom = `session:${sessionId}`;
+      primus.forEach(function (spark) {
+        if (spark.rooms && spark.rooms.has(sessionRoom)) {
+          spark.write(eventData);
+        }
+      });
+    }
 
     logger.debug(
       `Sent token expiration warning to user ${userId}, expires in ${expiresIn}s`
@@ -1039,17 +1312,45 @@ exports.sendTokenExpirationWarning = (socket, userId, expiresIn) => {
 
 /**
  * Notify connected clients about token refresh
- * @param {Object} io - Socket.io instance
+ * @param {Object} primus - Primus instance
  * @param {string} userId - User ID
  * @param {string} sessionId - Session ID that performed the refresh
+ * @param {string} tabId - Tab ID that performed the refresh (optional)
  */
-exports.notifyTokenRefresh = (io, userId, sessionId) => {
-  if (!io) return;
+exports.notifyTokenRefresh = (primus, userId, sessionId, tabId = null) => {
+  if (!primus) {
+    logger.warn("Cannot notify token refresh: Primus instance not provided");
+    return;
+  }
 
   try {
-    io.to(`user:${userId}`).emit("token:refreshed", {
+    // Create the event data
+    const eventData = {
       sessionId,
       timestamp: Date.now(),
+      event: "token:refreshed",
+    };
+
+    // If tab ID is provided, include it in the event data
+    if (tabId) {
+      eventData.tabId = tabId;
+      eventData.source = tabId;
+    }
+
+    // Send to user room
+    const userRoom = `user:${userId}`;
+    primus.forEach(function (spark) {
+      if (spark.rooms && spark.rooms.has(userRoom)) {
+        spark.write(eventData);
+      }
+    });
+
+    // Also send to session room
+    const sessionRoom = `session:${sessionId}`;
+    primus.forEach(function (spark) {
+      if (spark.rooms && spark.rooms.has(sessionRoom)) {
+        spark.write(eventData);
+      }
     });
 
     logger.debug(`Notified token refresh to user ${userId} sessions`);
@@ -1060,35 +1361,81 @@ exports.notifyTokenRefresh = (io, userId, sessionId) => {
 
 /**
  * Schedule token expiration check and warning
- * @param {Object} io - Socket.io instance
+ * @param {Object} primus - Primus instance
  * @param {string} userId - User ID
  * @param {string} token - JWT token
+ * @param {string} sessionId - Session ID (optional)
  * @param {number} warningThreshold - Seconds before expiration to send warning
  */
 exports.scheduleTokenExpirationCheck = (
-  io,
+  primus,
   userId,
   token,
-  warningThreshold = 300
+  sessionId = null,
+  warningThreshold = 60 // 1 minute warning
 ) => {
+  if (!primus) {
+    logger.warn(
+      "Cannot schedule token expiration check: Primus instance not provided"
+    );
+    return;
+  }
+
   try {
     const expTime = exports.getTokenExpiration(token);
-    if (!expTime) return;
+    if (!expTime) {
+      logger.warn(
+        `Cannot schedule token expiration check: Invalid token for user ${userId}`
+      );
+      return;
+    }
 
     const currentTime = Math.floor(Date.now() / 1000);
     const timeUntilExpiry = expTime - currentTime;
+
+    // If token is already expired, no need to schedule a warning
+    if (timeUntilExpiry <= 0) {
+      logger.warn(`Token for user ${userId} is already expired`);
+      return;
+    }
+
     const timeUntilWarning = timeUntilExpiry - warningThreshold;
 
     if (timeUntilWarning <= 0) {
       // Already within warning period, send immediately
-      exports.sendTokenExpirationWarning(io, userId, timeUntilExpiry);
+      exports.sendTokenExpirationWarning(
+        primus,
+        userId,
+        timeUntilExpiry,
+        sessionId
+      );
       return;
     }
 
     // Schedule warning
-    setTimeout(() => {
-      exports.sendTokenExpirationWarning(io, userId, warningThreshold);
+    const warningTimeout = setTimeout(() => {
+      exports.sendTokenExpirationWarning(
+        primus,
+        userId,
+        warningThreshold,
+        sessionId
+      );
     }, timeUntilWarning * 1000);
+
+    // Store the timeout ID for cleanup
+    if (!global._tokenWarningTimeouts) {
+      global._tokenWarningTimeouts = new Map();
+    }
+
+    const timeoutKey = `${userId}:${sessionId || "global"}`;
+
+    // Clear any existing timeout for this user/session
+    if (global._tokenWarningTimeouts.has(timeoutKey)) {
+      clearTimeout(global._tokenWarningTimeouts.get(timeoutKey));
+    }
+
+    // Store the new timeout
+    global._tokenWarningTimeouts.set(timeoutKey, warningTimeout);
 
     logger.debug(
       `Scheduled token expiration warning for user ${userId} in ${timeUntilWarning}s`

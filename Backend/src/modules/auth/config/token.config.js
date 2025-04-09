@@ -39,9 +39,9 @@ const tokenConfig = {
 
   // Token expiry times (in seconds)
   expiry: {
-    access: parseInt(process.env.ACCESS_TOKEN_EXPIRY || "900"), // 15 minutes
+    access: parseInt(process.env.ACCESS_TOKEN_EXPIRY || "86400"), // 24 hours
     refresh: 604800, // 7 days - aligned with session TTL (hardcoded to avoid env var issues)
-    csrf: 3600, // 1 hour
+    csrf: 86400, // 24 hours
   },
 
   // Token refresh threshold (in seconds)

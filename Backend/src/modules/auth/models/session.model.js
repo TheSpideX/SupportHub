@@ -98,6 +98,27 @@ const SessionSchema = new mongoose.Schema(
       index: true,
       ref: "Device",
     },
+    tabId: {
+      type: String,
+      required: false, // Make optional for initial session creation
+      index: true,
+    },
+    activeTabs: [
+      {
+        tabId: {
+          type: String,
+          required: true,
+        },
+        lastActivity: {
+          type: Date,
+          default: Date.now,
+        },
+        active: {
+          type: Boolean,
+          default: true,
+        },
+      },
+    ],
     tabs: [
       {
         tabId: {

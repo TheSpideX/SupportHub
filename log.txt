@@ -1,5 +1,7 @@
 client:743 [vite] connecting...
 client:866 [vite] connected.
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Using existing tab ID from sessionStorage {tabId: 'tab_is46lks_1744157870888', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Using existing device ID from localStorage {deviceId: 'device_8vsj3n', component: 'PrimusAuthService'}
 logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus client library found {component: 'PrimusAuthService'}
 logger.ts:137 [storage.utils.ts] Storage type localStorage available: true {}
 logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true {}
@@ -21,51 +23,42 @@ logger.ts:137 [SessionService.ts] Cross-tab communication initialized for Sessio
 logger.ts:137 [SessionService.ts] SessionService initialized {}
 logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService {}
 logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
+logger.ts:137 [AuthService.ts] Initializing auth state with cookies: {cookieString: '', hasVisibleCookies: false, hasAppSessionCookie: false, hasRefreshTokenCookie: '[REDACTED]'}
+logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: true, isInitialized: false, hasUser: false}
+logger.ts:137 [AuthService.ts] Checking for session cookies {cookieString: '', hasAppSessionCookie: false, hasRefreshTokenCookie: '[REDACTED]', hasAccessTokenCookie: '[REDACTED]'}
+logger.ts:127 [AuthService.ts] No cookie flags found, but HTTP-only cookies might still exist {}
 logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
-logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: '', hasVisibleCookies: false, component: 'AuthService'}
+logger.ts:127 [AuthService][AuthService.ts] Making request to validate session {endpoint: '/api/auth/session/status', csrfToken: '[REDACTED]', component: 'AuthService'}
 logger.ts:137 [AuthService.ts] AuthService initialized {}
 logger.ts:127 [AuthService.ts] Cross-tab communication already initialized for AuthService {}
 logger.ts:137 [TokenService.ts] CSRF protection initialized {}
 logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
-logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true; csrf_token=da183bac5a5f31206ebf85f4424d8e92', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:137 [AuthService.ts] Initializing auth state with cookies: {cookieString: 'csrf_token=5fd30abc2af7a2e0ebb4ae054d587fa5', hasVisibleCookies: true, hasAppSessionCookie: false, hasRefreshTokenCookie: '[REDACTED]'}
+logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: true, isInitialized: false, hasUser: false}
+logger.ts:127 [AuthService.ts] Session validation already in progress, skipping duplicate request {}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
+logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
+logger.ts:137 [init.ts] User is not authenticated after initialization {}
+logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: false, isInitialized: true, hasUser: false}
+logger.ts:127 [AuthService.ts] Session validation already in progress, skipping duplicate request {}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
 logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
 logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
 logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:137 [App][App.tsx] Starting auth initialization (attempt #1) {component: 'App'}
-logger.ts:137 [AuthService.ts] Initializing auth service and checking for existing session {}
-logger.ts:137 [AuthService.ts] Cookie check: Found auth cookies {}
-logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
-logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true; csrf_token=da183bac5a5f31206ebf85f4424d8e92', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:127 [App][App.tsx] Auth already initialized in service, skipping {component: 'App'}
+logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
 logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
 logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
 logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
 logger.ts:127 [App][App.tsx] Auth initialization already triggered, skipping {component: 'App'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-login:42 Primus client library loaded successfully.
-logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [init.ts] User is not authenticated after initialization {}
-logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
-logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'refresh_token_exists=true; app_session_exists=true', hasVisibleCookies: true, component: 'AuthService'}
-logger.ts:137 [AuthService.ts] No valid session found, initializing as unauthenticated {}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [App][App.tsx] No active session found, user is not authenticated {component: 'App'}
-logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
-logger.ts:137 [App][App.tsx] Auth initialized successfully {component: 'App'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
@@ -74,7 +67,75 @@ logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', i
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
 logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
 logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:127 [AuthService.ts] Session validation response: {active: false, authenticated: '[REDACTED]', reason: 'NO_TOKEN'}
+logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
 logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+login?reason=logout&t=1744170119151:42 Primus client library loaded successfully.
+logger.ts:127 [AuthService][AuthService.ts] Redux store updated with auth state {component: 'AuthService', hasUser: false}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:137 [LoginPage][LoginPage.tsx] User authenticated, redirecting from login page {component: 'LoginPage', redirectTo: '/dashboard'}
+logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:18 Dashboard user data: null isAuthenticated: true isLoading: false
+DashboardPage.tsx:18 Dashboard user data: null isAuthenticated: true isLoading: false
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+CustomerDashboard.tsx:15 CustomerDashboard user data: null
+CustomerDashboard.tsx:15 CustomerDashboard user data: null
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [AuthService][AuthService.ts] Redux store updated with auth state {component: 'AuthService', hasUser: false}
+logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+, 

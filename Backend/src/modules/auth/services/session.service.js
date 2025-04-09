@@ -111,6 +111,7 @@ exports.createSession = async ({
   userAgent,
   ipAddress,
   deviceInfo,
+  tabId = null, // Add tabId parameter
   sessionData = {},
 }) => {
   try {
@@ -169,14 +170,23 @@ exports.createSession = async ({
     // Generate a unique session ID with improved entropy
     const sessionId = crypto.randomBytes(32).toString("hex");
 
+    // Determine session expiration time based on rememberMe flag
+    const rememberMe = sessionData?.rememberMe || false;
+    const expiryTime = rememberMe
+      ? 7 * 24 * 60 * 60 * 1000 // 7 days for remember me
+      : 24 * 60 * 60 * 1000; // 24 hours for regular session
+
     // Create a session document with enhanced security metadata
     const session = await Session.create({
       userId: userId.toString(),
       isActive: true,
-      expiresAt: new Date(Date.now() + sessionConfig.store.ttl * 1000),
+      expiresAt: new Date(Date.now() + expiryTime),
       ipAddress,
+      deviceId: deviceInfo?.deviceId, // Store deviceId at the top level for easier querying
+      tabId: tabId, // Store tabId at the top level
       deviceInfo: {
         userAgent,
+        deviceId: deviceInfo?.deviceId, // Also store in deviceInfo for backward compatibility
         ...deviceInfo,
       },
       lastActivity: new Date(),
@@ -186,8 +196,42 @@ exports.createSession = async ({
         geoLocation: deviceInfo?.geoLocation || null,
         deviceFingerprint: deviceInfo?.fingerprint || null,
       },
+      rememberMe: rememberMe,
       ...sessionData,
     });
+
+    // Initialize activeTabs array with this tab
+    if (tabId) {
+      session.activeTabs = [
+        {
+          tabId: tabId,
+          lastActivity: new Date(),
+          active: true,
+        },
+      ];
+      await session.save();
+    }
+
+    // Log the created session with deviceId for debugging
+    logger.info(
+      `Created session with deviceId ${deviceInfo?.deviceId || "none"}`,
+      {
+        sessionId: session._id,
+        deviceId: deviceInfo?.deviceId || "none",
+        deviceInfoDeviceId: session.deviceInfo?.deviceId || "none",
+      }
+    );
+
+    // Log the session expiration time for debugging
+    logger.info(
+      `Created session with expiry at ${session.expiresAt}, rememberMe: ${rememberMe}`,
+      {
+        userId: userId.toString(),
+        sessionId: session._id,
+        expiresAt: session.expiresAt,
+        rememberMe: rememberMe,
+      }
+    );
 
     // Store session in Redis for faster access with enhanced metadata
     const sessionKey = `session:${session._id}`;
@@ -319,6 +363,324 @@ exports.updateSessionActivity = async (sessionId) => {
   );
 
   return session;
+};
+
+/**
+ * Count active sessions for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<number>} Number of active sessions
+ */
+exports.countActiveSessions = async (userId) => {
+  try {
+    if (!userId) {
+      logger.warn("Missing userId in countActiveSessions");
+      return 0;
+    }
+
+    // Count active sessions for this user
+    const count = await Session.countDocuments({
+      userId: userId.toString(),
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    });
+
+    logger.debug(`User ${userId} has ${count} active sessions`);
+    return count;
+  } catch (error) {
+    logger.error("Failed to count active sessions", error);
+    return 0;
+  }
+};
+
+/**
+ * Terminate oldest session for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} Success status
+ */
+exports.terminateOldestSession = async (userId) => {
+  try {
+    if (!userId) {
+      logger.warn("Missing userId in terminateOldestSession");
+      return false;
+    }
+
+    // Find oldest active session for this user
+    const oldestSession = await Session.findOne({
+      userId: userId.toString(),
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    }).sort({ lastActivity: 1 }); // Sort by lastActivity ascending (oldest first)
+
+    if (!oldestSession) {
+      logger.warn(`No active sessions found for user ${userId} to terminate`);
+      return false;
+    }
+
+    // Terminate the session
+    await exports.terminateSession(
+      oldestSession._id,
+      userId,
+      "max_sessions_exceeded"
+    );
+
+    logger.info(
+      `Terminated oldest session ${oldestSession._id} for user ${userId}`
+    );
+    return true;
+  } catch (error) {
+    logger.error("Failed to terminate oldest session", error);
+    return false;
+  }
+};
+
+/**
+ * Clean up expired sessions for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<number>} Number of cleaned up sessions
+ */
+exports.cleanupExpiredSessions = async (userId) => {
+  try {
+    if (!userId) {
+      logger.warn("Missing userId in cleanupExpiredSessions");
+      return 0;
+    }
+
+    // Find and update expired sessions
+    const result = await Session.updateMany(
+      {
+        userId: userId.toString(),
+        isActive: true,
+        expiresAt: { $lte: new Date() },
+      },
+      {
+        $set: {
+          isActive: false,
+          endReason: "expired",
+          endedAt: new Date(),
+        },
+      }
+    );
+
+    const count = result.modifiedCount || 0;
+    if (count > 0) {
+      logger.info(`Cleaned up ${count} expired sessions for user ${userId}`);
+    }
+
+    return count;
+  } catch (error) {
+    logger.error("Failed to clean up expired sessions", error);
+    return 0;
+  }
+};
+
+/**
+ * Find active session by device ID and tab ID
+ * @param {string} userId - User ID
+ * @param {string} deviceId - Device ID
+ * @param {string} tabId - Tab ID (optional)
+ * @returns {Promise<Object>} Session object
+ */
+exports.findActiveSessionByDeviceId = async (
+  userId,
+  deviceId,
+  tabId = null
+) => {
+  try {
+    if (!userId || !deviceId) {
+      logger.warn("Missing userId or deviceId in findActiveSessionByDeviceId");
+      return null;
+    }
+
+    // Log the search parameters
+    logger.info(
+      `Searching for active session with deviceId ${deviceId}${
+        tabId ? ` and tabId ${tabId}` : ""
+      } for user ${userId}`
+    );
+
+    // Build the query based on whether tabId is provided
+    let query = {
+      userId: userId.toString(),
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    };
+
+    // Add device ID condition
+    query.$or = [{ "deviceInfo.deviceId": deviceId }, { deviceId: deviceId }];
+
+    // If tabId is provided, add it to the query
+    if (tabId) {
+      // Add tabId to the query
+      query.tabId = tabId;
+      logger.debug(`Including tabId ${tabId} in session search`);
+    }
+
+    logger.debug("Session search query:", JSON.stringify(query));
+
+    // Try to find a session matching both device and tab if tabId is provided
+    if (tabId) {
+      const tabSession = await Session.findOne(query).sort({
+        lastActivity: -1,
+      });
+
+      if (tabSession) {
+        logger.info(
+          `Found active session for device ${deviceId} and tab ${tabId}`,
+          {
+            sessionId: tabSession._id,
+            deviceId,
+            tabId,
+            userId,
+          }
+        );
+        return tabSession;
+      }
+
+      // If no session found for this tab, we'll create a new one
+      logger.info(
+        `No active session found for tab ${tabId}, will create a new one`
+      );
+      return null;
+    }
+
+    // If no tabId provided or no session found for the tab,
+    // find all active sessions for this device
+    const sessions = await Session.find({
+      userId: userId.toString(),
+      $or: [{ "deviceInfo.deviceId": deviceId }, { deviceId: deviceId }],
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    }).sort({ lastActivity: -1 }); // Sort by last activity descending (most recent first)
+
+    if (sessions.length > 0) {
+      logger.info(
+        `Found ${sessions.length} active sessions for device ${deviceId} and user ${userId}`,
+        {
+          deviceId,
+          userId,
+          sessions: sessions.map((s) => ({
+            id: s._id,
+            tabId: s.tabId || "none",
+            createdAt: s.createdAt,
+            lastActivity: s.lastActivity,
+          })),
+        }
+      );
+
+      // Return the most recently active session
+      const session = sessions[0];
+
+      // Log the session we're returning
+      logger.info(`Using session ${session._id} for device ${deviceId}`);
+
+      return session;
+    }
+
+    // If we get here, no session was found
+    logger.debug(
+      `No active session found for device ${deviceId} and user ${userId}`
+    );
+
+    // Log all active sessions for this user for debugging
+    const allActiveSessions = await Session.find({
+      userId: userId.toString(),
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    })
+      .select("_id deviceId deviceInfo.deviceId lastActivity")
+      .sort({ lastActivity: -1 });
+
+    logger.debug(
+      `No active session found for device ${deviceId}. User ${userId} has ${allActiveSessions.length} active sessions:`,
+      {
+        deviceId: deviceId,
+        activeSessions: allActiveSessions.map((s) => ({
+          id: s._id,
+          deviceId:
+            s.deviceId || (s.deviceInfo && s.deviceInfo.deviceId) || "none",
+          lastActivity: s.lastActivity,
+        })),
+      }
+    );
+
+    return null;
+  } catch (error) {
+    logger.error("Failed to find active session by device ID", error);
+    return null;
+  }
+};
+
+/**
+ * Update session
+ * @param {string} sessionId - Session ID
+ * @param {Object} updateData - Data to update
+ * @returns {Promise<Object>} Updated session
+ */
+exports.updateSession = async (sessionId, updateData) => {
+  try {
+    // Ensure deviceId is properly set in both places if provided
+    if (updateData.deviceInfo?.deviceId && !updateData.deviceId) {
+      updateData.deviceId = updateData.deviceInfo.deviceId;
+      logger.debug(
+        `Setting deviceId from deviceInfo.deviceId: ${updateData.deviceId}`
+      );
+    } else if (
+      updateData.deviceId &&
+      (!updateData.deviceInfo || !updateData.deviceInfo.deviceId)
+    ) {
+      if (!updateData.deviceInfo) updateData.deviceInfo = {};
+      updateData.deviceInfo.deviceId = updateData.deviceId;
+      logger.debug(
+        `Setting deviceInfo.deviceId from deviceId: ${updateData.deviceId}`
+      );
+    }
+
+    // Update session in MongoDB
+    const session = await Session.findByIdAndUpdate(
+      sessionId,
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!session) {
+      logger.warn(`Session not found for update: ${sessionId}`);
+      return null;
+    }
+
+    // Log the updated session with deviceId for debugging
+    logger.info(`Updated session ${sessionId}`, {
+      sessionId: session._id,
+      deviceId: session.deviceId || "none",
+      deviceInfoDeviceId: session.deviceInfo?.deviceId || "none",
+    });
+
+    // Update in Redis
+    const sessionKey = `session:${sessionId}`;
+    const sessionValue = JSON.stringify({
+      id: session._id,
+      userId: session.userId,
+      isActive: session.isActive,
+      expiresAt: session.expiresAt,
+      lastActivity: session.lastActivity,
+      deviceId: session.deviceId,
+      deviceInfo: session.deviceInfo,
+    });
+
+    // Calculate TTL based on session expiry
+    const ttlSeconds = calculateTTLSeconds(
+      session.expiresAt,
+      Date.now(),
+      Math.floor(sessionConfig.store.ttl)
+    );
+
+    await setWithExpiry(sessionKey, sessionValue, ttlSeconds);
+
+    logger.info(`Session ${sessionId} updated successfully`);
+    return session;
+  } catch (error) {
+    logger.error("Failed to update session", error);
+    throw error;
+  }
 };
 
 /**
@@ -1863,32 +2225,50 @@ exports.notifySecurityEvent = (io, userId, eventType, data = {}) => {
 
 /**
  * Clean up expired sessions
+ * @param {string} userId - Optional user ID to clean up sessions for a specific user
+ * @param {string} deviceId - Optional device ID to clean up sessions for a specific device
  * @returns {Promise<Object>} - Cleanup result
  */
-exports.cleanupExpiredSessions = async () => {
+exports.cleanupExpiredSessions = async (userId = null, deviceId = null) => {
   try {
     const now = new Date();
 
-    // Find and update all expired sessions
-    const result = await Session.updateMany(
-      {
-        $or: [
-          { expiresAt: { $lt: now } },
-          { lastActivity: { $lt: new Date(now - 24 * 60 * 60 * 1000) } }, // Inactive for 24 hours
-        ],
-        status: { $ne: "ended" },
-      },
-      {
-        $set: {
-          status: "expired",
-          isActive: false,
-          endedAt: now,
-          endReason: "expired",
-        },
-      }
-    );
+    // Build query to find expired sessions
+    const query = {
+      $or: [
+        { expiresAt: { $lt: now } },
+        { lastActivity: { $lt: new Date(now - 24 * 60 * 60 * 1000) } }, // Inactive for 24 hours
+      ],
+      status: { $ne: "ended" },
+    };
 
-    logger.info(`Cleaned up ${result.modifiedCount} expired sessions`);
+    // Add userId filter if provided
+    if (userId) {
+      query.userId = userId.toString();
+    }
+
+    // Add deviceId filter if provided
+    if (deviceId) {
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [{ "deviceInfo.deviceId": deviceId }, { deviceId: deviceId }],
+      });
+    }
+
+    // Find and update all expired sessions
+    const result = await Session.updateMany(query, {
+      $set: {
+        status: "expired",
+        isActive: false,
+        endedAt: now,
+        endReason: "expired",
+      },
+    });
+
+    logger.info(`Cleaned up ${result.modifiedCount} expired sessions`, {
+      userId: userId || "all",
+      deviceId: deviceId || "all",
+    });
 
     return {
       count: result.modifiedCount,

@@ -107,12 +107,12 @@ exports.authGlobalRateLimit = () =>
     legacyHeaders: false,
   });
 
-// Session validation rate limiter - allows 2 requests per second
+// Session validation rate limiter - allows 50 requests per 2 seconds
 // This is specifically for page reloads where automatic login is needed
 exports.sessionValidationRateLimit = () =>
   createRateLimiter({
-    windowMs: securityConfig.rateLimiting.sessionValidation.windowMs || 1000, // 1 second window
-    max: securityConfig.rateLimiting.sessionValidation.max || 2, // 2 requests per second
+    windowMs: securityConfig.rateLimiting.sessionValidation.windowMs || 2000, // 2 second window
+    max: securityConfig.rateLimiting.sessionValidation.max || 50, // 50 requests per 2 seconds
     keyGenerator: (req) => {
       // Use user ID if available, otherwise IP
       return req.user
@@ -128,7 +128,7 @@ exports.sessionValidationRateLimit = () =>
     },
     standardHeaders: true,
     legacyHeaders: false,
-    skipSuccessfulRequests: false, // Count all requests, even successful ones
+    skipSuccessfulRequests: true, // Skip successful requests to allow more valid requests
   });
 
 // WebSocket rate limiting service
