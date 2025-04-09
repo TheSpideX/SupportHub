@@ -1,7 +1,7 @@
 /**
  * Auth Middleware Index
  * Exports all authentication and security middleware
- * 
+ *
  * This file organizes middleware by functionality:
  * - Token authentication
  * - Session validation
@@ -11,45 +11,42 @@
  */
 
 // Authentication middleware
-const { 
-  authenticateToken, 
-  optionalAuth, 
+const {
+  authenticateToken,
+  optionalAuth,
   refreshToken,
-  validateAccessToken
-} = require('./authenticate');
+  validateAccessToken,
+} = require("./authenticate");
 
 // Session middleware
 const {
   validateSession,
   enforceSessionLimits,
-  updateSessionActivity
-} = require('./session');
+  updateSessionActivity,
+} = require("./session");
 
 // Rate limiting middleware
-const { 
+const {
   loginRateLimit,
   apiRateLimit,
   refreshTokenRateLimit,
-  registrationRateLimit
-} = require('./rate-limit');
+  registrationRateLimit,
+  sessionValidationRateLimit,
+} = require("./rate-limit");
 
 // CSRF protection middleware
-const { 
-  generateToken, 
-  validateToken,
-  clearToken 
-} = require('./csrf');
+const { generateToken, validateToken, clearToken } = require("./csrf");
 
 // WebSocket authentication middleware
 const {
   authenticateSocket,
   validateSocketSession,
   authorizeRoomJoin,
-  handleTokenExpiration
-} = require('./websocket');
+  handleTokenExpiration,
+} = require("./websocket");
 
 // Import validation schemas directly
-const validationSchemas = require('../validations/schemas');
+const validationSchemas = require("../validations/schemas");
 
 // Export all middleware
 module.exports = {
@@ -58,29 +55,30 @@ module.exports = {
   optionalAuth,
   refreshToken,
   validateAccessToken,
-  
+
   // Session management
   validateSession,
   enforceSessionLimits,
   updateSessionActivity,
-  
+
   // Rate limiting
   loginRateLimit,
   apiRateLimit,
   refreshTokenRateLimit,
   registrationRateLimit,
-  
+  sessionValidationRateLimit,
+
   // CSRF protection
   csrfProtection: validateToken,
   generateCsrfToken: generateToken,
   clearCsrfToken: clearToken,
-  
+
   // WebSocket authentication
   authenticateSocket,
   validateSocketSession,
   authorizeRoomJoin,
   handleTokenExpiration,
-  
+
   // Validation schemas
-  validationSchemas
+  validationSchemas,
 };

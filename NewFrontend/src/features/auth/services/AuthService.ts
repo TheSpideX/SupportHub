@@ -1172,16 +1172,49 @@ export class AuthService {
     return true; // Always attempt to validate with the backend
   }
 
+  // Add a property to track validation in progress
+  private sessionValidationInProgress: boolean = false;
+  private lastValidationTime: number = 0;
+  private validationCooldown: number = 1000; // 1 second cooldown
+
   /**
    * Validate existing session
    */
   public async validateSession(): Promise<boolean> {
     try {
+      const now = Date.now();
+
+      // Check if validation is already in progress or was recently performed
+      if (this.sessionValidationInProgress) {
+        logger.debug(
+          "Session validation already in progress, skipping duplicate request"
+        );
+        return this.authState.isAuthenticated;
+      }
+
+      // Check if we've validated recently (within cooldown period)
+      if (now - this.lastValidationTime < this.validationCooldown) {
+        logger.debug(
+          "Session validation recently performed, using cached result",
+          {
+            timeSinceLastValidation: now - this.lastValidationTime,
+            cooldownPeriod: this.validationCooldown,
+            component: "AuthService",
+          }
+        );
+        return this.authState.isAuthenticated;
+      }
+
+      // Set validation in progress flag
+      this.sessionValidationInProgress = true;
+      this.lastValidationTime = now;
+
       // Check for session cookies first
       const hasSession = this.hasSessionCookies();
 
       if (!hasSession) {
         logger.debug("No session cookies found, skipping session validation");
+        this.sessionValidationInProgress = false;
         return false;
       }
 
@@ -1251,13 +1284,19 @@ export class AuthService {
             this.sessionService.startSessionTracking();
           }
 
+          // Reset validation in progress flag
+          this.sessionValidationInProgress = false;
           return true;
         }
       }
 
+      // Reset validation in progress flag
+      this.sessionValidationInProgress = false;
       return false;
     } catch (error) {
       logger.error("Session validation failed:", error);
+      // Reset validation in progress flag
+      this.sessionValidationInProgress = false;
       return false;
     }
   }

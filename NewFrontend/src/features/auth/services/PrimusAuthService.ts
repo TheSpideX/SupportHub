@@ -119,9 +119,26 @@ export class PrimusAuthService {
     this.eventEmitter = new EventEmitter();
     this.tokenService = tokenService || null;
     this.securityService = securityService || null;
-    this.tabId = `tab_${Math.random()
-      .toString(36)
-      .substring(2, 9)}_${Date.now()}`;
+
+    // Get existing tab ID from sessionStorage or create a new one
+    const storedTabId = sessionStorage.getItem("tab_id");
+    if (storedTabId) {
+      this.tabId = storedTabId;
+      logger.debug("Using existing tab ID from sessionStorage", {
+        tabId: this.tabId,
+        component: "PrimusAuthService",
+      });
+    } else {
+      this.tabId = `tab_${Math.random()
+        .toString(36)
+        .substring(2, 9)}_${Date.now()}`;
+      // Store the tab ID in sessionStorage for persistence across page reloads
+      sessionStorage.setItem("tab_id", this.tabId);
+      logger.debug("Generated new tab ID and stored in sessionStorage", {
+        tabId: this.tabId,
+        component: "PrimusAuthService",
+      });
+    }
 
     // Initialize device ID
     this.initializeDeviceId();
@@ -134,25 +151,73 @@ export class PrimusAuthService {
    * Initialize device ID
    */
   private async initializeDeviceId(): Promise<void> {
+    // First, check if we have a device ID in localStorage
+    const storedDeviceId = localStorage.getItem("device_fingerprint");
+
+    if (storedDeviceId) {
+      this.deviceId = storedDeviceId;
+      logger.debug("Using existing device ID from localStorage", {
+        deviceId: this.deviceId,
+        component: "PrimusAuthService",
+      });
+      return;
+    }
+
+    // If no stored device ID, try to get one from the security service
     if (this.securityService) {
       try {
         this.deviceId = await this.securityService.getDeviceFingerprint();
+        // Store the device ID for future use
+        localStorage.setItem("device_fingerprint", this.deviceId);
+        logger.debug(
+          "Got device ID from security service and stored in localStorage",
+          {
+            deviceId: this.deviceId,
+            component: "PrimusAuthService",
+          }
+        );
       } catch (error) {
         logger.error("Failed to get device fingerprint", {
           error,
           component: "PrimusAuthService",
         });
-        // Generate a fallback device ID
-        this.deviceId = `device_${Math.random()
-          .toString(36)
-          .substring(2, 9)}_${Date.now()}`;
+        this.generateFallbackDeviceId();
       }
     } else {
-      // Generate a fallback device ID
-      this.deviceId = `device_${Math.random()
-        .toString(36)
-        .substring(2, 9)}_${Date.now()}`;
+      this.generateFallbackDeviceId();
     }
+  }
+
+  /**
+   * Generate a fallback device ID and store it
+   */
+  private generateFallbackDeviceId(): void {
+    // Generate a fallback device ID that's stable across page reloads
+    const components = [
+      navigator.userAgent,
+      navigator.language,
+      screen.colorDepth,
+      screen.width + "x" + screen.height,
+      new Date().getTimezoneOffset(),
+    ].join("|");
+
+    // Create a simple hash
+    let hash = 0;
+    for (let i = 0; i < components.length; i++) {
+      const char = components.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+
+    this.deviceId = `device_${Math.abs(hash).toString(36)}`;
+
+    // Store the device ID for future use
+    localStorage.setItem("device_fingerprint", this.deviceId);
+
+    logger.debug("Generated fallback device ID and stored in localStorage", {
+      deviceId: this.deviceId,
+      component: "PrimusAuthService",
+    });
   }
 
   /**
@@ -412,8 +477,14 @@ export class PrimusAuthService {
    * Handle connect event
    */
   private handleConnect(): void {
-    logger.info("Primus connected", {
+    logger.info("✅ Primus connection established successfully", {
       component: "PrimusAuthService",
+      socketId: this.primus?.id || "unknown",
+      deviceId: this.deviceId,
+      tabId: this.tabId,
+      timestamp: new Date().toISOString(),
+      url: this.config.url,
+      status: "connected",
     });
 
     // Update status
@@ -427,6 +498,18 @@ export class PrimusAuthService {
 
     // Authenticate
     this.authenticate();
+
+    // Log connection details to console for visibility
+    console.log(
+      "%c✅ Primus WebSocket Connected",
+      "color: green; font-weight: bold",
+      {
+        socketId: this.primus?.id,
+        deviceId: this.deviceId,
+        tabId: this.tabId,
+        url: this.config.url,
+      }
+    );
   }
 
   /**
@@ -550,8 +633,15 @@ export class PrimusAuthService {
    * Handle authentication success
    */
   private handleAuthSuccess(data: any): void {
-    logger.info("Authentication successful", {
+    logger.info("✅ Primus authentication successful", {
       component: "PrimusAuthService",
+      socketId: this.primus?.id || "unknown",
+      deviceId: this.deviceId,
+      tabId: this.tabId,
+      timestamp: new Date().toISOString(),
+      userId: data?.userId || "unknown",
+      sessionId: data?.sessionId || "unknown",
+      status: "authenticated",
     });
 
     // Emit event
@@ -562,6 +652,19 @@ export class PrimusAuthService {
 
     // Join rooms
     this.joinRooms();
+
+    // Log authentication success to console for visibility
+    console.log(
+      "%c✅ Primus Authentication Successful",
+      "color: green; font-weight: bold",
+      {
+        socketId: this.primus?.id,
+        userId: data?.userId || "unknown",
+        sessionId: data?.sessionId || "unknown",
+        deviceId: this.deviceId,
+        tabId: this.tabId,
+      }
+    );
   }
 
   /**
@@ -647,9 +750,13 @@ export class PrimusAuthService {
    * Handle room joined
    */
   private handleRoomJoined(data: any): void {
-    logger.debug("Room joined", {
-      data,
+    logger.info("✅ Primus room joined successfully", {
       component: "PrimusAuthService",
+      room: data.room,
+      socketId: this.primus?.id || "unknown",
+      deviceId: this.deviceId,
+      tabId: this.tabId,
+      timestamp: new Date().toISOString(),
     });
 
     // Update room info
@@ -667,6 +774,14 @@ export class PrimusAuthService {
     this.eventEmitter.emit(AuthEventType.ROOM_JOINED, {
       ...data,
       timestamp: Date.now(),
+    });
+
+    // Log room joined to console for visibility
+    console.log("%c✅ Primus Room Joined", "color: green; font-weight: bold", {
+      room: data.room,
+      socketId: this.primus?.id,
+      deviceId: this.deviceId,
+      tabId: this.tabId,
     });
   }
 
@@ -754,6 +869,15 @@ export class PrimusAuthService {
       userId = userData?.id || null;
     }
 
+    logger.info("Attempting to join Primus rooms", {
+      component: "PrimusAuthService",
+      socketId: this.primus?.id || "unknown",
+      deviceId: this.deviceId,
+      tabId: this.tabId,
+      userId: userId || "unknown",
+      timestamp: new Date().toISOString(),
+    });
+
     // Join user room
     if (userId) {
       this.primus.write({
@@ -772,6 +896,14 @@ export class PrimusAuthService {
     this.primus.write({
       event: "join",
       room: `tab:${this.tabId}`,
+    });
+
+    // Log to console for visibility
+    console.log("%c🔄 Joining Primus Rooms", "color: blue; font-weight: bold", {
+      userId: userId || "unknown",
+      deviceId: this.deviceId,
+      tabId: this.tabId,
+      socketId: this.primus?.id,
     });
   }
 
