@@ -1,141 +1,512 @@
-client:743 [vite] connecting...
-client:866 [vite] connected.
-logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Using existing tab ID from sessionStorage {tabId: 'tab_is46lks_1744157870888', component: 'PrimusAuthService'}
-logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Using existing device ID from localStorage {deviceId: 'device_8vsj3n', component: 'PrimusAuthService'}
-logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus client library found {component: 'PrimusAuthService'}
-logger.ts:137 [storage.utils.ts] Storage type localStorage available: true {}
-logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true {}
-logger.ts:137 [storage.utils.ts] Storage type cookie available: true {}
-logger.ts:137 [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s {}
+ [vite] connecting...
+ [PrimusAuthService][PrimusAuthService.ts] Generated new tab ID and stored in sessionStorage Object
+ [PrimusAuthService][PrimusAuthService.ts] Using existing device ID from localStorage Object
+ [PrimusAuthService][PrimusAuthService.ts] Primus client library found Object
+ [storage.utils.ts] Storage type localStorage available: true Object
+ [storage.utils.ts] Storage type sessionStorage available: true Object
+ [storage.utils.ts] Storage type cookie available: true Object
+ [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s Object
+ [TokenService.ts] Token existence check Object
+ [TokenService.ts] TokenService initialized in standby mode (no authenticated user) Object
+ [TokenService.ts] Created new TokenService instance Object
+ [RefreshQueueService.ts] RefreshQueueService initialized Object
+ [SessionService.ts] Cross-tab communication initialized for SessionService Object
+ [SessionService.ts] SessionService initialized Object
+ [TokenService.ts] Using existing TokenService instance Object
+ [auth/init][init.ts] Initializing authentication system Object
+ [TokenService.ts] TokenService already initialized, returning existing instance Object
+ [SecurityService.ts] Security context initialized Object
+ [SecurityService.ts] Device fingerprint generated Object
+ [SecurityService.ts] SecurityService initialized Object
+ [SessionService.ts] Cross-tab communication initialized for SessionService Object
+ [SessionService.ts] SessionService initialized Object
+ [AuthService.ts] Cross-tab communication initialized for AuthService Object
+ [TokenService.ts] Token existence check Object
+ [AuthService.ts] Initializing auth state with cookies: Object
+ [AuthService.ts] Current auth state: Object
+ [AuthService.ts] Checking for session cookies Object
+ [AuthService.ts] Found session cookies, session exists Object
+ [AuthService.ts] Attempting to validate session with server Object
+ [AuthService][AuthService.ts] Cookie state: Object
+ [AuthService][AuthService.ts] Making request to validate session Object
+ [AuthService.ts] AuthService initialized Object
+ [AuthService.ts] Cross-tab communication already initialized for AuthService Object
+ [TokenService.ts] CSRF protection initialized Object
+ [TokenService.ts] Token existence check Object
+ [AuthService.ts] Initializing auth state with cookies: Object
+ [AuthService.ts] Current auth state: Object
+ [AuthService.ts] Session validation already in progress, skipping duplicate request Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [TokenService.ts] All TokenService resources cleaned up Object
+ [AuthService.ts] Auth state updated Object
+ [init.ts] User is not authenticated after initialization Object
+ [AuthService.ts] Current auth state: Object
+ [AuthService.ts] Session validation already in progress, skipping duplicate request Object
+ [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [TokenService.ts] TokenService already initialized, returning existing instance Object
+ TokenService not available yet
+ TokenService or PrimusService not available yet
+ [App][App.tsx] Auth already initialized in service, skipping Object
+ [authSlice][authSlice.ts] Auth state initialized in Redux Object
+ [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ TokenService not available yet
+ TokenService or PrimusService not available yet
+ [App][App.tsx] Auth initialization already triggered, skipping Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ TokenService or PrimusService not available yet
+ Primus client library loaded successfully.
+ [vite] connected.
+ [AuthService.ts] Session validation response: Object
+ [AuthService.ts] Session validated successfully Object
+ [AuthService][AuthService.ts] Redux store updated with auth state Object
+ [AuthService.ts] Auth state updated Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [LoginPage][LoginPage.tsx] User authenticated, redirecting from login page Object
+ [LoginPage][LoginPage.tsx] Auth state changed in LoginPage Object
+ [LoginPage][LoginPage.tsx] Direct auth service state check Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ Dashboard user data: null isAuthenticated: true isLoading: false
+ Dashboard user data: null isAuthenticated: true isLoading: false
+ [AuthService.ts] User data response: Object
+ [AuthService][AuthService.ts] Redux store updated with auth state Object
+ [AuthService.ts] Auth state updated Object
+ [AuthService.ts] Connecting to WebSocket after session validation Object
+ [PrimusAuthService][PrimusAuthService.ts] Primus connection details Object
+ [PrimusAuthService][PrimusAuthService.ts] Creating Primus connection with options Object
+ [PrimusAuthService][PrimusAuthService.ts] Tab presence monitoring started Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ Dashboard user data: Object isAuthenticated: true isLoading: false
+ [AuthService.ts] Session validated successfully, user is authenticated Object
+ [AuthService.ts] Connecting to WebSocket after session validation Object
+ [PrimusAuthService][PrimusAuthService.ts] Primus connection details Object
+ [PrimusAuthService][PrimusAuthService.ts] Creating Primus connection with options Object
+ [PrimusAuthService][PrimusAuthService.ts] Tab presence monitoring started Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+ [useAuth][useAuth.ts] useAuth hook called Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard evaluation Object
+ [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: open Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus connection established successfully Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] No access token found in cookies Object
+PrimusAuthService.ts:558 ✅ Primus WebSocket Connected Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: open Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: open Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus connection established successfully Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] No access token found in cookies Object
+PrimusAuthService.ts:558 ✅ Primus WebSocket Connected Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: open Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: auth:success Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus authentication successful Object
+logger.ts:127 [PrimusAuthService.ts] Got user ID from Redux store Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Attempting to join Primus rooms Object
+logger.ts:127 [PrimusAuthService.ts] Joined user room Object
+PrimusAuthService.ts:2126 🔄 Joining Primus Rooms Object
+PrimusAuthService.ts:899 ✅ Primus Authentication Successful Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: auth:success Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus authentication successful Object
+logger.ts:127 [PrimusAuthService.ts] Got user ID from Redux store Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Attempting to join Primus rooms Object
+logger.ts:127 [PrimusAuthService.ts] Joined user room Object
+PrimusAuthService.ts:2126 🔄 Joining Primus Rooms Object
+PrimusAuthService.ts:899 ✅ Primus Authentication Successful Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Tab visibility changed: hidden Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Tab visibility changed: hidden Object
+logger.ts:137 [SecurityService.ts] Security context initialized Object
+logger.ts:137 [SecurityService.ts] Device fingerprint generated Object
+logger.ts:137 [SecurityService.ts] SecurityService initialized Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Generated new tab ID and stored in sessionStorage Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Using existing device ID from localStorage Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus client library found Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+DashboardPage.tsx:63 Rendering dashboard for role: admin
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:377 Rendering dashboard for role: admin
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+hook.js:608 Warning: validateDOMNesting(...): <button> cannot appear as a descendant of <button>. Error Component Stack
+    at button (<anonymous>)
+    at div (<anonymous>)
+    at button (<anonymous>)
+    at div (<anonymous>)
+    at nav (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at MotionComponent (framer-motion.js?v=c46b42e8:1813:40)
+    at Sidebar (Sidebar.tsx:33:44)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at AdminDashboard (AdminDashboard.tsx:14:20)
+    at div (<anonymous>)
+    at MotionComponent (framer-motion.js?v=c46b42e8:1813:40)
+    at DashboardPage (DashboardPage.tsx:13:61)
+    at AuthGuard (AuthGuard.tsx:24:3)
+    at RenderedRoute (react-router-dom.js?v=c46b42e8:4089:5)
+    at Outlet (react-router-dom.js?v=c46b42e8:4495:26)
+    at RootLayout (<anonymous>)
+    at RenderedRoute (react-router-dom.js?v=c46b42e8:4089:5)
+    at RenderErrorBoundary (react-router-dom.js?v=c46b42e8:4049:5)
+    at DataRoutes (react-router-dom.js?v=c46b42e8:5240:5)
+    at Router (react-router-dom.js?v=c46b42e8:4502:15)
+    at RouterProvider (react-router-dom.js?v=c46b42e8:5054:5)
+    at DefaultPropsProvider (@mui_material_styles.js?v=c46b42e8:5276:3)
+    at RtlProvider (@mui_material_styles.js?v=c46b42e8:5256:3)
+    at ThemeProvider2 (@mui_material_styles.js?v=c46b42e8:5212:5)
+    at ThemeProvider3 (@mui_material_styles.js?v=c46b42e8:5328:5)
+    at ThemeProviderNoVars (@mui_material_styles.js?v=c46b42e8:8855:10)
+    at ThemeProvider4 (@mui_material_styles.js?v=c46b42e8:8937:3)
+    at div (<anonymous>)
+    at ThemeProvider (ThemeProvider.tsx:7:33)
+    at QueryClientProvider (@tanstack_react-query.js?v=c46b42e8:2848:3)
+    at Provider (react-redux.js?v=c46b42e8:923:11)
+    at ErrorBoundary (ErrorBoundary.tsx:14:8)
+    at App (App.tsx:147:20)
+    at Provider (react-redux.js?v=c46b42e8:923:11)
+overrideMethod @ hook.js:608
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [AuthMonitorService.ts] Leader status checked: Follower tab Object
+logger.ts:127 [AuthMonitorService.ts] Tab ID comparison details: Object
+logger.ts:127 [ConnectionRecoveryService.ts] Cross-tab communication initialized for connection recovery Object
+logger.ts:137 [ConnectionRecoveryService.ts] Connection recovery service initialized Object
+logger.ts:137 [FallbackApiService.ts] Fallback API service initialized Object
+logger.ts:127 [AuthMonitorService.ts] Auth monitor services initialized successfully Object
+logger.ts:137 [AuthMonitorService.ts] Auth monitor service initialized Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registering tab for leader election after auth success Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registered tab for leader election Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registering tab for leader election after auth success Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registered tab for leader election Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+AuthMonitorWidget.tsx:79 Leader check: tab_t9ii913_1744503410716 === tab_793164b_1744503702589 is false
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:elected Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Leader elected: tab_v101rf7_1744503700840 (this tab: is leader) Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Updated leader info in localStorage Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registered as leader tab Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping Object
+PrimusAuthService.ts:1429 👑 This tab is now the LEADER Object
+PrimusAuthService.ts:1450 ✅ MATCH: Tab IDs match exactly!
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: auth:tab_registered Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Tab registration confirmed by server Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Tab visibility changed: visible Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Tab visibility changed: visible Object
+logger.ts:127 [AuthMonitorService.ts] Tab became visible Object
+logger.ts:127 [AuthMonitorService.ts] Leader status checked: Follower tab Object
+logger.ts:127 [AuthMonitorService.ts] Tab ID comparison details: Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus connection details Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Creating Primus connection with options Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Tab presence monitoring started Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: open Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus connection established successfully Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] No access token found in cookies Object
+PrimusAuthService.ts:558 ✅ Primus WebSocket Connected Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: open Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: auth:success Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus authentication successful Object
+logger.ts:127 [PrimusAuthService.ts] Got user ID from Redux store Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Attempting to join Primus rooms Object
+logger.ts:127 [PrimusAuthService.ts] Joined user room Object
+PrimusAuthService.ts:2126 🔄 Joining Primus Rooms Object
+PrimusAuthService.ts:899 ✅ Primus Authentication Successful Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: room:joined Object
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully Object
+PrimusAuthService.ts:1172 ✅ Primus Room Joined Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment Object
+logger.ts:127 [AuthService.ts] Processing storage event Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registering tab for leader election after auth success Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Registered tab for leader election Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification Object
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503707025}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503707026}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503707026}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503707026}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503707026}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+AuthMonitorWidget.tsx:79 Leader check: tab_v101rf7_1744503700840 === tab_793164b_1744503702589 is false
 logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [TokenService.ts] TokenService initialized in standby mode (no authenticated user) {}
-logger.ts:137 [TokenService.ts] Created new TokenService instance {}
-logger.ts:127 [RefreshQueueService.ts] RefreshQueueService initialized {}
-logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
-logger.ts:137 [SessionService.ts] SessionService initialized {}
-logger.ts:127 [TokenService.ts] Using existing TokenService instance {}
-logger.ts:137 [auth/init][init.ts] Initializing authentication system {component: 'auth/init'}
-logger.ts:127 [TokenService.ts] TokenService already initialized, returning existing instance {}
-logger.ts:137 [SecurityService.ts] Security context initialized {}
-logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
-logger.ts:137 [SecurityService.ts] SecurityService initialized {}
-logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
-logger.ts:137 [SessionService.ts] SessionService initialized {}
-logger.ts:127 [AuthService.ts] Cross-tab communication initialized for AuthService {}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+hook.js:608 Warning: Functions are not valid as a React child. This may happen if you return a Component instead of <Component /> from render. Or maybe you meant to call this function rather than return it. Error Component Stack
+    at p (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at div (<anonymous>)
+    at AuthMonitorWidget (AuthMonitorWidget.tsx:12:27)
+    at RootLayout (<anonymous>)
+    at RenderedRoute (react-router-dom.js?v=c46b42e8:4089:5)
+    at RenderErrorBoundary (react-router-dom.js?v=c46b42e8:4049:5)
+    at DataRoutes (react-router-dom.js?v=c46b42e8:5240:5)
+    at Router (react-router-dom.js?v=c46b42e8:4502:15)
+    at RouterProvider (react-router-dom.js?v=c46b42e8:5054:5)
+    at DefaultPropsProvider (@mui_material_styles.js?v=c46b42e8:5276:3)
+    at RtlProvider (@mui_material_styles.js?v=c46b42e8:5256:3)
+    at ThemeProvider2 (@mui_material_styles.js?v=c46b42e8:5212:5)
+    at ThemeProvider3 (@mui_material_styles.js?v=c46b42e8:5328:5)
+    at ThemeProviderNoVars (@mui_material_styles.js?v=c46b42e8:8855:10)
+    at ThemeProvider4 (@mui_material_styles.js?v=c46b42e8:8937:3)
+    at div (<anonymous>)
+    at ThemeProvider (ThemeProvider.tsx:7:33)
+    at QueryClientProvider (@tanstack_react-query.js?v=c46b42e8:2848:3)
+    at Provider (react-redux.js?v=c46b42e8:923:11)
+    at ErrorBoundary (ErrorBoundary.tsx:14:8)
+    at App (App.tsx:147:20)
+    at Provider (react-redux.js?v=c46b42e8:923:11)
+overrideMethod @ hook.js:608
+printWarning @ chunk-GSKIDCVT.js?v=c46b42e8:521
+error @ chunk-GSKIDCVT.js?v=c46b42e8:505
+warnOnFunctionType @ chunk-GSKIDCVT.js?v=c46b42e8:9990
+reconcileChildFibers2 @ chunk-GSKIDCVT.js?v=c46b42e8:10618
+reconcileChildren @ chunk-GSKIDCVT.js?v=c46b42e8:14338
+updateHostComponent @ chunk-GSKIDCVT.js?v=c46b42e8:14855
+beginWork @ chunk-GSKIDCVT.js?v=c46b42e8:15983
+beginWork$1 @ chunk-GSKIDCVT.js?v=c46b42e8:19806
+performUnitOfWork @ chunk-GSKIDCVT.js?v=c46b42e8:19251
+workLoopSync @ chunk-GSKIDCVT.js?v=c46b42e8:19190
+renderRootSync @ chunk-GSKIDCVT.js?v=c46b42e8:19169
+performConcurrentWorkOnRoot @ chunk-GSKIDCVT.js?v=c46b42e8:18728
+workLoop @ chunk-GSKIDCVT.js?v=c46b42e8:197
+flushWork @ chunk-GSKIDCVT.js?v=c46b42e8:176
+performWorkUntilDeadline @ chunk-GSKIDCVT.js?v=c46b42e8:384
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503708582}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503708582}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503708786}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503708788}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503708788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503708788}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503708788}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
 logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [AuthService.ts] Initializing auth state with cookies: {cookieString: '', hasVisibleCookies: false, hasAppSessionCookie: false, hasRefreshTokenCookie: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: true, isInitialized: false, hasUser: false}
-logger.ts:137 [AuthService.ts] Checking for session cookies {cookieString: '', hasAppSessionCookie: false, hasRefreshTokenCookie: '[REDACTED]', hasAccessTokenCookie: '[REDACTED]'}
-logger.ts:127 [AuthService.ts] No cookie flags found, but HTTP-only cookies might still exist {}
-logger.ts:127 [AuthService.ts] Attempting to validate session with server {}
-logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: '', hasVisibleCookies: false, component: 'AuthService'}
-logger.ts:127 [AuthService][AuthService.ts] Making request to validate session {endpoint: '/api/auth/session/status', csrfToken: '[REDACTED]', component: 'AuthService'}
-logger.ts:137 [AuthService.ts] AuthService initialized {}
-logger.ts:127 [AuthService.ts] Cross-tab communication already initialized for AuthService {}
-logger.ts:137 [TokenService.ts] CSRF protection initialized {}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
 logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
-logger.ts:137 [AuthService.ts] Initializing auth state with cookies: {cookieString: 'csrf_token=5fd30abc2af7a2e0ebb4ae054d587fa5', hasVisibleCookies: true, hasAppSessionCookie: false, hasRefreshTokenCookie: '[REDACTED]'}
-logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: true, isInitialized: false, hasUser: false}
-logger.ts:127 [AuthService.ts] Session validation already in progress, skipping duplicate request {}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: true, path: '/auth/login'}
-logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-logger.ts:137 [init.ts] User is not authenticated after initialization {}
-logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: false, isInitialized: true, hasUser: false}
-logger.ts:127 [AuthService.ts] Session validation already in progress, skipping duplicate request {}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [App][App.tsx] Auth already initialized in service, skipping {component: 'App'}
-logger.ts:127 [authSlice][authSlice.ts] Auth state initialized in Redux {component: 'authSlice', isInitialized: true}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: false, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [App][App.tsx] Auth initialization already triggered, skipping {component: 'App'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [AuthService.ts] Session validation response: {active: false, authenticated: '[REDACTED]', reason: 'NO_TOKEN'}
-logger.ts:127 [TokenService.ts] All TokenService resources cleaned up {}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-login?reason=logout&t=1744170119151:42 Primus client library loaded successfully.
-logger.ts:127 [AuthService][AuthService.ts] Redux store updated with auth state {component: 'AuthService', hasUser: false}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/auth/login'}
-logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:137 [LoginPage][LoginPage.tsx] User authenticated, redirecting from login page {component: 'LoginPage', redirectTo: '/dashboard'}
-logger.ts:127 [LoginPage][LoginPage.tsx] Auth state changed in LoginPage {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
-logger.ts:127 [LoginPage][LoginPage.tsx] Direct auth service state check {component: 'LoginPage', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, serviceUserRole: undefined}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:18 Dashboard user data: null isAuthenticated: true isLoading: false
-DashboardPage.tsx:18 Dashboard user data: null isAuthenticated: true isLoading: false
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503710578}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503710578}
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-CustomerDashboard.tsx:15 CustomerDashboard user data: null
-CustomerDashboard.tsx:15 CustomerDashboard user data: null
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503710787}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503710787}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503710787}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503710787}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503710787}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
+logger.ts:127 [TokenService.ts] Token existence check {hasFlag: false, cookies: {…}}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
 logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [AuthService][AuthService.ts] Redux store updated with auth state {component: 'AuthService', hasUser: false}
-logger.ts:127 [AuthService.ts] Auth state updated {isAuthenticated: '[REDACTED]'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-DashboardPage.tsx:46 User not authenticated or undefined, showing customer dashboard
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-logger.ts:127 [useAuth][useAuth.ts] useAuth hook called {component: 'useAuth', isAuthenticated: '[REDACTED]', isLoading: false, path: '/dashboard'}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
-logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
-, 
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503712578}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503712578}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503712788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503712789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503712789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503712789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503712789}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503714579}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503714579}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503714787}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503714788}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503714788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503714789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503714789}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503716579}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503716579}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503716788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503716789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503716789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503716789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503716789}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503718579}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503718579}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503718787}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503718789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503718789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503718789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503718789}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503720580}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503720580}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503720787}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503720789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503720789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503720789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503720789}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503722580}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503722580}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503722788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503722790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503722790}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503722790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503722790}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503724581}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503724581}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503724788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503724789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503724789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503724790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503724790}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503726581}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503726581}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503726788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503726789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503726789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503726790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503726790}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503728581}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503728581}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503728788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503728790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503728790}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503728790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503728790}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503730582}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503730582}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503730788}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503730790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503730790}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503730790}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503730790}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:active {args: '{"leaderId":"tab_t9ii913_1744503410716","deviceId":"device_8vsj3n","timestamp":1744503732581}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader active notification {component: 'PrimusAuthService', leaderId: 'tab_t9ii913_1744503410716', deviceId: 'device_8vsj3n', timestamp: 1744503732581}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Sent leader ping {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', timestamp: 1744503732787}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","deviceId":"device_8vsj3n","timestamp":1744503732789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503732789}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Primus event received: leader:ping_ack {args: '{"tabId":"tab_v101rf7_1744503700840","timestamp":1744503732789}', component: 'PrimusAuthService'}
+logger.ts:127 [PrimusAuthService][PrimusAuthService.ts] Received leader ping acknowledgment {component: 'PrimusAuthService', tabId: 'tab_v101rf7_1744503700840', deviceId: 'device_8vsj3n', timestamp: 1744503732789}
+logger.ts:127 [AuthService.ts] Processing storage event {key: 'auth_leader_tab_device_8vsj3n'}

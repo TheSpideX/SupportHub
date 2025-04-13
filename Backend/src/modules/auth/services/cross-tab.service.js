@@ -3,61 +3,168 @@
  * Handles synchronization of tokens across devices and tabs
  * and coordinates multiple tabs of the same user
  */
-const logger = require('../../../utils/logger');
-const socketConfig = require('../config/websocket.config');
-const { EVENT_NAMES } = require('../constants/event-names.constant');
-const socketService = require('./socket.service');
+const logger = require("../../../utils/logger");
+const socketConfig = require("../config/websocket.config");
+const { EVENT_NAMES } = require("../constants/event-names.constant");
+const socketService = require("./socket.service");
 
 class TokenSyncService {
-  constructor(io, tokenService) {
+  constructor(io = null, tokenService = null) {
     this.io = io;
     this.tokenService = tokenService;
-    this.leaderRegistry = new Map(); // userId -> {leaderId, lastHeartbeat, version}
+    this.leaderRegistry = new Map(); // userId -> {leaderId, deviceId, version}
     this.sharedStateRegistry = new Map(); // userId -> {stateData, version}
-    this.heartbeatInterval = null;
-    
+    // No heartbeat interval in event-based system
+    this.isInitialized = false;
+
     // Token sync configuration
     this.syncConfig = {
       enableCrossTabs: true,
       enableCrossDevices: true,
       syncInterval: 5 * 60 * 1000, // 5 minutes
-      notifyOnRefresh: true
+      notifyOnRefresh: true,
     };
-    
+
     // Cross-tab coordination configuration
     this.crossTabConfig = socketConfig.crossTab || {
       leaderElection: {
-        heartbeatInterval: 5000,
-        missedHeartbeatsThreshold: 3,
-        candidateDelay: 2000,
+        // Event-based system doesn't use heartbeats
+        candidateDelay: 2000, // Delay before becoming leader if no response
         leaderPriority: {
           visible: 100,
-          hidden: 50
-        }
+          hidden: 50,
+        },
       },
       connectionSharing: {
         enabled: true,
-        maxSharedConnections: 5
+        maxSharedConnections: 5,
       },
       stateSync: {
         syncInterval: 10000,
-        autoSync: true
-      }
+        autoSync: true,
+      },
     };
-    
-    logger.info('Token sync and cross-tab coordination service initialized');
+
+    logger.info("Token sync and cross-tab coordination service initialized");
   }
 
   /**
    * Initialize the service
+   * @param {Object} options - Initialization options
+   * @param {Object} options.io - Socket.IO instance
+   * @param {Object} options.tokenService - Token service instance
    */
-  initialize() {
-    // Start heartbeat monitoring for leader election
-    this.heartbeatInterval = setInterval(() => {
-      this.monitorLeaderHeartbeats();
-    }, this.crossTabConfig.leaderElection.heartbeatInterval);
-    
-    logger.info('Cross-Tab Coordinator initialized');
+  initialize(options = {}) {
+    // Initialize the event-based cross-tab coordination system
+    logger.info("Initializing event-based cross-tab coordination system");
+
+    // Set up event handlers for the event-based system
+    this.setupEventHandlers();
+
+    // Set io and tokenService if provided
+    if (options.io) {
+      this.io = options.io;
+    }
+
+    if (options.tokenService) {
+      this.tokenService = options.tokenService;
+    }
+
+    // Mark as initialized
+    this.isInitialized = true;
+  }
+
+  /**
+   * Set up event handlers for the event-based system
+   */
+  setupEventHandlers() {
+    // No need for heartbeat checks in an event-based system
+    logger.debug(
+      "Setting up event handlers for event-based cross-tab coordination"
+    );
+  }
+
+  /**
+   * Register a socket for cross-tab coordination
+   * @param {Object} socket - Primus spark
+   * @returns {boolean} - Whether the socket was successfully registered
+   */
+  registerSocket(socket) {
+    if (!socket || !socket.data || !socket.data.userId || !socket.data.tabId) {
+      logger.warn("Cannot register socket without proper data");
+      return false;
+    }
+
+    const { userId, tabId, deviceId } = socket.data;
+    const forceElection = socket.data.forceElection === true;
+
+    logger.debug(`Registering socket for tab ${tabId} (user ${userId})`, {
+      tabId,
+      deviceId,
+      forceElection,
+      socketId: socket.id,
+    });
+
+    // In Primus, we don't need to explicitly join rooms as we're using the
+    // room functionality from the primus.service.js which handles this for us
+    // We'll just store the room names for reference
+    const userRoom = `user:${userId}`;
+    const tabRoom = `tab:${tabId}`;
+    const deviceRoom = deviceId ? `device:${deviceId}` : null;
+
+    // Store room information in socket data for reference
+    socket.data.rooms = {
+      userRoom,
+      tabRoom,
+      deviceRoom,
+    };
+
+    // Set up leader election handlers
+    // No heartbeat in event-based system
+    socket.on(EVENT_NAMES.LEADER_ELECTION, (data) =>
+      this.handleElection(socket, data)
+    );
+    socket.on(EVENT_NAMES.LEADER_TRANSFER, (data) =>
+      this.handleLeaderTransfer(socket, data)
+    );
+
+    // If this is a forced election, clear any existing leader
+    if (forceElection) {
+      this.clearLeader(userId, deviceId);
+    }
+
+    // Check if there's already a leader
+    const leaderInfo = this.leaderRegistry.get(userId);
+
+    if (leaderInfo) {
+      // There's already a leader, notify this tab
+      socket.emit(EVENT_NAMES.LEADER_ELECTED, {
+        leaderId: leaderInfo.leaderId,
+        version: leaderInfo.version,
+        timestamp: Date.now(),
+      });
+
+      logger.debug(
+        `Notified tab ${tabId} about existing leader ${leaderInfo.leaderId}`
+      );
+
+      // If this tab is the leader, update the socket ID
+      if (leaderInfo.leaderId === tabId) {
+        // Update the socket ID in the registry
+        leaderInfo.socketId = socket.id;
+        this.leaderRegistry.set(userId, leaderInfo);
+
+        // Mark this socket as leader
+        socket.data.isLeader = true;
+
+        logger.debug(`Updated socket ID for leader ${tabId} (user ${userId})`);
+      }
+    } else {
+      // No leader exists, initiate leader election
+      this.initiateLeaderElection(socket);
+    }
+
+    return true;
   }
 
   /**
@@ -66,10 +173,16 @@ class TokenSyncService {
    */
   initializeTokenSync(socket) {
     // Set up token sync event handlers
-    socket.on(EVENT_NAMES.TOKEN_REFRESH, (data) => this.handleTokenRefresh(socket, data));
-    socket.on(EVENT_NAMES.TOKEN_INVALIDATE, (data) => this.handleTokenInvalidate(socket, data));
-    socket.on(EVENT_NAMES.TOKEN_SYNC_REQUEST, () => this.handleTokenSyncRequest(socket));
-    
+    socket.on(EVENT_NAMES.TOKEN_REFRESH, (data) =>
+      this.handleTokenRefresh(socket, data)
+    );
+    socket.on(EVENT_NAMES.TOKEN_INVALIDATE, (data) =>
+      this.handleTokenInvalidate(socket, data)
+    );
+    socket.on(EVENT_NAMES.TOKEN_SYNC_REQUEST, () =>
+      this.handleTokenSyncRequest(socket)
+    );
+
     logger.debug(`Token sync initialized for socket ${socket.id}`);
   }
 
@@ -79,38 +192,22 @@ class TokenSyncService {
    */
   initializeTabCoordination(socket) {
     if (!socket.data || !socket.data.userId) return;
-    
+
     // Register for leader election
     this.registerSocket(socket);
-    
+
     // Initialize connection sharing if enabled
     if (this.crossTabConfig.connectionSharing.enabled) {
       this.initializeConnectionSharing(socket);
     }
-    
+
     // Initialize state synchronization
     this.initializeStateSync(socket);
-    
+
     logger.debug(`Tab coordination initialized for socket ${socket.id}`);
   }
 
-  /**
-   * Register socket for leader election
-   * @param {Object} socket - Socket.IO socket
-   */
-  registerSocket(socket) {
-    if (!socket.data || !socket.data.userId) return;
-    
-    const { userId, tabId } = socket.data;
-    
-    // Set up leader election handlers
-    socket.on(EVENT_NAMES.LEADER_HEARTBEAT, (data) => this.handleHeartbeat(socket, data));
-    socket.on(EVENT_NAMES.LEADER_ELECTION, (data) => this.handleElection(socket, data));
-    socket.on(EVENT_NAMES.LEADER_TRANSFER, (data) => this.handleLeaderTransfer(socket, data));
-    
-    // Initialize leader election
-    this.initiateLeaderElection(socket);
-  }
+  // The registerSocket method has been merged with the one above
 
   /**
    * Handle token refresh event
@@ -121,65 +218,75 @@ class TokenSyncService {
     try {
       const { refreshToken } = data;
       const { userId, deviceId, tabId } = socket.data;
-      
+
       if (!refreshToken) {
         socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-          message: 'No refresh token provided',
-          code: 'MISSING_REFRESH_TOKEN'
+          message: "No refresh token provided",
+          code: "MISSING_REFRESH_TOKEN",
         });
         return;
       }
-      
+
       // Refresh token
       const result = await this.tokenService.refreshAccessToken(refreshToken);
-      
+
       if (!result) {
         socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-          message: 'Token refresh failed',
-          code: 'REFRESH_FAILED'
+          message: "Token refresh failed",
+          code: "REFRESH_FAILED",
         });
         return;
       }
-      
+
       const { token, refreshToken: newRefreshToken } = result;
-      
+
       // Send new tokens to client
       socket.emit(EVENT_NAMES.TOKEN_UPDATED, {
         token,
         refreshToken: newRefreshToken,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
-      
+
       // Notify other tabs on same device
-      if (this.syncConfig.enableCrossTabs && deviceId) {
-        const deviceRoom = socketService.createRoomName('device', deviceId);
-        socket.to(deviceRoom).emit(EVENT_NAMES.TOKEN_UPDATED, {
-          token,
-          refreshToken: newRefreshToken,
-          updatedAt: Date.now(),
-          source: tabId || socket.id
+      if (this.syncConfig.enableCrossTabs && deviceId && this.io) {
+        this.io.forEach((client) => {
+          // Skip the current client
+          if (client.id === socket.id) return;
+
+          // Only send to clients on the same device
+          if (client.data && client.data.deviceId === deviceId) {
+            client.emit(EVENT_NAMES.TOKEN_UPDATED, {
+              token,
+              refreshToken: newRefreshToken,
+              updatedAt: Date.now(),
+              source: tabId || socket.id,
+            });
+          }
         });
       }
-      
+
       // Notify other devices if cross-device sync is enabled
       if (this.syncConfig.enableCrossDevices) {
-        const userRoom = socketService.createRoomName('user', userId);
-        const deviceRoom = socketService.createRoomName('device', deviceId);
-        
+        const userRoom = socketService.createRoomName("user", userId);
+        const deviceRoom = socketService.createRoomName("device", deviceId);
+
         // Send notification to other devices (without tokens)
-        this.io.to(userRoom).except(deviceRoom).emit(EVENT_NAMES.TOKEN_REFRESH_NOTIFICATION, {
-          deviceId: deviceId,
-          updatedAt: Date.now(),
-          source: tabId || socket.id
-        });
+        this.io
+          .to(userRoom)
+          .except(deviceRoom)
+          .emit(EVENT_NAMES.TOKEN_REFRESH_NOTIFICATION, {
+            deviceId: deviceId,
+            updatedAt: Date.now(),
+            source: tabId || socket.id,
+          });
       }
-      
+
       logger.debug(`Token refreshed for user ${userId}`);
     } catch (error) {
       logger.error(`Error handling token refresh:`, error);
       socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-        message: 'Error refreshing token',
-        code: 'REFRESH_ERROR'
+        message: "Error refreshing token",
+        code: "REFRESH_ERROR",
       });
     }
   }
@@ -191,49 +298,65 @@ class TokenSyncService {
    */
   async handleTokenInvalidate(socket, data) {
     try {
-      const { reason = 'user_request', allDevices = false } = data;
+      const { reason = "user_request", allDevices = false } = data;
       const { userId, deviceId } = socket.data;
-      
+
       if (!userId) {
         socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-          message: 'Unauthorized',
-          code: 'UNAUTHORIZED'
+          message: "Unauthorized",
+          code: "UNAUTHORIZED",
         });
         return;
       }
-      
+
       // Invalidate tokens
       if (allDevices) {
         await this.tokenService.invalidateAllUserTokens(userId);
       } else if (deviceId) {
         await this.tokenService.invalidateDeviceTokens(userId, deviceId);
       }
-      
+
       // Notify other clients
-      if (allDevices && this.syncConfig.enableCrossDevices) {
-        // Invalidate tokens across all devices using consistent room naming
-        const userRoom = socketService.createRoomName('user', userId);
-        this.io.to(userRoom).emit(EVENT_NAMES.TOKEN_INVALIDATED, {
-          reason,
-          timestamp: Date.now(),
-          source: socket.id
-        });
-      } else if (deviceId && this.syncConfig.enableCrossTabs) {
-        // Invalidate tokens on current device only using consistent room naming
-        const deviceRoom = socketService.createRoomName('device', deviceId);
-        socket.to(deviceRoom).emit(EVENT_NAMES.TOKEN_INVALIDATED, {
-          reason,
-          timestamp: Date.now(),
-          source: socket.id
-        });
+      if (this.io) {
+        if (allDevices && this.syncConfig.enableCrossDevices) {
+          // Invalidate tokens across all devices
+          this.io.forEach((client) => {
+            // Skip the current client
+            if (client.id === socket.id) return;
+
+            // Only send to clients for this user
+            if (client.authData && client.authData.userId === userId) {
+              client.emit(EVENT_NAMES.TOKEN_INVALIDATED, {
+                reason,
+                timestamp: Date.now(),
+                source: socket.id,
+              });
+            }
+          });
+        } else if (deviceId && this.syncConfig.enableCrossTabs) {
+          // Invalidate tokens on current device only
+          this.io.forEach((client) => {
+            // Skip the current client
+            if (client.id === socket.id) return;
+
+            // Only send to clients on the same device
+            if (client.data && client.data.deviceId === deviceId) {
+              client.emit(EVENT_NAMES.TOKEN_INVALIDATED, {
+                reason,
+                timestamp: Date.now(),
+                source: socket.id,
+              });
+            }
+          });
+        }
       }
-      
+
       logger.debug(`Tokens invalidated for user ${userId}, reason: ${reason}`);
     } catch (error) {
       logger.error(`Error handling token invalidation:`, error);
       socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-        message: 'Error invalidating tokens',
-        code: 'INVALIDATION_ERROR'
+        message: "Error invalidating tokens",
+        code: "INVALIDATION_ERROR",
       });
     }
   }
@@ -245,29 +368,29 @@ class TokenSyncService {
   async handleTokenSyncRequest(socket) {
     try {
       const { userId, deviceId } = socket.data;
-      
+
       if (!userId || !deviceId) {
         socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-          message: 'Unauthorized',
-          code: 'UNAUTHORIZED'
+          message: "Unauthorized",
+          code: "UNAUTHORIZED",
         });
         return;
       }
-      
+
       // Get current tokens
       const tokens = await this.tokenService.getCurrentTokens(userId, deviceId);
-      
+
       if (tokens) {
         socket.emit(EVENT_NAMES.TOKEN_UPDATED, {
           ...tokens,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         });
       }
     } catch (error) {
       logger.error(`Error handling token sync request:`, error);
       socket.emit(EVENT_NAMES.TOKEN_ERROR, {
-        message: 'Error syncing tokens',
-        code: 'SYNC_ERROR'
+        message: "Error syncing tokens",
+        code: "SYNC_ERROR",
       });
     }
   }
@@ -279,83 +402,196 @@ class TokenSyncService {
   initiateLeaderElection(socket) {
     const { userId, tabId } = socket.data;
     const priority = this.getTabPriority(socket);
-    
+    const forceElection = socket.data.forceElection === true;
+
     // Initialize vector clock for this tab
     socket.data.vectorClock = {
       [tabId]: Date.now(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    
+
     // Check if a leader exists and is active
     const leaderInfo = this.leaderRegistry.get(userId);
-    
-    if (!leaderInfo || Date.now() - leaderInfo.lastHeartbeat > 
-        this.crossTabConfig.leaderElection.heartbeatInterval * this.crossTabConfig.leaderElection.missedHeartbeatsThreshold) {
-      // No active leader, become leader
-      this.electAsLeader(socket, priority);
-    } else {
-      // Leader exists, send election request with vector clock
-      socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_ELECTION, {
-        candidateId: tabId,
-        priority,
-        vectorClock: socket.data.vectorClock,
-        timestamp: Date.now()
-      });
-      
-      // Set timeout to become leader if no response
-      setTimeout(() => {
-        const currentLeaderInfo = this.leaderRegistry.get(userId);
-        // Only become leader if no leader exists or if the leader hasn't changed
-        if (!currentLeaderInfo || 
-            (leaderInfo && currentLeaderInfo.leaderId === leaderInfo.leaderId && 
-             Date.now() - currentLeaderInfo.lastHeartbeat > 
-             this.crossTabConfig.leaderElection.heartbeatInterval * this.crossTabConfig.leaderElection.missedHeartbeatsThreshold)) {
+
+    // Check if this is the only tab for this user
+    this.isOnlyTab(userId, tabId)
+      .then((isOnlyTab) => {
+        // If force election is requested, no active leader exists, or this is the only tab, become leader immediately
+        if (forceElection || !leaderInfo || isOnlyTab) {
+          // Log the reason for election
+          if (forceElection) {
+            logger.info(
+              `Forced leader election for tab ${tabId} (user ${userId})`
+            );
+          } else if (isOnlyTab) {
+            logger.info(
+              `Tab ${tabId} is the only tab for user ${userId}, electing as leader`
+            );
+          } else if (!leaderInfo) {
+            logger.debug(
+              `No leader exists for user ${userId}, electing tab ${tabId}`
+            );
+          } else {
+            logger.debug(
+              `Leader ${leaderInfo.leaderId} for user ${userId} is inactive, electing tab ${tabId}`
+            );
+          }
+
+          // Become leader
           this.electAsLeader(socket, priority);
+        } else {
+          // Leader exists, send election request with vector clock
+          if (this.io) {
+            this.io.forEach((client) => {
+              // Skip the current client
+              if (client.id === socket.id) return;
+
+              // Only send to clients for this user
+              if (client.authData && client.authData.userId === userId) {
+                client.emit(EVENT_NAMES.LEADER_ELECTION, {
+                  candidateId: tabId,
+                  priority,
+                  vectorClock: socket.data.vectorClock,
+                  timestamp: Date.now(),
+                });
+              }
+            });
+          }
+
+          // Set timeout to become leader if no response
+          setTimeout(() => {
+            // Check again if this is the only tab
+            this.isOnlyTab(userId, tabId)
+              .then((isOnlyTabNow) => {
+                const currentLeaderInfo = this.leaderRegistry.get(userId);
+                // Only become leader if no leader exists, this is the only tab, or if the leader hasn't changed
+                if (
+                  !currentLeaderInfo ||
+                  isOnlyTabNow ||
+                  (leaderInfo &&
+                    currentLeaderInfo.leaderId === leaderInfo.leaderId)
+                ) {
+                  if (isOnlyTabNow) {
+                    logger.info(
+                      `Tab ${tabId} is now the only tab for user ${userId}, electing as leader`
+                    );
+                  }
+                  this.electAsLeader(socket, priority);
+                }
+              })
+              .catch((error) => {
+                logger.error(
+                  `Error checking if tab is the only one: ${error.message}`
+                );
+                // Fall back to normal behavior
+                const currentLeaderInfo = this.leaderRegistry.get(userId);
+                if (
+                  !currentLeaderInfo ||
+                  (leaderInfo &&
+                    currentLeaderInfo.leaderId === leaderInfo.leaderId &&
+                    Date.now() - currentLeaderInfo.lastHeartbeat >
+                      this.crossTabConfig.leaderElection.heartbeatInterval *
+                        this.crossTabConfig.leaderElection
+                          .missedHeartbeatsThreshold)
+                ) {
+                  this.electAsLeader(socket, priority);
+                }
+              });
+          }, this.crossTabConfig.leaderElection.candidateDelay);
         }
-      }, this.crossTabConfig.leaderElection.candidateDelay);
-    }
+      })
+      .catch((error) => {
+        logger.error(`Error checking if tab is the only one: ${error.message}`);
+        // Fall back to normal behavior
+        if (forceElection || !leaderInfo) {
+          this.electAsLeader(socket, priority);
+        } else {
+          // Leader exists, send election request with vector clock
+          if (this.io) {
+            this.io.forEach((client) => {
+              // Skip the current client
+              if (client.id === socket.id) return;
+
+              // Only send to clients for this user
+              if (client.authData && client.authData.userId === userId) {
+                client.emit(EVENT_NAMES.LEADER_ELECTION, {
+                  candidateId: tabId,
+                  priority,
+                  vectorClock: socket.data.vectorClock,
+                  timestamp: Date.now(),
+                });
+              }
+            });
+          }
+
+          // Set timeout to become leader if no response
+          setTimeout(() => {
+            const currentLeaderInfo = this.leaderRegistry.get(userId);
+            if (
+              !currentLeaderInfo ||
+              (leaderInfo && currentLeaderInfo.leaderId === leaderInfo.leaderId)
+            ) {
+              this.electAsLeader(socket, priority);
+            }
+          }, this.crossTabConfig.leaderElection.candidateDelay);
+        }
+      });
   }
 
   /**
    * Elect socket as leader with enhanced consensus
-   * @param {Object} socket - Socket.IO socket
+   * @param {Object} socket - Primus spark
    * @param {number} priority - Tab priority
    */
   electAsLeader(socket, priority) {
     const { userId, tabId } = socket.data;
-    
+
     // Update vector clock
     socket.data.vectorClock[tabId] = Date.now();
-    
+
     this.leaderRegistry.set(userId, {
       leaderId: tabId,
       socketId: socket.id,
+      deviceId: socket.data.deviceId,
       lastHeartbeat: Date.now(),
       priority,
       vectorClock: socket.data.vectorClock,
-      version: (this.leaderRegistry.get(userId)?.version || 0) + 1
+      version: (this.leaderRegistry.get(userId)?.version || 0) + 1,
     });
-    
+
     // Mark socket as leader
     socket.data.isLeader = true;
-    
+
     // Notify all tabs about new leader with vector clock
-    socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_ELECTED, {
+    if (this.io) {
+      this.io.forEach((client) => {
+        // Skip the current client
+        if (client.id === socket.id) return;
+
+        // Only send to clients for this user
+        if (client.authData && client.authData.userId === userId) {
+          client.emit(EVENT_NAMES.LEADER_ELECTED, {
+            leaderId: tabId,
+            version: this.leaderRegistry.get(userId).version,
+            vectorClock: socket.data.vectorClock,
+            timestamp: Date.now(),
+          });
+        }
+      });
+    }
+
+    // In the event-based system, we don't need heartbeats
+    // Instead, we'll rely on socket disconnect events and explicit tab closing events
+
+    // Notify the client that it's now the leader
+    socket.emit(EVENT_NAMES.LEADER_ELECTED, {
       leaderId: tabId,
       version: this.leaderRegistry.get(userId).version,
       vectorClock: socket.data.vectorClock,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isYou: true,
     });
-    
-    // Set up heartbeat
-    if (socket.data.heartbeatInterval) {
-      clearInterval(socket.data.heartbeatInterval);
-    }
-    
-    socket.data.heartbeatInterval = setInterval(() => {
-      this.sendHeartbeat(socket);
-    }, this.crossTabConfig.leaderElection.heartbeatInterval);
-    
+
     // Initialize leader state
     if (!this.sharedStateRegistry.has(userId)) {
       this.sharedStateRegistry.set(userId, {
@@ -363,56 +599,18 @@ class TokenSyncService {
         version: 1,
         vectorClock: socket.data.vectorClock,
         updatedBy: tabId,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
     }
-    
-    logger.debug(`Tab ${tabId} elected as leader for user ${userId} with version ${this.leaderRegistry.get(userId).version}`);
+
+    logger.debug(
+      `Tab ${tabId} elected as leader for user ${userId} with version ${
+        this.leaderRegistry.get(userId).version
+      }`
+    );
   }
 
-  /**
-   * Send leader heartbeat
-   * @param {Object} socket - Socket.IO socket
-   */
-  sendHeartbeat(socket) {
-    const { userId, tabId } = socket.data;
-    const leaderInfo = this.leaderRegistry.get(userId);
-    
-    if (!leaderInfo || leaderInfo.leaderId !== tabId) {
-      // No longer leader, clear interval
-      clearInterval(socket.data.heartbeatInterval);
-      socket.data.isLeader = false;
-      return;
-    }
-    
-    // Update heartbeat timestamp
-    leaderInfo.lastHeartbeat = Date.now();
-    this.leaderRegistry.set(userId, leaderInfo);
-    
-    // Send heartbeat to all tabs
-    socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_HEARTBEAT, {
-      leaderId: tabId,
-      version: leaderInfo.version,
-      timestamp: Date.now()
-    });
-  }
-
-  /**
-   * Handle leader heartbeat
-   * @param {Object} socket - Socket.IO socket
-   * @param {Object} data - Heartbeat data
-   */
-  handleHeartbeat(socket, data) {
-    const { userId } = socket.data;
-    const { leaderId, version, timestamp } = data;
-    
-    // Update leader registry
-    this.leaderRegistry.set(userId, {
-      leaderId,
-      lastHeartbeat: Date.now(),
-      version
-    });
-  }
+  // No heartbeat sending or handling in event-based system
 
   /**
    * Handle leader election request with enhanced consensus
@@ -420,51 +618,110 @@ class TokenSyncService {
    * @param {Object} data - Election data
    */
   handleElection(socket, data) {
+    if (!socket || !socket.data) {
+      logger.warn("Cannot handle election: socket or socket.data is undefined");
+      return;
+    }
+
+    if (!data) {
+      logger.warn("Cannot handle election: data is undefined", {
+        socketId: socket?.id,
+      });
+      return;
+    }
+
     const { userId, tabId } = socket.data;
+
+    if (!userId || !tabId) {
+      logger.warn("Cannot handle election: missing userId or tabId", {
+        socketId: socket.id,
+      });
+      return;
+    }
+
     const priority = this.getTabPriority(socket);
     const { candidateId, candidatePriority, vectorClock, timestamp } = data;
-    
+
+    if (!candidateId) {
+      logger.warn("Cannot handle election: missing candidateId", {
+        socketId: socket.id,
+        userId,
+        tabId,
+      });
+      return;
+    }
+
     // Update local vector clock with candidate's information
     if (vectorClock && socket.data.vectorClock) {
-      socket.data.vectorClock = this.mergeVectorClocks(socket.data.vectorClock, vectorClock);
+      socket.data.vectorClock = this.mergeVectorClocks(
+        socket.data.vectorClock,
+        vectorClock
+      );
       socket.data.vectorClock[tabId] = Date.now();
     }
-    
+
     // If this socket is the leader, respond with current status
     if (socket.data.isLeader) {
       const leaderInfo = this.leaderRegistry.get(userId);
-      
-      socket.to(`tab:${candidateId}`).emit(EVENT_NAMES.LEADER_ELECTED, {
-        leaderId: tabId,
-        version: leaderInfo.version,
-        vectorClock: socket.data.vectorClock || leaderInfo.vectorClock,
-        timestamp: Date.now()
-      });
-      
+
+      if (this.io) {
+        this.io.forEach((client) => {
+          // Only send to the candidate tab
+          if (client.data && client.data.tabId === candidateId) {
+            client.emit(EVENT_NAMES.LEADER_ELECTED, {
+              leaderId: tabId,
+              version: leaderInfo.version,
+              vectorClock: socket.data.vectorClock || leaderInfo.vectorClock,
+              timestamp: Date.now(),
+            });
+          }
+        });
+      }
+
       // Update leader's vector clock
       if (leaderInfo) {
         leaderInfo.vectorClock = socket.data.vectorClock;
         leaderInfo.lastHeartbeat = Date.now();
         this.leaderRegistry.set(userId, leaderInfo);
       }
-    } 
+    }
     // If this socket has higher priority, contest the election
     else if (priority > candidatePriority) {
-      socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_ELECTION, {
-        candidateId: tabId,
-        priority,
-        vectorClock: socket.data.vectorClock,
-        timestamp: Date.now()
-      });
+      if (this.io) {
+        this.io.forEach((client) => {
+          // Skip the current client
+          if (client.id === socket.id) return;
+
+          // Only send to clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            client.emit(EVENT_NAMES.LEADER_ELECTION, {
+              candidateId: tabId,
+              priority,
+              vectorClock: socket.data.vectorClock,
+              timestamp: Date.now(),
+            });
+          }
+        });
+      }
     }
     // If same priority, use tab ID as tiebreaker
     else if (priority === candidatePriority && tabId > candidateId) {
-      socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_ELECTION, {
-        candidateId: tabId,
-        priority,
-        vectorClock: socket.data.vectorClock,
-        timestamp: Date.now()
-      });
+      if (this.io) {
+        this.io.forEach((client) => {
+          // Skip the current client
+          if (client.id === socket.id) return;
+
+          // Only send to clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            client.emit(EVENT_NAMES.LEADER_ELECTION, {
+              candidateId: tabId,
+              priority,
+              vectorClock: socket.data.vectorClock,
+              timestamp: Date.now(),
+            });
+          }
+        });
+      }
     }
   }
 
@@ -474,23 +731,54 @@ class TokenSyncService {
    * @param {Object} data - Transfer data
    */
   handleLeaderTransfer(socket, data) {
+    if (!socket || !socket.data) {
+      logger.warn(
+        "Cannot handle leader transfer: socket or socket.data is undefined"
+      );
+      return;
+    }
+
+    if (!data) {
+      logger.warn("Cannot handle leader transfer: data is undefined", {
+        socketId: socket?.id,
+      });
+      return;
+    }
+
     const { userId, tabId } = socket.data;
+
+    if (!userId || !tabId) {
+      logger.warn("Cannot handle leader transfer: missing userId or tabId", {
+        socketId: socket.id,
+      });
+      return;
+    }
+
     const { newLeaderId, version, state, vectorClock } = data;
-    
+
+    if (!newLeaderId) {
+      logger.warn("Cannot handle leader transfer: missing newLeaderId", {
+        socketId: socket.id,
+        userId,
+        tabId,
+      });
+      return;
+    }
+
     // Verify current leader is requesting transfer
     const leaderInfo = this.leaderRegistry.get(userId);
     if (!leaderInfo || leaderInfo.leaderId !== tabId) {
       return;
     }
-    
+
     // Update leader registry with new leader
     this.leaderRegistry.set(userId, {
       leaderId: newLeaderId,
       lastHeartbeat: Date.now(),
       version: version + 1,
-      vectorClock: vectorClock || leaderInfo.vectorClock
+      vectorClock: vectorClock || leaderInfo.vectorClock,
     });
-    
+
     // Update shared state if provided
     if (state) {
       const stateInfo = this.sharedStateRegistry.get(userId) || { version: 0 };
@@ -500,50 +788,258 @@ class TokenSyncService {
         vectorClock: vectorClock || stateInfo.vectorClock,
         updatedBy: tabId,
         updatedAt: Date.now(),
-        transferredTo: newLeaderId
+        transferredTo: newLeaderId,
       });
     }
-    
+
     // Clear leader status
     clearInterval(socket.data.heartbeatInterval);
     socket.data.isLeader = false;
-    
+
     // Notify all tabs about new leader
-    socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_TRANSFERRED, {
-      previousLeaderId: tabId,
-      newLeaderId,
-      version: version + 1,
-      state,
-      vectorClock: vectorClock || leaderInfo.vectorClock,
-      timestamp: Date.now()
-    });
-    
-    logger.debug(`Leader transferred from ${tabId} to ${newLeaderId} for user ${userId}`);
+    if (this.io) {
+      this.io.forEach((client) => {
+        // Skip the current client
+        if (client.id === socket.id) return;
+
+        // Only send to clients for this user
+        if (client.authData && client.authData.userId === userId) {
+          client.emit(EVENT_NAMES.LEADER_TRANSFERRED, {
+            previousLeaderId: tabId,
+            newLeaderId,
+            version: version + 1,
+            state,
+            vectorClock: vectorClock || leaderInfo.vectorClock,
+            timestamp: Date.now(),
+          });
+        }
+      });
+    }
+
+    logger.debug(
+      `Leader transferred from ${tabId} to ${newLeaderId} for user ${userId}`
+    );
   }
 
   /**
-   * Monitor leader heartbeats and trigger re-election if needed
+   * Safety check for leaders - event-based version
+   * This is now a no-op as we're using a fully event-based approach
+   * We'll keep the method for compatibility but it doesn't do anything
    */
-  monitorLeaderHeartbeats() {
-    const now = Date.now();
-    
-    for (const [userId, leaderInfo] of this.leaderRegistry.entries()) {
-      const { lastHeartbeat, leaderId } = leaderInfo;
-      
-      // Check if leader is inactive
-      if (now - lastHeartbeat > 
-          this.crossTabConfig.leaderElection.heartbeatInterval * this.crossTabConfig.leaderElection.missedHeartbeatsThreshold) {
-        // Remove inactive leader
-        this.leaderRegistry.delete(userId);
-        
-        // Notify all tabs about leader failure
-        this.io.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_FAILED, {
-          previousLeaderId: leaderId,
-          timestamp: now
+  safetyCheckLeaders() {
+    // No-op - we're using a fully event-based approach now
+    // Leader status is checked when tabs connect/disconnect or send events
+    logger.debug("Safety check skipped - using event-based approach");
+  }
+
+  /**
+   * Handle leader failure
+   * @param {string} userId - User ID
+   * @param {string} leaderId - Leader tab ID
+   * @param {string} reason - Reason for failure
+   * @param {string} deviceId - Device ID (optional)
+   */
+  handleLeaderFailure(userId, leaderId, reason = "unknown", deviceId = null) {
+    // Get the leader info before removing it
+    const leaderInfo = this.leaderRegistry.get(userId);
+
+    // If the leader info doesn't exist or doesn't match the leaderId, ignore
+    if (!leaderInfo || leaderInfo.leaderId !== leaderId) {
+      logger.debug(
+        `Leader ${leaderId} for user ${userId} already replaced, ignoring failure`
+      );
+      return;
+    }
+
+    // Get the deviceId from the leader info if not provided
+    if (!deviceId && leaderInfo.deviceId) {
+      deviceId = leaderInfo.deviceId;
+    }
+
+    // Remove inactive leader
+    this.leaderRegistry.delete(userId);
+
+    // If we have a Primus instance
+    if (this.io) {
+      // If deviceId is provided, only notify tabs on that device
+      if (deviceId) {
+        // Notify all tabs on the device about leader failure
+        this.io.forEach((client) => {
+          // Only send to clients for this user and device
+          if (
+            client.data &&
+            client.authData &&
+            client.authData.userId === userId &&
+            client.data.deviceId === deviceId
+          ) {
+            client.emit(EVENT_NAMES.LEADER_FAILED, {
+              previousLeaderId: leaderId,
+              deviceId,
+              reason,
+              timestamp: Date.now(),
+            });
+          }
         });
-        
-        logger.debug(`Leader ${leaderId} for user ${userId} failed, triggering re-election`);
+
+        logger.debug(
+          `Leader ${leaderId} for user ${userId} on device ${deviceId} failed (${reason}), triggering device-specific re-election`
+        );
+      } else {
+        // Notify all tabs about leader failure
+        this.io.forEach((client) => {
+          // Only send to clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            client.emit(EVENT_NAMES.LEADER_FAILED, {
+              previousLeaderId: leaderId,
+              reason,
+              timestamp: Date.now(),
+            });
+          }
+        });
+
+        logger.debug(
+          `Leader ${leaderId} for user ${userId} failed (${reason}), triggering re-election`
+        );
       }
+    } else {
+      logger.warn(
+        "No Primus instance available, cannot notify clients about leader failure"
+      );
+    }
+  }
+
+  /**
+   * Clear leader for a user
+   * This is used when a forced election is requested
+   * @param {string} userId - User ID
+   * @param {string} deviceId - Device ID (optional)
+   * @returns {boolean} - Whether a leader was cleared
+   */
+  clearLeader(userId, deviceId = null) {
+    // Check if there's a leader to clear
+    const leaderInfo = this.leaderRegistry.get(userId);
+    if (!leaderInfo) {
+      logger.debug(`No leader to clear for user ${userId}`);
+      return false;
+    }
+
+    const leaderId = leaderInfo.leaderId;
+    const leaderDeviceId = leaderInfo.deviceId;
+
+    // If deviceId is specified, only clear if it matches
+    if (deviceId && leaderDeviceId && deviceId !== leaderDeviceId) {
+      logger.debug(
+        `Leader ${leaderId} is on a different device (${leaderDeviceId}), not clearing`
+      );
+      return false;
+    }
+
+    // Remove from registry
+    this.leaderRegistry.delete(userId);
+
+    // If we have a Primus instance
+    if (this.io) {
+      // If deviceId is specified, only notify tabs on that device
+      if (deviceId) {
+        // Notify all tabs on the device about leader being cleared
+        this.io.forEach((client) => {
+          // Only send to clients for this user and device
+          if (
+            client.data &&
+            client.authData &&
+            client.authData.userId === userId &&
+            client.data.deviceId === deviceId
+          ) {
+            client.emit(EVENT_NAMES.LEADER_FAILED, {
+              previousLeaderId: leaderId,
+              deviceId,
+              reason: "forced_election",
+              timestamp: Date.now(),
+            });
+          }
+        });
+
+        logger.info(
+          `Leader ${leaderId} cleared for user ${userId} on device ${deviceId}`
+        );
+      } else {
+        // Notify all tabs about leader being cleared
+        this.io.forEach((client) => {
+          // Only send to clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            client.emit(EVENT_NAMES.LEADER_FAILED, {
+              previousLeaderId: leaderId,
+              reason: "forced_election",
+              timestamp: Date.now(),
+            });
+          }
+        });
+
+        logger.info(`Leader ${leaderId} cleared for user ${userId}`);
+      }
+    } else {
+      logger.warn(
+        "No Primus instance available, cannot notify clients about leader being cleared"
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if this is the only tab for this user
+   * @param {string} userId - User ID
+   * @param {string} tabId - Tab ID
+   * @returns {Promise<boolean>} True if this is the only tab
+   */
+  async isOnlyTab(userId, tabId) {
+    try {
+      if (!this.io) {
+        logger.warn("No Primus instance available, assuming not the only tab");
+        return false;
+      }
+
+      // Get all sockets for this user
+      const userSockets = [];
+
+      // In Primus, we need to iterate through all clients
+      this.io.forEach((client) => {
+        // Only count clients for this user
+        if (client.authData && client.authData.userId === userId) {
+          userSockets.push(client);
+        }
+      });
+
+      // If there's only one socket, this is the only tab
+      if (userSockets.length === 1) {
+        logger.debug(`Tab ${tabId} is the only tab for user ${userId}`);
+        return true;
+      }
+
+      // If there are multiple sockets, check if they're all for this tab
+      // (multiple connections from same tab are possible)
+      const uniqueTabIds = new Set();
+      for (const socket of userSockets) {
+        if (socket.data && socket.data.tabId) {
+          uniqueTabIds.add(socket.data.tabId);
+        }
+      }
+
+      // If there's only one unique tab ID, this is the only tab
+      if (uniqueTabIds.size === 1 && uniqueTabIds.has(tabId)) {
+        logger.debug(`Tab ${tabId} is the only unique tab for user ${userId}`);
+        return true;
+      }
+
+      // Otherwise, there are multiple tabs
+      logger.debug(
+        `Tab ${tabId} is NOT the only tab for user ${userId}, found ${uniqueTabIds.size} tabs`
+      );
+      return false;
+    } catch (error) {
+      logger.error(`Error checking if tab is the only one: ${error.message}`);
+      // Default to false in case of error
+      return false;
     }
   }
 
@@ -553,9 +1049,13 @@ class TokenSyncService {
    * @returns {number} Priority value
    */
   getTabPriority(socket) {
-    const { visibilityState = 'hidden' } = socket.data;
+    if (!socket || !socket.data) {
+      return this.crossTabConfig.leaderElection.leaderPriority.hidden;
+    }
+
+    const { visibilityState = "hidden" } = socket.data;
     const priorities = this.crossTabConfig.leaderElection.leaderPriority;
-    
+
     return priorities[visibilityState] || priorities.hidden;
   }
 
@@ -567,21 +1067,21 @@ class TokenSyncService {
    */
   transferLeadership(socket, newLeaderId, state = {}) {
     const { userId, tabId } = socket.data;
-    
+
     // Verify socket is current leader
     const leaderInfo = this.leaderRegistry.get(userId);
     if (!leaderInfo || leaderInfo.leaderId !== tabId) {
       return false;
     }
-    
+
     // Send transfer request
     socket.to(`tab:${newLeaderId}`).emit(EVENT_NAMES.LEADER_TRANSFER, {
       currentLeaderId: tabId,
       version: leaderInfo.version,
       state,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
-    
+
     return true;
   }
 
@@ -590,22 +1090,97 @@ class TokenSyncService {
    * @param {Object} socket - Socket.IO socket
    */
   handleDisconnect(socket) {
+    if (!socket || !socket.data) {
+      logger.warn(
+        "Cannot handle disconnect: socket or socket.data is undefined"
+      );
+      return;
+    }
+
     const { userId, tabId, isLeader } = socket.data;
-    
-    if (isLeader) {
-      // Clear heartbeat interval
-      clearInterval(socket.data.heartbeatInterval);
-      
-      // Remove from leader registry
-      this.leaderRegistry.delete(userId);
-      
-      // Trigger re-election
-      socket.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_FAILED, {
-        previousLeaderId: tabId,
-        timestamp: Date.now()
+    const deviceId = socket.data.deviceId;
+
+    if (!userId || !tabId) {
+      logger.warn("Cannot handle disconnect: missing userId or tabId", {
+        socketId: socket.id,
       });
-      
-      logger.debug(`Leader ${tabId} for user ${userId} disconnected, triggering re-election`);
+      return;
+    }
+
+    if (isLeader) {
+      // No heartbeat intervals in event-based system
+
+      // Handle leader failure with specific reason and device ID
+      this.handleLeaderFailure(userId, tabId, "disconnect", deviceId);
+
+      if (deviceId) {
+        logger.debug(
+          `Leader ${tabId} for user ${userId} on device ${deviceId} disconnected, triggering device-specific re-election`
+        );
+      } else {
+        logger.debug(
+          `Leader ${tabId} for user ${userId} disconnected, triggering re-election`
+        );
+      }
+    } else {
+      // Even if not a leader, log the disconnection for debugging
+      if (deviceId) {
+        logger.debug(
+          `Tab ${tabId} for user ${userId} on device ${deviceId} disconnected (not a leader)`
+        );
+      } else {
+        logger.debug(
+          `Tab ${tabId} for user ${userId} disconnected (not a leader)`
+        );
+      }
+    }
+  }
+
+  /**
+   * Handle tab closing notification
+   * @param {Object} socket - Socket.IO socket
+   * @param {Object} data - Tab closing data
+   */
+  handleTabClosing(socket, data) {
+    if (!socket || !socket.data) {
+      logger.warn(
+        "Cannot handle tab closing: socket or socket.data is undefined"
+      );
+      return;
+    }
+
+    const { userId, tabId, isLeader } = socket.data;
+    const deviceId = socket.data.deviceId || (data && data.deviceId);
+
+    if (!userId || !tabId) {
+      logger.warn("Cannot handle tab closing: missing userId or tabId", {
+        socketId: socket.id,
+      });
+      return;
+    }
+
+    logger.info(`Tab ${tabId} closing notification received`, {
+      userId,
+      tabId,
+      deviceId,
+      isLeader,
+      timestamp: Date.now(),
+    });
+
+    if (isLeader) {
+      // Try to find a new leader before this tab fully closes
+      this.prepareForOffline(socket);
+
+      // Set a short timeout to allow for graceful transfer
+      // If the transfer doesn't complete, we'll handle it as a failure
+      setTimeout(() => {
+        // Check if this tab is still the leader
+        const leaderInfo = this.leaderRegistry.get(userId);
+        if (leaderInfo && leaderInfo.leaderId === tabId) {
+          // Transfer didn't complete, handle as failure
+          this.handleLeaderFailure(userId, tabId, "closing", deviceId);
+        }
+      }, 500); // Short timeout to allow for transfer
     }
   }
 
@@ -616,18 +1191,25 @@ class TokenSyncService {
   initializeConnectionSharing(socket) {
     const { userId, tabId } = socket.data;
     if (!userId || !tabId) return;
-    
+
     // Set up connection sharing handlers
-    socket.on(EVENT_NAMES.CONNECTION_SHARE_REQUEST, (data) => this.handleConnectionShareRequest(socket, data));
-    socket.on(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, (data) => this.handleConnectionShareResponse(socket, data));
-    
+    socket.on(EVENT_NAMES.CONNECTION_SHARE_REQUEST, (data) =>
+      this.handleConnectionShareRequest(socket, data)
+    );
+    socket.on(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, (data) =>
+      this.handleConnectionShareResponse(socket, data)
+    );
+
     // If this is a leader, it can accept connection sharing requests
     if (socket.data.isLeader) {
       socket.data.sharedConnections = [];
-      socket.data.maxSharedConnections = this.crossTabConfig.connectionSharing.maxSharedConnections;
+      socket.data.maxSharedConnections =
+        this.crossTabConfig.connectionSharing.maxSharedConnections;
     }
-    
-    logger.debug(`Connection sharing initialized for tab ${tabId} of user ${userId}`);
+
+    logger.debug(
+      `Connection sharing initialized for tab ${tabId} of user ${userId}`
+    );
   }
 
   /**
@@ -638,39 +1220,49 @@ class TokenSyncService {
   handleConnectionShareRequest(socket, data) {
     const { userId, tabId } = socket.data;
     const { requesterId, resources } = data;
-    
+
     // Only leaders can accept connection sharing requests
     if (!socket.data.isLeader) {
-      socket.to(`tab:${requesterId}`).emit(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, {
-        accepted: false,
-        reason: 'Not a leader tab'
-      });
+      socket
+        .to(`tab:${requesterId}`)
+        .emit(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, {
+          accepted: false,
+          reason: "Not a leader tab",
+        });
       return;
     }
-    
+
     // Check if max shared connections reached
-    if (socket.data.sharedConnections.length >= socket.data.maxSharedConnections) {
-      socket.to(`tab:${requesterId}`).emit(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, {
-        accepted: false,
-        reason: 'Max shared connections reached'
-      });
+    if (
+      socket.data.sharedConnections.length >= socket.data.maxSharedConnections
+    ) {
+      socket
+        .to(`tab:${requesterId}`)
+        .emit(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, {
+          accepted: false,
+          reason: "Max shared connections reached",
+        });
       return;
     }
-    
+
     // Accept the request
     socket.data.sharedConnections.push({
       tabId: requesterId,
       resources,
-      since: Date.now()
+      since: Date.now(),
     });
-    
-    socket.to(`tab:${requesterId}`).emit(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, {
-      accepted: true,
-      leaderId: tabId,
-      timestamp: Date.now()
-    });
-    
-    logger.debug(`Connection sharing accepted for tab ${requesterId} by leader ${tabId}`);
+
+    socket
+      .to(`tab:${requesterId}`)
+      .emit(EVENT_NAMES.CONNECTION_SHARE_RESPONSE, {
+        accepted: true,
+        leaderId: tabId,
+        timestamp: Date.now(),
+      });
+
+    logger.debug(
+      `Connection sharing accepted for tab ${requesterId} by leader ${tabId}`
+    );
   }
 
   /**
@@ -680,12 +1272,12 @@ class TokenSyncService {
    */
   handleConnectionShareResponse(socket, data) {
     const { accepted, leaderId, reason } = data;
-    
+
     if (accepted) {
       // Mark this tab as using a shared connection
       socket.data.usingSharedConnection = true;
       socket.data.sharedConnectionLeader = leaderId;
-      
+
       logger.debug(`Using shared connection from leader ${leaderId}`);
     } else {
       logger.debug(`Connection sharing request rejected: ${reason}`);
@@ -699,18 +1291,22 @@ class TokenSyncService {
   initializeStateSync(socket) {
     const { userId, tabId } = socket.data;
     if (!userId || !tabId) return;
-    
+
     // Set up state sync handlers
-    socket.on(EVENT_NAMES.STATE_SYNC, (data) => this.handleStateSync(socket, data));
-    socket.on(EVENT_NAMES.STATE_UPDATE, (data) => this.handleStateUpdate(socket, data));
-    
+    socket.on(EVENT_NAMES.STATE_SYNC, (data) =>
+      this.handleStateSync(socket, data)
+    );
+    socket.on(EVENT_NAMES.STATE_UPDATE, (data) =>
+      this.handleStateUpdate(socket, data)
+    );
+
     // If auto sync is enabled, set up interval
     if (this.crossTabConfig.stateSync.autoSync && socket.data.isLeader) {
       socket.data.stateSyncInterval = setInterval(() => {
         this.broadcastState(socket);
       }, this.crossTabConfig.stateSync.syncInterval);
     }
-    
+
     logger.debug(`State sync initialized for tab ${tabId} of user ${userId}`);
   }
 
@@ -720,15 +1316,15 @@ class TokenSyncService {
    */
   handleStateSync(socket) {
     const { userId } = socket.data;
-    
+
     // Get current shared state
     const stateInfo = this.sharedStateRegistry.get(userId);
-    
+
     if (stateInfo) {
       socket.emit(EVENT_NAMES.STATE_SYNC, {
         state: stateInfo.stateData,
         version: stateInfo.version,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     }
   }
@@ -741,65 +1337,77 @@ class TokenSyncService {
   handleStateUpdate(socket, data) {
     const { userId, deviceId, tabId, isLeader } = socket.data;
     const { state, version, vectorClock, syncAcrossDevices } = data;
-    
+
     // Only leader can update state unless force flag is set
     if (!isLeader && !data.force) {
       return;
     }
-    
+
     // Get current state info
-    const stateInfo = this.sharedStateRegistry.get(userId) || { 
-      version: 0, 
+    const stateInfo = this.sharedStateRegistry.get(userId) || {
+      version: 0,
       vectorClock: {},
-      stateData: {}
+      stateData: {},
     };
-    
+
     // Check if update is newer using vector clocks
     const isNewer = this.isVectorClockNewer(vectorClock, stateInfo.vectorClock);
-    
+
     // Handle conflict resolution if needed
     if (isNewer === null) {
       // Conflict detected, merge states
       const mergedState = this.mergeStates(stateInfo.stateData, state);
-      const mergedVectorClock = this.mergeVectorClocks(stateInfo.vectorClock, vectorClock);
-      
+      const mergedVectorClock = this.mergeVectorClocks(
+        stateInfo.vectorClock,
+        vectorClock
+      );
+
       this.sharedStateRegistry.set(userId, {
         stateData: mergedState,
         version: stateInfo.version + 1,
         vectorClock: mergedVectorClock,
         updatedBy: tabId,
         updatedAt: Date.now(),
-        conflictResolved: true
-      });
-      
-      // Broadcast merged state to all tabs on same device
-      socket.to(`user:${userId}:device:${deviceId}`).emit(EVENT_NAMES.STATE_UPDATE, {
-        state: mergedState,
-        version: stateInfo.version + 1,
-        vectorClock: mergedVectorClock,
-        updatedBy: tabId,
         conflictResolved: true,
-        timestamp: Date.now()
       });
-      
-      // Broadcast to other devices if requested
-      if (syncAcrossDevices && this.syncConfig.enableCrossDevices) {
-        const userRoom = socketService.createRoomName('user', userId);
-        const deviceRoom = socketService.createRoomName('device', deviceId);
-        
-        this.io.to(userRoom).except(deviceRoom).emit(EVENT_NAMES.STATE_UPDATE, {
+
+      // Broadcast merged state to all tabs on same device
+      socket
+        .to(`user:${userId}:device:${deviceId}`)
+        .emit(EVENT_NAMES.STATE_UPDATE, {
           state: mergedState,
           version: stateInfo.version + 1,
           vectorClock: mergedVectorClock,
           updatedBy: tabId,
-          sourceDevice: deviceId,
           conflictResolved: true,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
+
+      // Broadcast to other devices if requested
+      if (syncAcrossDevices && this.syncConfig.enableCrossDevices) {
+        const userRoom = socketService.createRoomName("user", userId);
+        const deviceRoom = socketService.createRoomName("device", deviceId);
+
+        this.io
+          .to(userRoom)
+          .except(deviceRoom)
+          .emit(EVENT_NAMES.STATE_UPDATE, {
+            state: mergedState,
+            version: stateInfo.version + 1,
+            vectorClock: mergedVectorClock,
+            updatedBy: tabId,
+            sourceDevice: deviceId,
+            conflictResolved: true,
+            timestamp: Date.now(),
+          });
       }
-      
-      logger.debug(`State conflict resolved for user ${userId}, new version ${stateInfo.version + 1}`);
-    } 
+
+      logger.debug(
+        `State conflict resolved for user ${userId}, new version ${
+          stateInfo.version + 1
+        }`
+      );
+    }
     // Only update if version is newer
     else if (isNewer || version > stateInfo.version) {
       this.sharedStateRegistry.set(userId, {
@@ -807,34 +1415,44 @@ class TokenSyncService {
         version: Math.max(version, stateInfo.version + 1),
         vectorClock: vectorClock || stateInfo.vectorClock,
         updatedBy: tabId,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       });
-      
+
       // Broadcast to all tabs on same device except sender
-      socket.to(`user:${userId}:device:${deviceId}`).emit(EVENT_NAMES.STATE_UPDATE, {
-        state,
-        version: Math.max(version, stateInfo.version + 1),
-        vectorClock: vectorClock || stateInfo.vectorClock,
-        updatedBy: tabId,
-        timestamp: Date.now()
-      });
-      
-      // Broadcast to other devices if requested
-      if (syncAcrossDevices && this.syncConfig.enableCrossDevices) {
-        const userRoom = socketService.createRoomName('user', userId);
-        const deviceRoom = socketService.createRoomName('device', deviceId);
-        
-        this.io.to(userRoom).except(deviceRoom).emit(EVENT_NAMES.STATE_UPDATE, {
+      socket
+        .to(`user:${userId}:device:${deviceId}`)
+        .emit(EVENT_NAMES.STATE_UPDATE, {
           state,
           version: Math.max(version, stateInfo.version + 1),
           vectorClock: vectorClock || stateInfo.vectorClock,
           updatedBy: tabId,
-          sourceDevice: deviceId,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
+
+      // Broadcast to other devices if requested
+      if (syncAcrossDevices && this.syncConfig.enableCrossDevices) {
+        const userRoom = socketService.createRoomName("user", userId);
+        const deviceRoom = socketService.createRoomName("device", deviceId);
+
+        this.io
+          .to(userRoom)
+          .except(deviceRoom)
+          .emit(EVENT_NAMES.STATE_UPDATE, {
+            state,
+            version: Math.max(version, stateInfo.version + 1),
+            vectorClock: vectorClock || stateInfo.vectorClock,
+            updatedBy: tabId,
+            sourceDevice: deviceId,
+            timestamp: Date.now(),
+          });
       }
-      
-      logger.debug(`State updated for user ${userId} by tab ${tabId}, version ${Math.max(version, stateInfo.version + 1)}`);
+
+      logger.debug(
+        `State updated for user ${userId} by tab ${tabId}, version ${Math.max(
+          version,
+          stateInfo.version + 1
+        )}`
+      );
     }
   }
 
@@ -844,18 +1462,25 @@ class TokenSyncService {
    */
   broadcastState(socket) {
     const { userId, tabId } = socket.data;
-    
+
     // Get current state
     const stateInfo = this.sharedStateRegistry.get(userId);
-    
+
     if (stateInfo) {
       // Broadcast to all tabs including sender
-      this.io.to(`user:${userId}`).emit(EVENT_NAMES.STATE_SYNC, {
-        state: stateInfo.stateData,
-        version: stateInfo.version,
-        timestamp: Date.now()
-      });
-      
+      if (this.io) {
+        this.io.forEach((client) => {
+          // Only send to clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            client.emit(EVENT_NAMES.STATE_SYNC, {
+              state: stateInfo.stateData,
+              version: stateInfo.version,
+              timestamp: Date.now(),
+            });
+          }
+        });
+      }
+
       logger.debug(`State broadcast for user ${userId} by leader ${tabId}`);
     }
   }
@@ -869,31 +1494,31 @@ class TokenSyncService {
   isVectorClockNewer(clock1, clock2) {
     if (!clock1 || Object.keys(clock1).length === 0) return false;
     if (!clock2 || Object.keys(clock2).length === 0) return true;
-    
+
     let clock1Newer = false;
     let clock2Newer = false;
-    
+
     // Compare each component
     const allKeys = new Set([...Object.keys(clock1), ...Object.keys(clock2)]);
-    
+
     for (const key of allKeys) {
-      if (key === 'timestamp') continue;
-      
+      if (key === "timestamp") continue;
+
       const time1 = clock1[key] || 0;
       const time2 = clock2[key] || 0;
-      
+
       if (time1 > time2) {
         clock1Newer = true;
       } else if (time2 > time1) {
         clock2Newer = true;
       }
     }
-    
+
     // If both have newer components, they are concurrent
     if (clock1Newer && clock2Newer) {
       return null; // Concurrent updates
     }
-    
+
     return clock1Newer;
   }
 
@@ -905,17 +1530,17 @@ class TokenSyncService {
    */
   mergeVectorClocks(clock1, clock2) {
     const result = { ...clock1 };
-    
+
     // Take the max value for each component
     for (const [key, value] of Object.entries(clock2)) {
-      if (key === 'timestamp') {
+      if (key === "timestamp") {
         result.timestamp = Date.now();
         continue;
       }
-      
+
       result[key] = Math.max(value, result[key] || 0);
     }
-    
+
     return result;
   }
 
@@ -928,11 +1553,15 @@ class TokenSyncService {
   mergeStates(state1, state2) {
     // Deep clone to avoid mutations
     const result = JSON.parse(JSON.stringify(state1));
-    
+
     // Recursively merge objects
     const merge = (target, source) => {
       for (const key of Object.keys(source)) {
-        if (source[key] instanceof Object && key in target && target[key] instanceof Object) {
+        if (
+          source[key] instanceof Object &&
+          key in target &&
+          target[key] instanceof Object
+        ) {
           merge(target[key], source[key]);
         } else {
           // For arrays, concatenate and remove duplicates
@@ -945,7 +1574,7 @@ class TokenSyncService {
         }
       }
     };
-    
+
     merge(result, state2);
     return result;
   }
@@ -955,21 +1584,41 @@ class TokenSyncService {
    * @param {Object} socket - Socket.IO socket
    */
   prepareForOffline(socket) {
+    if (!socket || !socket.data) {
+      logger.warn(
+        "Cannot prepare for offline: socket or socket.data is undefined"
+      );
+      return;
+    }
+
     const { userId, tabId, isLeader } = socket.data;
-    
-    if (!isLeader) return;
-    
+
+    if (!userId || !tabId || !isLeader) {
+      logger.debug("Not preparing for offline: not a leader or missing data", {
+        userId,
+        tabId,
+        isLeader,
+      });
+      return;
+    }
+
     // Find best candidate for leadership transfer
-    this.findLeadershipCandidate(userId, tabId).then(candidate => {
+    this.findLeadershipCandidate(userId, tabId).then((candidate) => {
       if (candidate) {
         // Get current state
         const stateInfo = this.sharedStateRegistry.get(userId);
         const leaderInfo = this.leaderRegistry.get(userId);
-        
+
         // Transfer leadership
-        this.transferLeadership(socket, candidate.tabId, stateInfo?.stateData || {});
-        
-        logger.debug(`Prepared offline leadership transfer from ${tabId} to ${candidate.tabId}`);
+        this.transferLeadership(
+          socket,
+          candidate.tabId,
+          stateInfo?.stateData || {}
+        );
+
+        logger.debug(
+          `Prepared offline leadership transfer from ${tabId} to ${candidate.tabId}`
+        );
       }
     });
   }
@@ -983,19 +1632,30 @@ class TokenSyncService {
   async findLeadershipCandidate(userId, currentLeaderId) {
     try {
       // Get all sockets for this user
-      const userRoom = socketService.createRoomName('user', userId);
-      const sockets = await this.io.in(userRoom).fetchSockets();
-      
+      const sockets = [];
+
+      if (this.io) {
+        // In Primus, we need to iterate through all clients
+        this.io.forEach((client) => {
+          // Only include clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            sockets.push(client);
+          }
+        });
+      }
+
       // Filter out current leader and sort by priority
       const candidates = sockets
-        .filter(s => s.data.tabId !== currentLeaderId)
-        .map(s => ({
+        .filter(
+          (s) => s && s.data && s.data.tabId && s.data.tabId !== currentLeaderId
+        )
+        .map((s) => ({
           tabId: s.data.tabId,
           socketId: s.id,
-          priority: this.getTabPriority(s)
+          priority: this.getTabPriority(s),
         }))
         .sort((a, b) => b.priority - a.priority);
-      
+
       return candidates.length > 0 ? candidates[0] : null;
     } catch (error) {
       logger.error(`Error finding leadership candidate:`, error);
@@ -1009,28 +1669,69 @@ class TokenSyncService {
    * @param {Object} data - Visibility data
    */
   handleVisibilityChange(socket, data) {
+    if (!socket || !socket.data) {
+      logger.warn(
+        "Cannot handle visibility change: socket or socket.data is undefined"
+      );
+      return;
+    }
+
+    if (!data) {
+      logger.warn("Cannot handle visibility change: data is undefined", {
+        socketId: socket?.id,
+      });
+      return;
+    }
+
     const { userId, tabId } = socket.data;
+
+    if (!userId || !tabId) {
+      logger.warn("Cannot handle visibility change: missing userId or tabId", {
+        socketId: socket.id,
+      });
+      return;
+    }
+
     const { state } = data;
-    
+
+    if (!state) {
+      logger.warn("Cannot handle visibility change: missing state", {
+        socketId: socket.id,
+        userId,
+        tabId,
+      });
+      return;
+    }
+
     // Update socket data
     socket.data.visibilityState = state;
-    
+
     // Update priority
     const newPriority = this.getTabPriority(socket);
-    
+
     // If this is the leader and visibility changed to hidden, consider transferring leadership
-    if (socket.data.isLeader && state === 'hidden') {
+    if (socket.data.isLeader && state === "hidden") {
       this.considerLeadershipTransfer(socket);
     }
-    
+
     // Notify other tabs about visibility change
-    socket.to(`user:${userId}`).emit(EVENT_NAMES.TAB_VISIBILITY_CHANGED, {
-      tabId,
-      state,
-      priority: newPriority,
-      timestamp: Date.now()
-    });
-    
+    if (this.io) {
+      this.io.forEach((client) => {
+        // Skip the current client
+        if (client.id === socket.id) return;
+
+        // Only send to clients for this user
+        if (client.authData && client.authData.userId === userId) {
+          client.emit(EVENT_NAMES.TAB_VISIBILITY_CHANGED, {
+            tabId,
+            state,
+            priority: newPriority,
+            timestamp: Date.now(),
+          });
+        }
+      });
+    }
+
     logger.debug(`Tab ${tabId} visibility changed to ${state}`);
   }
 
@@ -1040,18 +1741,24 @@ class TokenSyncService {
    */
   async considerLeadershipTransfer(socket) {
     const { userId, tabId } = socket.data;
-    
+
     // Find a visible tab with high priority
     const candidate = await this.findVisibleTabCandidate(userId, tabId);
-    
+
     if (candidate) {
       // Get current state
       const stateInfo = this.sharedStateRegistry.get(userId);
-      
+
       // Transfer leadership
-      this.transferLeadership(socket, candidate.tabId, stateInfo?.stateData || {});
-      
-      logger.debug(`Leadership transferred from hidden tab ${tabId} to visible tab ${candidate.tabId}`);
+      this.transferLeadership(
+        socket,
+        candidate.tabId,
+        stateInfo?.stateData || {}
+      );
+
+      logger.debug(
+        `Leadership transferred from hidden tab ${tabId} to visible tab ${candidate.tabId}`
+      );
     }
   }
 
@@ -1064,19 +1771,35 @@ class TokenSyncService {
   async findVisibleTabCandidate(userId, currentLeaderId) {
     try {
       // Get all sockets for this user
-      const userRoom = socketService.createRoomName('user', userId);
-      const sockets = await this.io.in(userRoom).fetchSockets();
-      
+      const sockets = [];
+
+      if (this.io) {
+        // In Primus, we need to iterate through all clients
+        this.io.forEach((client) => {
+          // Only include clients for this user
+          if (client.authData && client.authData.userId === userId) {
+            sockets.push(client);
+          }
+        });
+      }
+
       // Filter for visible tabs and sort by priority
       const candidates = sockets
-        .filter(s => s.data.tabId !== currentLeaderId && s.data.visibilityState === 'visible')
-        .map(s => ({
+        .filter(
+          (s) =>
+            s &&
+            s.data &&
+            s.data.tabId &&
+            s.data.tabId !== currentLeaderId &&
+            s.data.visibilityState === "visible"
+        )
+        .map((s) => ({
           tabId: s.data.tabId,
           socketId: s.id,
-          priority: this.getTabPriority(s)
+          priority: this.getTabPriority(s),
         }))
         .sort((a, b) => b.priority - a.priority);
-      
+
       return candidates.length > 0 ? candidates[0] : null;
     } catch (error) {
       logger.error(`Error finding visible tab candidate:`, error);
@@ -1089,23 +1812,35 @@ class TokenSyncService {
    */
   monitorLeaderHeartbeats() {
     const now = Date.now();
-    
+
     for (const [userId, leaderInfo] of this.leaderRegistry.entries()) {
       const { lastHeartbeat, leaderId } = leaderInfo;
-      
+
       // Check if leader is inactive
-      if (now - lastHeartbeat > 
-          this.crossTabConfig.leaderElection.heartbeatInterval * this.crossTabConfig.leaderElection.missedHeartbeatsThreshold) {
+      if (
+        now - lastHeartbeat >
+        this.crossTabConfig.leaderElection.heartbeatInterval *
+          this.crossTabConfig.leaderElection.missedHeartbeatsThreshold
+      ) {
         // Remove inactive leader
         this.leaderRegistry.delete(userId);
-        
+
         // Notify all tabs about leader failure
-        this.io.to(`user:${userId}`).emit(EVENT_NAMES.LEADER_FAILED, {
-          previousLeaderId: leaderId,
-          timestamp: now
-        });
-        
-        logger.debug(`Leader ${leaderId} for user ${userId} failed, triggering re-election`);
+        if (this.io) {
+          this.io.forEach((client) => {
+            // Only send to clients for this user
+            if (client.authData && client.authData.userId === userId) {
+              client.emit(EVENT_NAMES.LEADER_FAILED, {
+                previousLeaderId: leaderId,
+                timestamp: now,
+              });
+            }
+          });
+        }
+
+        logger.debug(
+          `Leader ${leaderId} for user ${userId} failed, triggering re-election`
+        );
       }
     }
   }
@@ -1117,16 +1852,23 @@ class TokenSyncService {
   initializeCrossDeviceSync(socket) {
     const { userId, deviceId } = socket.data;
     if (!userId || !deviceId) return;
-    
+
     // Set up cross-device sync handlers
-    socket.on(EVENT_NAMES.DEVICE_STATE_SYNC_REQUEST, (data) => this.handleDeviceStateSyncRequest(socket, data));
-    socket.on(EVENT_NAMES.DEVICE_STATE_UPDATE, (data) => this.handleDeviceStateUpdate(socket, data));
-    
-    // Join device-specific room for targeted updates
-    const deviceRoom = socketService.createRoomName('device', deviceId);
-    socket.join(deviceRoom);
-    
-    logger.debug(`Cross-device sync initialized for device ${deviceId} of user ${userId}`);
+    socket.on(EVENT_NAMES.DEVICE_STATE_SYNC_REQUEST, (data) =>
+      this.handleDeviceStateSyncRequest(socket, data)
+    );
+    socket.on(EVENT_NAMES.DEVICE_STATE_UPDATE, (data) =>
+      this.handleDeviceStateUpdate(socket, data)
+    );
+
+    // In Primus, we don't need to explicitly join rooms
+    // We'll just store the room name for reference
+    const deviceRoom = socketService.createRoomName("device", deviceId);
+    socket.data.deviceRoom = deviceRoom;
+
+    logger.debug(
+      `Cross-device sync initialized for device ${deviceId} of user ${userId}`
+    );
   }
 
   /**
@@ -1136,32 +1878,41 @@ class TokenSyncService {
    */
   async handleDeviceStateSyncRequest(socket, data) {
     const { userId, deviceId } = socket.data;
-    const { targetDeviceId, stateTypes = ['auth', 'preferences', 'notifications'] } = data;
-    
+    const {
+      targetDeviceId,
+      stateTypes = ["auth", "preferences", "notifications"],
+    } = data;
+
     if (!userId) {
       socket.emit(EVENT_NAMES.SYNC_ERROR, {
-        message: 'Unauthorized',
-        code: 'UNAUTHORIZED'
+        message: "Unauthorized",
+        code: "UNAUTHORIZED",
       });
       return;
     }
-    
+
     try {
       // Get current device state from database
-      const deviceStates = await this.deviceStateRepository.getDeviceStates(userId, targetDeviceId || deviceId, stateTypes);
-      
+      const deviceStates = await this.deviceStateRepository.getDeviceStates(
+        userId,
+        targetDeviceId || deviceId,
+        stateTypes
+      );
+
       // Send state to requesting device
       socket.emit(EVENT_NAMES.DEVICE_STATE_SYNC, {
         states: deviceStates,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
-      
-      logger.debug(`Device state synced for user ${userId}, device ${deviceId}`);
+
+      logger.debug(
+        `Device state synced for user ${userId}, device ${deviceId}`
+      );
     } catch (error) {
       logger.error(`Error handling device state sync:`, error);
       socket.emit(EVENT_NAMES.SYNC_ERROR, {
-        message: 'Error syncing device state',
-        code: 'SYNC_ERROR'
+        message: "Error syncing device state",
+        code: "SYNC_ERROR",
       });
     }
   }
@@ -1174,43 +1925,56 @@ class TokenSyncService {
   async handleDeviceStateUpdate(socket, data) {
     const { userId, deviceId } = socket.data;
     const { stateType, state, version, broadcast = false } = data;
-    
+
     if (!userId) {
       socket.emit(EVENT_NAMES.SYNC_ERROR, {
-        message: 'Unauthorized',
-        code: 'UNAUTHORIZED'
+        message: "Unauthorized",
+        code: "UNAUTHORIZED",
       });
       return;
     }
-    
+
     try {
       // Update device state in database
-      await this.deviceStateRepository.updateDeviceState(userId, deviceId, stateType, state, version);
-      
+      await this.deviceStateRepository.updateDeviceState(
+        userId,
+        deviceId,
+        stateType,
+        state,
+        version
+      );
+
       // Broadcast to other devices if requested
       if (broadcast && this.syncConfig.enableCrossDevices) {
-        const userRoom = socketService.createRoomName('user', userId);
-        const deviceRoom = socketService.createRoomName('device', deviceId);
-        
+        const userRoom = socketService.createRoomName("user", userId);
+        const deviceRoom = socketService.createRoomName("device", deviceId);
+
         // Send to all devices except the current one
-        this.io.to(userRoom).except(deviceRoom).emit(EVENT_NAMES.DEVICE_STATE_UPDATED, {
-          sourceDeviceId: deviceId,
-          stateType,
-          state,
-          version,
-          timestamp: Date.now()
-        });
-        
-        logger.debug(`Device state broadcast from device ${deviceId} to all devices of user ${userId}`);
+        this.io
+          .to(userRoom)
+          .except(deviceRoom)
+          .emit(EVENT_NAMES.DEVICE_STATE_UPDATED, {
+            sourceDeviceId: deviceId,
+            stateType,
+            state,
+            version,
+            timestamp: Date.now(),
+          });
+
+        logger.debug(
+          `Device state broadcast from device ${deviceId} to all devices of user ${userId}`
+        );
       }
     } catch (error) {
       logger.error(`Error handling device state update:`, error);
       socket.emit(EVENT_NAMES.SYNC_ERROR, {
-        message: 'Error updating device state',
-        code: 'UPDATE_ERROR'
+        message: "Error updating device state",
+        code: "UPDATE_ERROR",
       });
     }
   }
 }
 
-module.exports = TokenSyncService;
+// Create and export a singleton instance
+const crossTabService = new TokenSyncService();
+module.exports = crossTabService;

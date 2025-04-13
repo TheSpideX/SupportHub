@@ -3108,3 +3108,34 @@ exports.cleanup = () => {
     sandbox.restore();
   }
 };
+
+/**
+ * Get all active sessions for a user on a specific device
+ * @param {string} userId - User ID
+ * @param {string} deviceId - Device ID
+ * @returns {Promise<Array>} - Array of session objects
+ */
+exports.getSessionsByDevice = async (userId, deviceId) => {
+  try {
+    const sessions = await Session.find({
+      userId: userId.toString(),
+      deviceId: deviceId,
+      isActive: true,
+      expiresAt: { $gt: new Date() },
+    }).sort({ lastActivity: -1 });
+
+    logger.debug(`Found ${sessions.length} sessions for device ${deviceId}`, {
+      userId,
+      deviceId,
+    });
+
+    return sessions;
+  } catch (error) {
+    logger.error(`Error getting sessions for device ${deviceId}:`, error);
+    throw new AppError(
+      "Failed to retrieve device sessions",
+      500,
+      "SESSION_RETRIEVAL_ERROR"
+    );
+  }
+};

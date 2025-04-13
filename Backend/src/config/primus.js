@@ -8,9 +8,10 @@ const primusService = require("../services/primus.service");
 /**
  * Sets up Primus with the HTTP server
  * @param {Object} httpServer - HTTP server instance
+ * @param {Object} services - Services to use (e.g., crossTabService)
  * @returns {Object} Primus server instance
  */
-const setupPrimus = async (httpServer) => {
+const setupPrimus = async (httpServer, services = {}) => {
   try {
     // Import Redis clients
     const { redisClient, isRedisAvailable } = require("./redis");
@@ -44,8 +45,12 @@ const setupPrimus = async (httpServer) => {
       credentials: true,
     });
 
-    // Initialize Primus
-    const primus = primusService.initializePrimus(httpServer, primusOptions);
+    // Initialize Primus with services
+    const primus = primusService.initializePrimus(
+      httpServer,
+      primusOptions,
+      services
+    );
 
     // Use Redis for scaling if available
     if (isRedisAvailable()) {

@@ -61,7 +61,7 @@ export interface TokenServiceConfig {
 }
 
 const defaultConfig: TokenServiceConfig = {
-  apiBaseUrl: "/api",
+  apiBaseUrl: import.meta.env.VITE_API_URL || "http://localhost:4290/api",
   tokenEndpoint: "/auth/token",
   refreshEndpoint: "/auth/token/refresh", // Standardized endpoint
   cookieSecure: true,
@@ -631,12 +631,41 @@ export class TokenService {
    */
   public getCsrfToken(): string | null {
     try {
-      return (
-        document.cookie
+      // First try to get the token using the configured name
+      const configToken = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith(`${this.config.csrfTokenName}=`));
+
+      if (configToken) {
+        return configToken.split("=")[1] || null;
+      }
+
+      // Fallback to common CSRF token names
+      const commonNames = [
+        "csrf_token",
+        "CSRF-TOKEN",
+        "X-CSRF-TOKEN",
+        "XSRF-TOKEN",
+      ];
+
+      for (const name of commonNames) {
+        const token = document.cookie
           .split("; ")
-          .find((row) => row.startsWith(`${this.config.csrfTokenName}=`))
-          ?.split("=")[1] || null
-      );
+          .find((row) => row.startsWith(`${name}=`));
+
+        if (token) {
+          return token.split("=")[1] || null;
+        }
+      }
+
+      // If no token found in cookies, check localStorage as last resort
+      const localToken = localStorage.getItem("csrf_token");
+      if (localToken) {
+        return localToken;
+      }
+
+      logger.debug("No CSRF token found in cookies or localStorage");
+      return null;
     } catch (error) {
       logger.error("Error getting CSRF token from cookie:", error);
       return null;
@@ -1066,14 +1095,18 @@ export class TokenService {
 
         // If online, verify with server
         if (navigator.onLine) {
-          const response = await fetch(
-            `${this.config.apiBaseUrl}/auth/token-status`,
-            {
-              method: "GET",
-              credentials: "include",
-              headers: this.getAuthHeaders(),
-            }
-          );
+          // Ensure we're using the full backend URL for token validation
+          const validationUrl = this.config.apiBaseUrl.endsWith("/api")
+            ? `${this.config.apiBaseUrl}/auth/token-status`
+            : `${this.config.apiBaseUrl}/api/auth/token-status`;
+
+          logger.debug("Token validation URL", { validationUrl });
+
+          const response = await fetch(validationUrl, {
+            method: "GET",
+            credentials: "include",
+            headers: this.getAuthHeaders(),
+          });
 
           if (!response.ok) {
             if (response.status === 401 && !this.refreshState.isRefreshing) {
@@ -1134,6 +1167,112 @@ export class TokenService {
    */
   public getLastRefreshTime(): number {
     return this.lastRefreshTime || 0;
+  }
+
+  /**
+   * Subscribe to an event
+   * @param event Event name
+   * @param listener Event listener function
+   */
+  public on(event: string, listener: (...args: any[]) => void): void {
+    this.eventBus.on(event, listener);
+  }
+
+  /**
+   * Unsubscribe from an event
+   * @param event Event name
+   * @param listener Event listener function
+   */
+  public off(event: string, listener: (...args: any[]) => void): void {
+    this.eventBus.off(event, listener);
+  }
+
+  /**
+   * Check if a cookie flag exists
+   * @param {string} name - Cookie name
+   * @returns {boolean} Whether the cookie exists
+   */
+  public hasFlag(name: string): boolean {
+    try {
+      return !!getCookie(name);
+    } catch (error) {
+      logger.error(`Error checking flag ${name}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if access token exists
+   */
+  public hasAccessToken(): boolean {
+    return this.hasFlag(ACCESS_TOKEN_COOKIE);
+  }
+
+  /**
+   * Check if refresh token exists
+   */
+  public hasRefreshToken(): boolean {
+    return this.hasFlag(REFRESH_TOKEN_COOKIE);
+  }
+
+  /**
+   * Get user ID from token or Redux store
+   * @returns User ID or null if not available
+   */
+  public getUserId(): string | null {
+    try {
+      // Try to get user ID from Redux store first
+      if (typeof window !== "undefined" && (window as any).__REDUX_STORE__) {
+        const store = (window as any).__REDUX_STORE__;
+        const state = store.getState();
+        if (state && state.auth && state.auth.user && state.auth.user.id) {
+          return state.auth.user.id;
+        }
+      }
+
+      // Try to get from decoded token
+      const userData = this.getUserData();
+      if (userData && userData.id) {
+        return userData.id;
+      }
+
+      return null;
+    } catch (error) {
+      logger.error("Error getting user ID:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get user data from token
+   * @returns User data object or null if not available
+   */
+  public getUserData(): any | null {
+    try {
+      // Try to get from Redux store first
+      if (typeof window !== "undefined" && (window as any).__REDUX_STORE__) {
+        const store = (window as any).__REDUX_STORE__;
+        const state = store.getState();
+        if (state && state.auth && state.auth.user) {
+          return state.auth.user;
+        }
+      }
+
+      // Try to get from localStorage
+      const userData = localStorage.getItem("user_data");
+      if (userData) {
+        try {
+          return JSON.parse(userData);
+        } catch (e) {
+          logger.error("Error parsing user data from localStorage:", e);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.error("Error getting user data:", error);
+      return null;
+    }
   }
 
   /**
@@ -1311,23 +1450,28 @@ export class TokenService {
         endpoint: `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`,
       });
 
-      const response = await fetch(
-        `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`,
-        {
-          method: "POST",
-          credentials: "include", // Critical for HTTP-only cookies
-          headers: {
-            "Content-Type": "application/json",
-            ...this.getAuthHeaders(),
-          },
-          body: JSON.stringify({
-            deviceId,
-            tabId,
-            isLeaderTab,
-            timestamp: Date.now(),
-          }),
-        }
-      );
+      // Ensure we're using the full backend URL for token refresh
+      // This is critical for HTTP-only cookies to work correctly
+      const refreshUrl = this.config.apiBaseUrl.endsWith("/api")
+        ? `${this.config.apiBaseUrl}${this.config.refreshEndpoint}`
+        : `${this.config.apiBaseUrl}/api${this.config.refreshEndpoint}`;
+
+      logger.debug("Token refresh URL", { refreshUrl });
+
+      const response = await fetch(refreshUrl, {
+        method: "POST",
+        credentials: "include", // Critical for HTTP-only cookies
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          deviceId,
+          tabId,
+          isLeaderTab,
+          timestamp: Date.now(),
+        }),
+      });
 
       // Log the response status
       logger.info("Token refresh response received", {
@@ -1608,7 +1752,14 @@ export class TokenService {
       return;
     }
 
-    fetch(`${this.config.apiBaseUrl}/auth/token-status`, {
+    // Ensure we're using the full backend URL for token status check
+    const statusUrl = this.config.apiBaseUrl.endsWith("/api")
+      ? `${this.config.apiBaseUrl}/auth/token-status`
+      : `${this.config.apiBaseUrl}/api/auth/token-status`;
+
+    logger.debug("Token status check URL", { statusUrl });
+
+    fetch(statusUrl, {
       method: "GET",
       credentials: "include",
       headers: this.getAuthHeaders(),
@@ -2291,20 +2442,24 @@ export class TokenService {
    */
   public async syncCsrfToken(): Promise<string | null> {
     return await this.safeTokenOperation(async () => {
+      // Ensure we're using the full backend URL for CSRF token sync
+      const csrfUrl = this.config.apiBaseUrl.endsWith("/api")
+        ? `${this.config.apiBaseUrl}/auth/token/csrf`
+        : `${this.config.apiBaseUrl}/api/auth/token/csrf`;
+
+      logger.debug("CSRF token sync URL", { csrfUrl });
+
       // Use the correct endpoint from backend
-      const response = await fetch(
-        `${this.config.apiBaseUrl}/auth/token/csrf`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "X-Requested-With": "XMLHttpRequest",
-            ...(this.getCsrfToken()
-              ? { [this.config.csrfHeaderName]: this.getCsrfToken() }
-              : {}),
-          },
-        }
-      );
+      const response = await fetch(csrfUrl, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          ...(this.getCsrfToken()
+            ? { [this.config.csrfHeaderName]: this.getCsrfToken() }
+            : {}),
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to sync CSRF token: ${response.status}`);
@@ -2330,15 +2485,19 @@ export class TokenService {
         return this.tokenVersion;
       }
 
+      // Ensure we're using the full backend URL for token version sync
+      const versionUrl = this.config.apiBaseUrl.endsWith("/api")
+        ? `${this.config.apiBaseUrl}/auth/token-version`
+        : `${this.config.apiBaseUrl}/api/auth/token-version`;
+
+      logger.debug("Token version sync URL", { versionUrl });
+
       // Get token version from server
-      const response = await fetch(
-        `${this.config.apiBaseUrl}/auth/token-version`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: this.getAuthHeaders(),
-        }
-      );
+      const response = await fetch(versionUrl, {
+        method: "GET",
+        credentials: "include",
+        headers: this.getAuthHeaders(),
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to get token version: ${response.status}`);
@@ -2385,6 +2544,55 @@ export class TokenService {
   }
 
   /**
+   * Cache tokens for offline use
+   * This method is called by ConnectionRecoveryService when going offline
+   */
+  public cacheTokensForOffline(): void {
+    logger.info("Caching tokens for offline use");
+
+    try {
+      // Get current token data
+      const userId = this.getUserId();
+      const accessToken = this.getAccessToken();
+      const refreshToken = this.getRefreshToken();
+      const csrfToken = this.getCsrfToken();
+
+      if (!userId || !accessToken) {
+        logger.warn("Cannot cache tokens for offline: missing required data");
+        return;
+      }
+
+      // Calculate expiration (24 hours from now)
+      const expiration = Date.now() + 24 * 60 * 60 * 1000;
+
+      // Store in offline cache
+      this.offlineTokenCache.set("userId", userId);
+      this.offlineTokenCache.set("accessToken", accessToken);
+      if (refreshToken) {
+        this.offlineTokenCache.set("refreshToken", refreshToken);
+      }
+      if (csrfToken) {
+        this.offlineTokenCache.set("csrfToken", csrfToken);
+      }
+      this.offlineTokenCache.set("tokenVersion", this.tokenVersion.toString());
+      this.offlineTokenCache.set("exp", expiration.toString());
+      this.offlineTokenCache.set("cachedAt", Date.now().toString());
+
+      // Store device and tab info
+      this.offlineTokenCache.set("deviceId", this._deviceId);
+      this.offlineTokenCache.set("tabId", this._tabId);
+
+      logger.debug("Tokens cached successfully for offline use", {
+        userId,
+        expiration: new Date(expiration).toISOString(),
+        tokenVersion: this.tokenVersion,
+      });
+    } catch (error) {
+      logger.error("Error caching tokens for offline use:", error);
+    }
+  }
+
+  /**
    * Validate cached tokens for offline use
    */
   private validateOfflineTokens(): boolean {
@@ -2403,7 +2611,10 @@ export class TokenService {
       }
 
       // Check for required fields
-      if (!this.offlineTokenCache.has("userId")) {
+      if (
+        !this.offlineTokenCache.has("userId") ||
+        !this.offlineTokenCache.has("accessToken")
+      ) {
         logger.warn("Incomplete offline token cache");
         this.offlineTokenCache.clear();
         return false;
@@ -2413,6 +2624,14 @@ export class TokenService {
       const cachedVersion = this.offlineTokenCache.get("tokenVersion");
       if (cachedVersion && parseInt(cachedVersion, 10) < this.tokenVersion) {
         logger.warn("Offline token cache has outdated version");
+        this.offlineTokenCache.clear();
+        return false;
+      }
+
+      // Check if device ID matches
+      const cachedDeviceId = this.offlineTokenCache.get("deviceId");
+      if (cachedDeviceId && cachedDeviceId !== this._deviceId) {
+        logger.warn("Offline token cache belongs to different device");
         this.offlineTokenCache.clear();
         return false;
       }

@@ -177,8 +177,13 @@ const startServer = async () => {
       logger.warn(`Redis connection issue: ${error.message}`);
     }
 
-    // Setup Primus
-    const primus = await primusConfig.setupPrimus(httpServer);
+    // Import cross-tab service
+    const crossTabService = require("./src/modules/auth/services/cross-tab.service");
+
+    // Setup Primus with cross-tab service
+    const primus = await primusConfig.setupPrimus(httpServer, {
+      crossTabService: crossTabService,
+    });
     app.set("primus", primus);
     app.primus = primus; // Make Primus available directly on the app object
 

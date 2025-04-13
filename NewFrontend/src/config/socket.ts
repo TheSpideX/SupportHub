@@ -198,6 +198,7 @@ export const SOCKET_CONFIG = {
     ENABLED: true,
     POLLING_INTERVAL: 5000, // 5 seconds
     MAX_POLLING_ATTEMPTS: 12, // 1 minute total (12 * 5000ms)
+    MAX_RECOVERY_ATTEMPTS: 5, // Maximum WebSocket recovery attempts before switching to fallback
     EVENTS_ENDPOINT: "/api/auth/events",
 
     // Endpoints for fallback HTTP polling
@@ -207,6 +208,10 @@ export const SOCKET_CONFIG = {
       HEARTBEAT: "/api/auth/heartbeat",
       TOKEN_REFRESH: "/api/auth/token/refresh",
       SESSION_VALIDATE: "/api/auth/session/validate",
+      TOKEN_STATUS: "/api/auth/token-status",
+      TOKEN_VERSION: "/api/auth/token-version",
+      CSRF_TOKEN: "/api/auth/token/csrf",
+      DEVICE_SESSIONS: "/api/auth/device/sessions",
     },
 
     // Retry settings for fallback HTTP polling
@@ -214,6 +219,7 @@ export const SOCKET_CONFIG = {
       MAX_RETRIES: 3,
       RETRY_DELAY: 1000, // 1 second
       BACKOFF_FACTOR: 1.5, // Exponential backoff
+      MAX_DELAY: 10000, // Maximum delay between retries (10 seconds)
     },
 
     // Security settings for fallback HTTP polling
@@ -227,6 +233,18 @@ export const SOCKET_CONFIG = {
       ],
       // Always include withCredentials for HTTP-only cookies
       WITH_CREDENTIALS: true,
+    },
+
+    // Offline mode settings
+    OFFLINE: {
+      ENABLED: true,
+      MAX_CACHE_AGE: 24 * 60 * 60 * 1000, // 24 hours
+      SYNC_ON_RECONNECT: true,
+      RESTRICTED_OPERATIONS: [
+        "password_change",
+        "profile_update",
+        "account_deletion",
+      ],
     },
   },
 };

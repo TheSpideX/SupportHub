@@ -1,34 +1,423 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { authMonitor } from "../services/AuthMonitor";
+import { useTokenService } from "../hooks/useTokenService";
+import { usePrimusAuthService } from "../hooks/usePrimusAuthService";
+import {
+  getAuthMonitorService,
+  AuthMonitorStatus,
+} from "../services/AuthMonitorService";
+import { AuthEventType } from "@/types/auth";
 
 const AuthMonitorWidget: React.FC = () => {
   const [open, setOpen] = useState(false);
   const { auth } = useAuth();
+  const tokenService = useTokenService();
+  const primusService = usePrimusAuthService();
   const [healthStatus, setHealthStatus] = useState<any>(null);
+  const [monitorStatus, setMonitorStatus] = useState<AuthMonitorStatus>(
+    AuthMonitorStatus.INITIALIZING
+  );
+  const [deviceId, setDeviceId] = useState<string>("");
+  const [tabId, setTabId] = useState<string>("");
+  const [isLeaderTab, setIsLeaderTab] = useState<boolean>(false);
+  const [lastEvent, setLastEvent] = useState<string>("");
+  const [lastEventTime, setLastEventTime] = useState<string>("");
 
   useEffect(() => {
-    // Get initial health status
-    const fetchStatus = async () => {
-      const status = authMonitor.getHealthStatus();
-      setHealthStatus(status);
-    };
-
-    if (open) {
-      fetchStatus();
+    if (!tokenService || !primusService) {
+      console.log("TokenService or PrimusService not available yet");
+      return;
     }
-  }, [open]);
+
+    // Make sure TokenService is properly initialized
+    if (typeof tokenService.getCsrfToken !== "function") {
+      console.error("TokenService is missing getCsrfToken method");
+      return;
+    }
+
+    // Make sure TokenService has hasFlag method
+    if (typeof tokenService.hasFlag !== "function") {
+      console.error("TokenService is missing hasFlag method");
+      return;
+    }
+
+    try {
+      // Initialize the auth monitor service
+      let authMonitorService;
+      try {
+        authMonitorService = getAuthMonitorService(tokenService, primusService);
+      } catch (error) {
+        console.error("Error getting AuthMonitorService:", error);
+        return;
+      }
+
+      // Get initial status
+      try {
+        setMonitorStatus(authMonitorService.getStatus());
+      } catch (error) {
+        console.error("Error getting monitor status:", error);
+      }
+
+      // Get device and tab info
+      setDeviceId(sessionStorage.getItem("device_fingerprint") || "");
+      setTabId(sessionStorage.getItem("tab_id") || "");
+
+      // Check if leader tab
+      try {
+        const leaderData = localStorage.getItem(`auth_leader_tab_${deviceId}`);
+        if (leaderData) {
+          const data = JSON.parse(leaderData);
+
+          // Ensure both values are strings for comparison
+          const storedTabId = String(data.tabId || "");
+          const currentTabId = String(tabId || "");
+
+          // Compare as strings
+          const isLeader = storedTabId === currentTabId;
+          setIsLeaderTab(isLeader);
+
+          console.log(
+            `Leader check: ${storedTabId} === ${currentTabId} is ${isLeader}`
+          );
+        }
+      } catch (error) {
+        console.error("Error checking leader status", error);
+      }
+
+      // Listen for status changes
+      const handleStatusChange = (data: any) => {
+        setMonitorStatus(data.currentStatus);
+        setLastEvent("STATUS_CHANGED");
+        setLastEventTime(new Date().toLocaleTimeString());
+      };
+
+      // Listen for other events
+      const handleEvent = (event: string) => (data: any) => {
+        setLastEvent(event);
+        setLastEventTime(new Date().toLocaleTimeString());
+      };
+
+      // Register event listeners
+      authMonitorService.on(AuthEventType.STATUS_CHANGED, handleStatusChange);
+      authMonitorService.on(AuthEventType.CONNECTED, handleEvent("CONNECTED"));
+      authMonitorService.on(
+        AuthEventType.DISCONNECTED,
+        handleEvent("DISCONNECTED")
+      );
+      authMonitorService.on(
+        AuthEventType.RECONNECTING,
+        handleEvent("RECONNECTING")
+      );
+      authMonitorService.on(
+        AuthEventType.FALLBACK_ACTIVATED,
+        handleEvent("FALLBACK")
+      );
+      authMonitorService.on(
+        AuthEventType.RECOVERY_FAILED,
+        handleEvent("RECOVERY_FAILED")
+      );
+      authMonitorService.on(AuthEventType.OFFLINE_MODE, handleEvent("OFFLINE"));
+      authMonitorService.on(
+        AuthEventType.ONLINE_RESTORED,
+        handleEvent("ONLINE")
+      );
+      authMonitorService.on(
+        AuthEventType.TOKEN_REFRESHED,
+        handleEvent("TOKEN_REFRESHED")
+      );
+      authMonitorService.on(
+        AuthEventType.TOKEN_REFRESH_ERROR,
+        handleEvent("TOKEN_REFRESH_ERROR")
+      );
+
+      // Add handler for leader election events
+      authMonitorService.on(AuthEventType.LEADER_ELECTED, (data: any) => {
+        setIsLeaderTab(data.isLeader);
+        setLastEvent("LEADER_ELECTED");
+        setLastEventTime(new Date().toLocaleTimeString());
+        console.log(
+          `Leader elected event: ${
+            data.isLeader ? "This tab is leader" : "This tab is follower"
+          }`,
+          data
+        );
+      });
+
+      // Check leader status periodically
+      const leaderCheckInterval = setInterval(() => {
+        try {
+          const leaderData = localStorage.getItem(
+            `auth_leader_tab_${deviceId}`
+          );
+          if (leaderData) {
+            const data = JSON.parse(leaderData);
+
+            // Ensure both values are strings for comparison
+            const storedTabId = String(data.tabId || "");
+            const currentTabId = String(tabId || "");
+
+            // Compare as strings
+            const isLeader = storedTabId === currentTabId;
+
+            // Only update if changed
+            if (isLeader !== isLeaderTab) {
+              console.log(
+                `Leader status changed: ${isLeaderTab} -> ${isLeader}`
+              );
+              setIsLeaderTab(isLeader);
+            }
+
+            // Check if leader data is stale (older than 30 seconds)
+            const now = Date.now();
+            const leaderTimestamp = data.timestamp || 0;
+            const isStaleLeader = now - leaderTimestamp > 30000; // 30 seconds
+
+            if (isStaleLeader && authMonitorService) {
+              console.warn(
+                "Detected stale leader in widget, forcing new election"
+              );
+              // Force new election
+              if (
+                typeof authMonitorService.forceLeaderElection === "function"
+              ) {
+                authMonitorService.forceLeaderElection();
+              } else if (
+                primusService &&
+                typeof primusService.forceLeaderElection === "function"
+              ) {
+                primusService.forceLeaderElection();
+              }
+            }
+          } else if (authMonitorService && !isLeaderTab) {
+            // No leader exists, force election
+            console.warn("No leader exists, forcing election from widget");
+            if (typeof authMonitorService.forceLeaderElection === "function") {
+              authMonitorService.forceLeaderElection();
+            } else if (
+              primusService &&
+              typeof primusService.forceLeaderElection === "function"
+            ) {
+              primusService.forceLeaderElection();
+            }
+          }
+        } catch (error) {
+          console.error("Error checking leader status", error);
+        }
+      }, 1000); // Check more frequently
+
+      // Get initial health status if modal is open
+      if (open) {
+        fetchStatus();
+      }
+
+      // Clean up
+      return () => {
+        authMonitorService.off(
+          AuthEventType.STATUS_CHANGED,
+          handleStatusChange
+        );
+        authMonitorService.off(
+          AuthEventType.CONNECTED,
+          handleEvent("CONNECTED")
+        );
+        authMonitorService.off(
+          AuthEventType.DISCONNECTED,
+          handleEvent("DISCONNECTED")
+        );
+        authMonitorService.off(
+          AuthEventType.RECONNECTING,
+          handleEvent("RECONNECTING")
+        );
+        authMonitorService.off(
+          AuthEventType.FALLBACK_ACTIVATED,
+          handleEvent("FALLBACK")
+        );
+        authMonitorService.off(
+          AuthEventType.RECOVERY_FAILED,
+          handleEvent("RECOVERY_FAILED")
+        );
+        authMonitorService.off(
+          AuthEventType.OFFLINE_MODE,
+          handleEvent("OFFLINE")
+        );
+        authMonitorService.off(
+          AuthEventType.ONLINE_RESTORED,
+          handleEvent("ONLINE")
+        );
+        authMonitorService.off(
+          AuthEventType.TOKEN_REFRESHED,
+          handleEvent("TOKEN_REFRESHED")
+        );
+        authMonitorService.off(
+          AuthEventType.TOKEN_REFRESH_ERROR,
+          handleEvent("TOKEN_REFRESH_ERROR")
+        );
+
+        clearInterval(leaderCheckInterval);
+      };
+    } catch (error) {
+      console.error("Error initializing AuthMonitorWidget", error);
+    }
+  }, [tokenService, primusService, tabId, open]);
+
+  // Get health status
+  const fetchStatus = async () => {
+    try {
+      if (!tokenService || !primusService) {
+        setHealthStatus({
+          lastCheck: new Date(),
+          tokenServiceHealthy: false,
+          sessionServiceHealthy: false,
+          webSocketServiceHealthy: false,
+          errors: ["TokenService or PrimusService not available"],
+        });
+        return;
+      }
+
+      // Build health status object
+      const status = {
+        lastCheck: new Date(),
+        tokenServiceHealthy:
+          typeof tokenService.hasTokens === "function"
+            ? tokenService.hasTokens()
+            : false,
+        sessionServiceHealthy: true,
+        webSocketServiceHealthy:
+          typeof primusService.isConnected === "function"
+            ? primusService.isConnected()
+            : false,
+        lastTokenRefresh:
+          typeof tokenService.getLastRefreshTime === "function"
+            ? tokenService.getLastRefreshTime()
+            : null,
+        lastSessionSync: new Date(),
+        tokenDetails: {
+          isAccessTokenValid:
+            typeof tokenService.hasAccessToken === "function"
+              ? tokenService.hasAccessToken()
+              : false,
+          isRefreshTokenValid:
+            typeof tokenService.hasRefreshToken === "function"
+              ? tokenService.hasRefreshToken()
+              : false,
+          accessTokenExpiry: null,
+          refreshTokenExpiry: null,
+        },
+        webSocketDetails: {
+          connected:
+            typeof primusService.isConnected === "function"
+              ? primusService.isConnected()
+              : false,
+          socketId:
+            typeof primusService.getSocketId === "function"
+              ? primusService.getSocketId()
+              : null,
+          isLeader: isLeaderTab,
+          rooms:
+            typeof primusService.getRooms === "function"
+              ? primusService.getRooms()
+              : {},
+        },
+        sessionDetails: {
+          activeSessions: 1,
+          lastActivity: new Date(),
+          currentDevice: {
+            deviceId,
+            tabId,
+            isLeader: isLeaderTab,
+          },
+        },
+        errors: [],
+      };
+
+      setHealthStatus(status);
+    } catch (error) {
+      console.error("Error fetching health status", error);
+      setHealthStatus({
+        lastCheck: new Date(),
+        tokenServiceHealthy: false,
+        sessionServiceHealthy: false,
+        webSocketServiceHealthy: false,
+        errors: [error.message || "Unknown error fetching health status"],
+      });
+    }
+  };
 
   const handleRefresh = async () => {
-    // Use the public method directly from the imported authMonitor instance
-    await authMonitor.checkServices();
-    const status = authMonitor.getHealthStatus();
-    setHealthStatus(status);
+    await fetchStatus();
+  };
+
+  const handleForceReconnect = () => {
+    try {
+      if (!tokenService || !primusService) {
+        console.error("TokenService or PrimusService not available");
+        return;
+      }
+
+      const authMonitorService = getAuthMonitorService(
+        tokenService,
+        primusService
+      );
+      authMonitorService.forceReconnect();
+    } catch (error) {
+      console.error("Error forcing reconnection", error);
+    }
+  };
+
+  const handleForceFallback = () => {
+    try {
+      if (!tokenService || !primusService) {
+        console.error("TokenService or PrimusService not available");
+        return;
+      }
+
+      const authMonitorService = getAuthMonitorService(
+        tokenService,
+        primusService
+      );
+      authMonitorService.forceFallback();
+    } catch (error) {
+      console.error("Error forcing fallback mode", error);
+    }
   };
 
   const formatDate = (date: Date | null) => {
     if (!date) return "N/A";
     return new Date(date).toLocaleString();
+  };
+
+  const getStatusColor = () => {
+    switch (monitorStatus) {
+      case AuthMonitorStatus.CONNECTED:
+        return "#10b981"; // green
+      case AuthMonitorStatus.RECONNECTING:
+        return "#f59e0b"; // amber
+      case AuthMonitorStatus.FALLBACK:
+        return "#f59e0b"; // amber
+      case AuthMonitorStatus.OFFLINE:
+        return "#ef4444"; // red
+      case AuthMonitorStatus.ERROR:
+        return "#ef4444"; // red
+      default:
+        return "#3b82f6"; // blue
+    }
+  };
+
+  const getStatusText = () => {
+    switch (monitorStatus) {
+      case AuthMonitorStatus.CONNECTED:
+        return "Connected";
+      case AuthMonitorStatus.RECONNECTING:
+        return "Reconnecting";
+      case AuthMonitorStatus.FALLBACK:
+        return "Fallback Mode";
+      case AuthMonitorStatus.OFFLINE:
+        return "Offline";
+      case AuthMonitorStatus.ERROR:
+        return "Error";
+      default:
+        return "Initializing";
+    }
   };
 
   // Simple styled components using inline styles
@@ -140,10 +529,27 @@ const AuthMonitorWidget: React.FC = () => {
               <h2 style={{ margin: 0, fontSize: "1.5rem" }}>
                 Authentication Monitor
               </h2>
-              <span style={{ fontSize: "0.875rem", color: "#64748b" }}>
-                Last check:{" "}
-                {healthStatus ? formatDate(healthStatus.lastCheck) : "N/A"}
-              </span>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    backgroundColor: getStatusColor(),
+                  }}
+                ></span>
+                <span style={{ fontSize: "0.875rem", fontWeight: "bold" }}>
+                  {getStatusText()}
+                </span>
+                {lastEvent && (
+                  <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                    Last event: {lastEvent} at {lastEventTime}
+                  </span>
+                )}
+              </div>
             </div>
 
             {!healthStatus ? (
@@ -323,6 +729,161 @@ const AuthMonitorWidget: React.FC = () => {
                                 ? "Leader Tab"
                                 : "Follower Tab"}
                             </span>
+                            <button
+                              style={{
+                                padding: "4px 8px",
+                                backgroundColor: "#3b82f6",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                marginRight: "4px",
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                // Debug leader status
+                                try {
+                                  console.log("--- LEADER STATUS DEBUG ---");
+                                  console.log("Current tab ID:", tabId);
+                                  console.log(
+                                    "Is leader tab (state):",
+                                    isLeaderTab
+                                  );
+                                  console.log(
+                                    "Is leader tab (health):",
+                                    healthStatus.webSocketDetails.isLeader
+                                  );
+
+                                  // Check localStorage
+                                  const leaderData = localStorage.getItem(
+                                    `auth_leader_tab_${deviceId}`
+                                  );
+                                  console.log(
+                                    "Leader data in localStorage:",
+                                    leaderData ? JSON.parse(leaderData) : null
+                                  );
+
+                                  if (leaderData) {
+                                    const data = JSON.parse(leaderData);
+                                    const match = data.tabId === tabId;
+                                    console.log(
+                                      `Tab ID comparison: ${data.tabId} === ${tabId} is ${match}`
+                                    );
+
+                                    // Character by character comparison
+                                    console.log(
+                                      "Character by character comparison:"
+                                    );
+                                    for (
+                                      let i = 0;
+                                      i <
+                                      Math.max(
+                                        data.tabId?.length || 0,
+                                        tabId?.length || 0
+                                      );
+                                      i++
+                                    ) {
+                                      const eChar = data.tabId?.[i] || "";
+                                      const tChar = tabId?.[i] || "";
+                                      console.log(
+                                        `Position ${i}: '${eChar}' (${
+                                          eChar.charCodeAt(0) || "N/A"
+                                        }) vs '${tChar}' (${
+                                          tChar.charCodeAt(0) || "N/A"
+                                        }) - ${
+                                          eChar === tChar
+                                            ? "Match"
+                                            : "Different"
+                                        }`
+                                      );
+                                    }
+                                  }
+
+                                  // Force update leader status
+                                  if (leaderData) {
+                                    const data = JSON.parse(leaderData);
+                                    setIsLeaderTab(data.tabId === tabId);
+                                    console.log(
+                                      "Updated leader status:",
+                                      data.tabId === tabId
+                                    );
+                                  }
+                                } catch (error) {
+                                  console.error(
+                                    "Error debugging leader status:",
+                                    error
+                                  );
+                                }
+                              }}
+                            >
+                              Debug
+                            </button>
+                            <button
+                              style={{
+                                padding: "4px 8px",
+                                backgroundColor: "#10b981",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                // Force this tab to be leader
+                                try {
+                                  console.log("--- FORCING LEADER STATUS ---");
+                                  console.log("Current tab ID:", tabId);
+
+                                  // Set this tab as leader in localStorage
+                                  localStorage.setItem(
+                                    `auth_leader_tab_${deviceId}`,
+                                    JSON.stringify({
+                                      tabId: tabId,
+                                      timestamp: Date.now(),
+                                    })
+                                  );
+
+                                  // Update state
+                                  setIsLeaderTab(true);
+
+                                  // Update health status
+                                  if (
+                                    healthStatus &&
+                                    healthStatus.webSocketDetails
+                                  ) {
+                                    healthStatus.webSocketDetails.isLeader =
+                                      true;
+                                    setHealthStatus({ ...healthStatus });
+                                  }
+
+                                  console.log("This tab is now set as leader");
+
+                                  // Notify PrimusAuthService if available
+                                  if (
+                                    primusService &&
+                                    typeof primusService.emit === "function"
+                                  ) {
+                                    primusService.emit("leader:elected", {
+                                      tabId: tabId,
+                                      deviceId: deviceId,
+                                      timestamp: Date.now(),
+                                    });
+                                    console.log(
+                                      "Notified server about leader change"
+                                    );
+                                  }
+                                } catch (error) {
+                                  console.error(
+                                    "Error forcing leader status:",
+                                    error
+                                  );
+                                }
+                              }}
+                            >
+                              Force Leader
+                            </button>
                           </div>
                         </div>
 
@@ -466,6 +1027,30 @@ const AuthMonitorWidget: React.FC = () => {
                 onClick={() => setOpen(false)}
               >
                 Close
+              </button>
+              <button
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "6px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "transparent",
+                  cursor: "pointer",
+                }}
+                onClick={handleForceReconnect}
+              >
+                Force Reconnect
+              </button>
+              <button
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "6px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "transparent",
+                  cursor: "pointer",
+                }}
+                onClick={handleForceFallback}
+              >
+                Force Fallback
               </button>
               <button
                 style={{
