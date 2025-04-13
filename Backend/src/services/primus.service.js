@@ -208,6 +208,57 @@ function handleDisconnect(spark) {
 }
 
 /**
+ * Handle socket reconnection
+ * @param {Spark} spark - Primus spark (client connection)
+ */
+function handleReconnection(spark) {
+  logger.debug(`Connection reconnected: ${spark.id}`);
+
+  // If this was a tab with auth data, notify about tab reconnection
+  if (
+    spark.authData &&
+    spark.authData.userId &&
+    spark.data &&
+    spark.data.tabId
+  ) {
+    logger.info(`Tab ${spark.data.tabId} reconnected`, {
+      userId: spark.authData.userId,
+      socketId: spark.id,
+      tabId: spark.data.tabId,
+      deviceId: spark.data.deviceId,
+    });
+
+    // If cross-tab service is available, notify it about tab reconnection
+    if (crossTabService) {
+      try {
+        // Notify cross-tab service
+        if (typeof crossTabService.handleReconnection === "function") {
+          crossTabService.handleReconnection(spark);
+        } else {
+          logger.warn(
+            "Cross-tab service does not have handleReconnection method"
+          );
+        }
+      } catch (error) {
+        logger.error(
+          `Error handling tab reconnection: ${error.message}`,
+          error
+        );
+      }
+    }
+  }
+
+  // Re-join rooms if needed
+  if (spark.data && spark.data.rooms) {
+    for (const [roomType, roomName] of Object.entries(spark.data.rooms)) {
+      if (roomName) {
+        joinRoom(spark, roomName);
+      }
+    }
+  }
+}
+
+/**
  * Join a room
  * @param {Spark} spark - Primus spark (client connection)
  * @param {string} roomName - Room name

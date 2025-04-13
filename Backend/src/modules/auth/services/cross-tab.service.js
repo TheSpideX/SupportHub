@@ -17,6 +17,14 @@ class TokenSyncService {
     // No heartbeat interval in event-based system
     this.isInitialized = false;
 
+    // Cache for frequently accessed data
+    this.cache = {
+      userSockets: new Map(), // userId -> Set of socket IDs
+      deviceSockets: new Map(), // deviceId -> Set of socket IDs
+      lastCacheUpdate: Date.now(),
+      cacheTTL: 10000, // 10 seconds
+    };
+
     // Token sync configuration
     this.syncConfig = {
       enableCrossTabs: true,
@@ -35,13 +43,51 @@ class TokenSyncService {
           hidden: 50,
         },
       },
-      connectionSharing: {
-        enabled: true,
-        maxSharedConnections: 5,
+    };
+
+    // Data validation schemas
+    this.schemas = {
+      tabRegistration: {
+        required: ["tabId"],
+        properties: {
+          tabId: { type: "string", minLength: 3 },
+          deviceId: { type: "string", minLength: 3 },
+          visibilityState: { type: "string", enum: ["visible", "hidden"] },
+          forceElection: { type: "boolean" },
+        },
       },
-      stateSync: {
-        syncInterval: 10000,
-        autoSync: true,
+      tabClosing: {
+        required: ["tabId"],
+        properties: {
+          tabId: { type: "string", minLength: 3 },
+          deviceId: { type: "string", minLength: 3 },
+          isLeader: { type: "boolean" },
+        },
+      },
+      visibilityChange: {
+        required: ["state"],
+        properties: {
+          state: { type: "string", enum: ["visible", "hidden"] },
+          timestamp: { type: "number" },
+        },
+      },
+      leaderElection: {
+        required: ["candidateId", "priority"],
+        properties: {
+          candidateId: { type: "string", minLength: 3 },
+          priority: { type: "number", minimum: 0 },
+          vectorClock: { type: "object" },
+          timestamp: { type: "number" },
+        },
+      },
+      leaderTransfer: {
+        required: ["newLeaderId"],
+        properties: {
+          newLeaderId: { type: "string", minLength: 3 },
+          version: { type: "number", minimum: 0 },
+          state: { type: "object" },
+          vectorClock: { type: "object" },
+        },
       },
     };
 
@@ -70,8 +116,33 @@ class TokenSyncService {
       this.tokenService = options.tokenService;
     }
 
+    // Set up cache refresh interval
+    this.cacheRefreshInterval = setInterval(() => {
+      this.refreshCache();
+    }, this.cache.cacheTTL / 2); // Refresh cache at half the TTL
+
     // Mark as initialized
     this.isInitialized = true;
+  }
+
+  /**
+   * Clean up resources when the service is stopped
+   */
+  cleanup() {
+    logger.info("Cleaning up cross-tab coordination service");
+
+    // Clear cache refresh interval
+    if (this.cacheRefreshInterval) {
+      clearInterval(this.cacheRefreshInterval);
+      this.cacheRefreshInterval = null;
+    }
+
+    // Clear caches
+    this.cache.userSockets.clear();
+    this.cache.deviceSockets.clear();
+
+    // Mark as not initialized
+    this.isInitialized = false;
   }
 
   /**
@@ -81,6 +152,168 @@ class TokenSyncService {
     // No need for heartbeat checks in an event-based system
     logger.debug(
       "Setting up event handlers for event-based cross-tab coordination"
+    );
+  }
+
+  /**
+   * Refresh the cache of connected sockets
+   * This is called periodically to ensure the cache is up to date
+   */
+  refreshCache() {
+    if (!this.io) {
+      return;
+    }
+
+    // Clear existing cache
+    this.cache.userSockets.clear();
+    this.cache.deviceSockets.clear();
+
+    // Rebuild cache
+    this.io.forEach((client) => {
+      if (client.authData && client.authData.userId) {
+        const userId = client.authData.userId;
+
+        // Add to user sockets cache
+        if (!this.cache.userSockets.has(userId)) {
+          this.cache.userSockets.set(userId, new Set());
+        }
+        this.cache.userSockets.get(userId).add(client.id);
+
+        // Add to device sockets cache if deviceId is available
+        if (client.data && client.data.deviceId) {
+          const deviceId = client.data.deviceId;
+
+          if (!this.cache.deviceSockets.has(deviceId)) {
+            this.cache.deviceSockets.set(deviceId, new Set());
+          }
+          this.cache.deviceSockets.get(deviceId).add(client.id);
+        }
+      }
+    });
+
+    // Update last cache update timestamp
+    this.cache.lastCacheUpdate = Date.now();
+
+    logger.debug(
+      `Cache refreshed: ${this.cache.userSockets.size} users, ${this.cache.deviceSockets.size} devices`
+    );
+  }
+
+  /**
+   * Get all sockets for a user
+   * Uses cache if available, otherwise falls back to iterating through all sockets
+   * @param {string} userId - User ID
+   * @returns {Array} - Array of socket objects
+   */
+  getUserSockets(userId) {
+    if (!this.io || !userId) {
+      return [];
+    }
+
+    // Check if cache is stale
+    const now = Date.now();
+    if (now - this.cache.lastCacheUpdate > this.cache.cacheTTL) {
+      this.refreshCache();
+    }
+
+    // Get socket IDs from cache
+    const socketIds = this.cache.userSockets.get(userId) || new Set();
+
+    // Get socket objects
+    const sockets = [];
+    socketIds.forEach((socketId) => {
+      const socket = this.io.connections ? this.io.connections[socketId] : null;
+      if (socket) {
+        sockets.push(socket);
+      }
+    });
+
+    return sockets;
+  }
+
+  /**
+   * Get all sockets for a device
+   * Uses cache if available, otherwise falls back to iterating through all sockets
+   * @param {string} deviceId - Device ID
+   * @returns {Array} - Array of socket objects
+   */
+  getDeviceSockets(deviceId) {
+    if (!this.io || !deviceId) {
+      return [];
+    }
+
+    // Check if cache is stale
+    const now = Date.now();
+    if (now - this.cache.lastCacheUpdate > this.cache.cacheTTL) {
+      this.refreshCache();
+    }
+
+    // Get socket IDs from cache
+    const socketIds = this.cache.deviceSockets.get(deviceId) || new Set();
+
+    // Get socket objects
+    const sockets = [];
+    socketIds.forEach((socketId) => {
+      const socket = this.io.connections ? this.io.connections[socketId] : null;
+      if (socket) {
+        sockets.push(socket);
+      }
+    });
+
+    return sockets;
+  }
+
+  /**
+   * Emit an event to all sockets for a user
+   * @param {string} userId - User ID
+   * @param {string} event - Event name
+   * @param {Object} data - Event data
+   * @param {string} [excludeSocketId] - Socket ID to exclude
+   */
+  emitToUser(userId, event, data, excludeSocketId = null) {
+    if (!this.io || !userId || !event) {
+      return;
+    }
+
+    const sockets = this.getUserSockets(userId);
+
+    for (const socket of sockets) {
+      if (excludeSocketId && socket.id === excludeSocketId) {
+        continue;
+      }
+
+      socket.emit(event, data);
+    }
+
+    logger.debug(
+      `Emitted ${event} to ${sockets.length} sockets for user ${userId}`
+    );
+  }
+
+  /**
+   * Emit an event to all sockets for a device
+   * @param {string} deviceId - Device ID
+   * @param {string} event - Event name
+   * @param {Object} data - Event data
+   * @param {string} [excludeSocketId] - Socket ID to exclude
+   */
+  emitToDevice(deviceId, event, data, excludeSocketId = null) {
+    if (!this.io || !deviceId || !event) {
+      return;
+    }
+
+    const sockets = this.getDeviceSockets(deviceId);
+
+    for (const socket of sockets) {
+      if (excludeSocketId && socket.id === excludeSocketId) {
+        continue;
+      }
+
+      socket.emit(event, data);
+    }
+
+    logger.debug(
+      `Emitted ${event} to ${sockets.length} sockets for device ${deviceId}`
     );
   }
 
@@ -317,38 +550,30 @@ class TokenSyncService {
       }
 
       // Notify other clients
-      if (this.io) {
-        if (allDevices && this.syncConfig.enableCrossDevices) {
-          // Invalidate tokens across all devices
-          this.io.forEach((client) => {
-            // Skip the current client
-            if (client.id === socket.id) return;
-
-            // Only send to clients for this user
-            if (client.authData && client.authData.userId === userId) {
-              client.emit(EVENT_NAMES.TOKEN_INVALIDATED, {
-                reason,
-                timestamp: Date.now(),
-                source: socket.id,
-              });
-            }
-          });
-        } else if (deviceId && this.syncConfig.enableCrossTabs) {
-          // Invalidate tokens on current device only
-          this.io.forEach((client) => {
-            // Skip the current client
-            if (client.id === socket.id) return;
-
-            // Only send to clients on the same device
-            if (client.data && client.data.deviceId === deviceId) {
-              client.emit(EVENT_NAMES.TOKEN_INVALIDATED, {
-                reason,
-                timestamp: Date.now(),
-                source: socket.id,
-              });
-            }
-          });
-        }
+      if (allDevices && this.syncConfig.enableCrossDevices) {
+        // Invalidate tokens across all devices
+        this.emitToUser(
+          userId,
+          EVENT_NAMES.TOKEN_INVALIDATED,
+          {
+            reason,
+            timestamp: Date.now(),
+            source: socket.id,
+          },
+          socket.id
+        ); // Exclude the current socket
+      } else if (deviceId && this.syncConfig.enableCrossTabs) {
+        // Invalidate tokens on current device only
+        this.emitToDevice(
+          deviceId,
+          EVENT_NAMES.TOKEN_INVALIDATED,
+          {
+            reason,
+            timestamp: Date.now(),
+            source: socket.id,
+          },
+          socket.id
+        ); // Exclude the current socket
       }
 
       logger.debug(`Tokens invalidated for user ${userId}, reason: ${reason}`);
@@ -438,7 +663,15 @@ class TokenSyncService {
           }
 
           // Become leader
-          this.electAsLeader(socket, priority);
+          const electionSuccessful = this.electAsLeader(socket, priority);
+
+          if (electionSuccessful === false) {
+            logger.debug(`Leader election failed for tab ${tabId}`, {
+              userId,
+              tabId,
+              reason: "higher_priority_leader_exists",
+            });
+          }
         } else {
           // Leader exists, send election request with vector clock
           if (this.io) {
@@ -476,7 +709,21 @@ class TokenSyncService {
                       `Tab ${tabId} is now the only tab for user ${userId}, electing as leader`
                     );
                   }
-                  this.electAsLeader(socket, priority);
+                  const electionSuccessful = this.electAsLeader(
+                    socket,
+                    priority
+                  );
+
+                  if (electionSuccessful === false) {
+                    logger.debug(
+                      `Leader election failed for tab ${tabId} after checking if only tab`,
+                      {
+                        userId,
+                        tabId,
+                        reason: "higher_priority_leader_exists",
+                      }
+                    );
+                  }
                 }
               })
               .catch((error) => {
@@ -494,7 +741,21 @@ class TokenSyncService {
                         this.crossTabConfig.leaderElection
                           .missedHeartbeatsThreshold)
                 ) {
-                  this.electAsLeader(socket, priority);
+                  const electionSuccessful = this.electAsLeader(
+                    socket,
+                    priority
+                  );
+
+                  if (electionSuccessful === false) {
+                    logger.debug(
+                      `Leader election failed for tab ${tabId} after error fallback`,
+                      {
+                        userId,
+                        tabId,
+                        reason: "higher_priority_leader_exists",
+                      }
+                    );
+                  }
                 }
               });
           }, this.crossTabConfig.leaderElection.candidateDelay);
@@ -504,7 +765,18 @@ class TokenSyncService {
         logger.error(`Error checking if tab is the only one: ${error.message}`);
         // Fall back to normal behavior
         if (forceElection || !leaderInfo) {
-          this.electAsLeader(socket, priority);
+          const electionSuccessful = this.electAsLeader(socket, priority);
+
+          if (electionSuccessful === false) {
+            logger.debug(
+              `Leader election failed for tab ${tabId} after error in isOnlyTab`,
+              {
+                userId,
+                tabId,
+                reason: "higher_priority_leader_exists",
+              }
+            );
+          }
         } else {
           // Leader exists, send election request with vector clock
           if (this.io) {
@@ -542,43 +814,75 @@ class TokenSyncService {
    * Elect socket as leader with enhanced consensus
    * @param {Object} socket - Primus spark
    * @param {number} priority - Tab priority
+   * @returns {boolean} - Whether the election was successful
    */
   electAsLeader(socket, priority) {
     const { userId, tabId } = socket.data;
 
+    // Double-check if there's already a leader with higher priority
+    // This helps prevent race conditions where multiple tabs try to become leader simultaneously
+    const existingLeader = this.leaderRegistry.get(userId);
+    if (
+      existingLeader &&
+      existingLeader.leaderId !== tabId &&
+      existingLeader.priority > priority
+    ) {
+      logger.debug(
+        `Not electing tab ${tabId} as leader because tab ${existingLeader.leaderId} has higher priority`,
+        {
+          tabId,
+          existingLeaderId: existingLeader.leaderId,
+          tabPriority: priority,
+          existingPriority: existingLeader.priority,
+        }
+      );
+      return false;
+    }
+
+    // Use a timestamp to detect and resolve conflicts
+    const electionTimestamp = Date.now();
+
     // Update vector clock
-    socket.data.vectorClock[tabId] = Date.now();
+    if (!socket.data.vectorClock) {
+      socket.data.vectorClock = {
+        [tabId]: electionTimestamp,
+        timestamp: electionTimestamp,
+      };
+    } else {
+      socket.data.vectorClock[tabId] = electionTimestamp;
+    }
+
+    // Register as leader in registry with version number for conflict resolution
+    const newVersion = (this.leaderRegistry.get(userId)?.version || 0) + 1;
 
     this.leaderRegistry.set(userId, {
       leaderId: tabId,
       socketId: socket.id,
       deviceId: socket.data.deviceId,
-      lastHeartbeat: Date.now(),
+      lastHeartbeat: electionTimestamp,
       priority,
       vectorClock: socket.data.vectorClock,
-      version: (this.leaderRegistry.get(userId)?.version || 0) + 1,
+      version: newVersion,
+      electedAt: electionTimestamp,
     });
 
     // Mark socket as leader
     socket.data.isLeader = true;
+    socket.data.leaderSince = electionTimestamp;
+    socket.data.leaderVersion = newVersion;
 
     // Notify all tabs about new leader with vector clock
-    if (this.io) {
-      this.io.forEach((client) => {
-        // Skip the current client
-        if (client.id === socket.id) return;
-
-        // Only send to clients for this user
-        if (client.authData && client.authData.userId === userId) {
-          client.emit(EVENT_NAMES.LEADER_ELECTED, {
-            leaderId: tabId,
-            version: this.leaderRegistry.get(userId).version,
-            vectorClock: socket.data.vectorClock,
-            timestamp: Date.now(),
-          });
-        }
-      });
-    }
+    this.emitToUser(
+      userId,
+      EVENT_NAMES.LEADER_ELECTED,
+      {
+        leaderId: tabId,
+        version: this.leaderRegistry.get(userId).version,
+        vectorClock: socket.data.vectorClock,
+        timestamp: Date.now(),
+      },
+      socket.id
+    ); // Exclude the current socket
 
     // In the event-based system, we don't need heartbeats
     // Instead, we'll rely on socket disconnect events and explicit tab closing events
@@ -610,6 +914,328 @@ class TokenSyncService {
     );
   }
 
+  /**
+   * Handle socket reconnection
+   * This is called when a socket reconnects after a network interruption
+   * @param {Object} socket - Primus spark
+   */
+  handleReconnection(socket) {
+    if (!socket || !socket.data) {
+      logger.warn(
+        "Cannot handle reconnection: socket or socket.data is undefined"
+      );
+      return;
+    }
+
+    const { userId, tabId, deviceId } = socket.data;
+
+    if (!userId || !tabId) {
+      logger.warn("Cannot handle reconnection: missing userId or tabId", {
+        socketId: socket.id,
+      });
+      return;
+    }
+
+    logger.info(`Tab ${tabId} reconnected`, {
+      userId,
+      tabId,
+      deviceId,
+      timestamp: Date.now(),
+    });
+
+    // Check if this tab was previously a leader
+    const wasLeader = socket.data.isLeader === true;
+    const leaderInfo = this.leaderRegistry.get(userId);
+    const isStillLeader = leaderInfo && leaderInfo.leaderId === tabId;
+
+    // Update socket data with current state
+    socket.data.isLeader = isStillLeader;
+
+    if (wasLeader && !isStillLeader) {
+      // This tab was a leader but is no longer
+      // Notify the tab that it's no longer a leader
+      socket.emit(EVENT_NAMES.LEADER_CHANGED, {
+        isLeader: false,
+        previousLeaderId: tabId,
+        newLeaderId: leaderInfo?.leaderId,
+        reason: "reconnection",
+        timestamp: Date.now(),
+      });
+
+      logger.info(
+        `Tab ${tabId} was leader but lost leadership during disconnection`,
+        {
+          userId,
+          tabId,
+          deviceId,
+          newLeaderId: leaderInfo?.leaderId,
+        }
+      );
+    } else if (isStillLeader) {
+      // This tab is still the leader
+      // Update the socket ID in the registry
+      leaderInfo.socketId = socket.id;
+      this.leaderRegistry.set(userId, leaderInfo);
+
+      // Notify the tab that it's still the leader
+      socket.emit(EVENT_NAMES.LEADER_ELECTED, {
+        leaderId: tabId,
+        version: leaderInfo.version,
+        timestamp: Date.now(),
+        isYou: true,
+      });
+
+      logger.info(`Tab ${tabId} reconnected and is still the leader`, {
+        userId,
+        tabId,
+        deviceId,
+      });
+    } else if (leaderInfo) {
+      // There's a leader, notify this tab
+      socket.emit(EVENT_NAMES.LEADER_ELECTED, {
+        leaderId: leaderInfo.leaderId,
+        version: leaderInfo.version,
+        timestamp: Date.now(),
+      });
+
+      logger.debug(
+        `Notified reconnected tab ${tabId} about existing leader ${leaderInfo.leaderId}`,
+        {
+          userId,
+          tabId,
+          deviceId,
+        }
+      );
+    } else {
+      // No leader exists, initiate leader election
+      const priority = this.getTabPriority(socket);
+      this.initiateLeaderElection(socket);
+
+      logger.debug(
+        `No leader exists, initiating election for reconnected tab ${tabId}`,
+        {
+          userId,
+          tabId,
+          deviceId,
+        }
+      );
+    }
+
+    // Sync shared state if available
+    const stateInfo = this.sharedStateRegistry.get(userId);
+    if (stateInfo) {
+      socket.emit(EVENT_NAMES.STATE_SYNC, {
+        state: stateInfo.stateData,
+        version: stateInfo.version,
+        timestamp: Date.now(),
+      });
+
+      logger.debug(`Synced state to reconnected tab ${tabId}`, {
+        userId,
+        tabId,
+        deviceId,
+        stateVersion: stateInfo.version,
+      });
+    }
+  }
+
+  /**
+   * Validate data against a schema
+   * @param {Object} data - Data to validate
+   * @param {Object} schema - Schema to validate against
+   * @returns {Object} - Validation result with isValid and errors properties
+   */
+  validateData(data, schema) {
+    if (!data) {
+      return { isValid: false, errors: ["Data is required"] };
+    }
+
+    if (!schema || typeof schema !== "object") {
+      return { isValid: true, errors: [] }; // No schema, assume valid
+    }
+
+    const errors = [];
+    const validatedData = {};
+
+    // Check required fields
+    if (schema.required && Array.isArray(schema.required)) {
+      for (const field of schema.required) {
+        if (data[field] === undefined) {
+          errors.push(`Field '${field}' is required`);
+        }
+      }
+    }
+
+    // Validate fields against schema
+    if (schema.properties && typeof schema.properties === "object") {
+      for (const [field, fieldSchema] of Object.entries(schema.properties)) {
+        if (data[field] !== undefined) {
+          // Type validation
+          if (fieldSchema.type) {
+            const actualType = Array.isArray(data[field])
+              ? "array"
+              : typeof data[field];
+            if (actualType !== fieldSchema.type) {
+              errors.push(
+                `Field '${field}' should be of type ${fieldSchema.type}, got ${actualType}`
+              );
+              continue;
+            }
+          }
+
+          // Format validation
+          if (fieldSchema.format) {
+            let isValid = true;
+            switch (fieldSchema.format) {
+              case "uuid":
+                isValid =
+                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    data[field]
+                  );
+                break;
+              case "email":
+                isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[field]);
+                break;
+              case "date-time":
+                isValid = !isNaN(Date.parse(data[field]));
+                break;
+              case "date":
+                isValid = /^\d{4}-\d{2}-\d{2}$/.test(data[field]);
+                break;
+              case "time":
+                isValid = /^\d{2}:\d{2}(:\d{2})?$/.test(data[field]);
+                break;
+              case "uri":
+                try {
+                  new URL(data[field]);
+                  isValid = true;
+                } catch (e) {
+                  isValid = false;
+                }
+                break;
+            }
+
+            if (!isValid) {
+              errors.push(
+                `Field '${field}' does not match format ${fieldSchema.format}`
+              );
+              continue;
+            }
+          }
+
+          // Pattern validation
+          if (fieldSchema.pattern && typeof data[field] === "string") {
+            const regex = new RegExp(fieldSchema.pattern);
+            if (!regex.test(data[field])) {
+              errors.push(
+                `Field '${field}' does not match pattern ${fieldSchema.pattern}`
+              );
+              continue;
+            }
+          }
+
+          // Enum validation
+          if (fieldSchema.enum && Array.isArray(fieldSchema.enum)) {
+            if (!fieldSchema.enum.includes(data[field])) {
+              errors.push(
+                `Field '${field}' should be one of [${fieldSchema.enum.join(
+                  ", "
+                )}]`
+              );
+              continue;
+            }
+          }
+
+          // Min/max validation for numbers
+          if (typeof data[field] === "number") {
+            if (
+              fieldSchema.minimum !== undefined &&
+              data[field] < fieldSchema.minimum
+            ) {
+              errors.push(
+                `Field '${field}' should be >= ${fieldSchema.minimum}`
+              );
+            }
+            if (
+              fieldSchema.maximum !== undefined &&
+              data[field] > fieldSchema.maximum
+            ) {
+              errors.push(
+                `Field '${field}' should be <= ${fieldSchema.maximum}`
+              );
+            }
+          }
+
+          // Min/max length validation for strings
+          if (typeof data[field] === "string") {
+            if (
+              fieldSchema.minLength !== undefined &&
+              data[field].length < fieldSchema.minLength
+            ) {
+              errors.push(
+                `Field '${field}' should have length >= ${fieldSchema.minLength}`
+              );
+            }
+            if (
+              fieldSchema.maxLength !== undefined &&
+              data[field].length > fieldSchema.maxLength
+            ) {
+              errors.push(
+                `Field '${field}' should have length <= ${fieldSchema.maxLength}`
+              );
+            }
+          }
+
+          // Min/max items validation for arrays
+          if (Array.isArray(data[field])) {
+            if (
+              fieldSchema.minItems !== undefined &&
+              data[field].length < fieldSchema.minItems
+            ) {
+              errors.push(
+                `Field '${field}' should have at least ${fieldSchema.minItems} items`
+              );
+            }
+            if (
+              fieldSchema.maxItems !== undefined &&
+              data[field].length > fieldSchema.maxItems
+            ) {
+              errors.push(
+                `Field '${field}' should have at most ${fieldSchema.maxItems} items`
+              );
+            }
+
+            // Validate array items
+            if (fieldSchema.items && data[field].length > 0) {
+              for (let i = 0; i < data[field].length; i++) {
+                const itemValidation = this.validateData(
+                  data[field][i],
+                  fieldSchema.items
+                );
+                if (!itemValidation.isValid) {
+                  errors.push(
+                    `Item ${i} in field '${field}' is invalid: ${itemValidation.errors.join(
+                      ", "
+                    )}`
+                  );
+                }
+              }
+            }
+          }
+
+          // Add to validated data
+          validatedData[field] = data[field];
+        }
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      data: validatedData,
+    };
+  }
+
   // No heartbeat sending or handling in event-based system
 
   /**
@@ -623,9 +1249,12 @@ class TokenSyncService {
       return;
     }
 
-    if (!data) {
-      logger.warn("Cannot handle election: data is undefined", {
+    // Validate data against schema
+    const validation = this.validateData(data, this.schemas.leaderElection);
+    if (!validation.isValid) {
+      logger.warn(`Invalid election data: ${validation.errors.join(", ")}`, {
         socketId: socket?.id,
+        data,
       });
       return;
     }
@@ -640,16 +1269,8 @@ class TokenSyncService {
     }
 
     const priority = this.getTabPriority(socket);
-    const { candidateId, candidatePriority, vectorClock, timestamp } = data;
-
-    if (!candidateId) {
-      logger.warn("Cannot handle election: missing candidateId", {
-        socketId: socket.id,
-        userId,
-        tabId,
-      });
-      return;
-    }
+    const { candidateId, candidatePriority, vectorClock, timestamp } =
+      validation.data;
 
     // Update local vector clock with candidate's information
     if (vectorClock && socket.data.vectorClock) {
@@ -738,10 +1359,16 @@ class TokenSyncService {
       return;
     }
 
-    if (!data) {
-      logger.warn("Cannot handle leader transfer: data is undefined", {
-        socketId: socket?.id,
-      });
+    // Validate data against schema
+    const validation = this.validateData(data, this.schemas.leaderTransfer);
+    if (!validation.isValid) {
+      logger.warn(
+        `Invalid leader transfer data: ${validation.errors.join(", ")}`,
+        {
+          socketId: socket?.id,
+          data,
+        }
+      );
       return;
     }
 
@@ -754,16 +1381,7 @@ class TokenSyncService {
       return;
     }
 
-    const { newLeaderId, version, state, vectorClock } = data;
-
-    if (!newLeaderId) {
-      logger.warn("Cannot handle leader transfer: missing newLeaderId", {
-        socketId: socket.id,
-        userId,
-        tabId,
-      });
-      return;
-    }
+    const { newLeaderId, version, state, vectorClock } = validation.data;
 
     // Verify current leader is requesting transfer
     const leaderInfo = this.leaderRegistry.get(userId);
@@ -859,51 +1477,29 @@ class TokenSyncService {
     // Remove inactive leader
     this.leaderRegistry.delete(userId);
 
-    // If we have a Primus instance
-    if (this.io) {
-      // If deviceId is provided, only notify tabs on that device
-      if (deviceId) {
-        // Notify all tabs on the device about leader failure
-        this.io.forEach((client) => {
-          // Only send to clients for this user and device
-          if (
-            client.data &&
-            client.authData &&
-            client.authData.userId === userId &&
-            client.data.deviceId === deviceId
-          ) {
-            client.emit(EVENT_NAMES.LEADER_FAILED, {
-              previousLeaderId: leaderId,
-              deviceId,
-              reason,
-              timestamp: Date.now(),
-            });
-          }
-        });
+    // If deviceId is provided, only notify tabs on that device
+    if (deviceId) {
+      // Notify all tabs on the device about leader failure
+      this.emitToDevice(deviceId, EVENT_NAMES.LEADER_FAILED, {
+        previousLeaderId: leaderId,
+        deviceId,
+        reason,
+        timestamp: Date.now(),
+      });
 
-        logger.debug(
-          `Leader ${leaderId} for user ${userId} on device ${deviceId} failed (${reason}), triggering device-specific re-election`
-        );
-      } else {
-        // Notify all tabs about leader failure
-        this.io.forEach((client) => {
-          // Only send to clients for this user
-          if (client.authData && client.authData.userId === userId) {
-            client.emit(EVENT_NAMES.LEADER_FAILED, {
-              previousLeaderId: leaderId,
-              reason,
-              timestamp: Date.now(),
-            });
-          }
-        });
-
-        logger.debug(
-          `Leader ${leaderId} for user ${userId} failed (${reason}), triggering re-election`
-        );
-      }
+      logger.debug(
+        `Leader ${leaderId} for user ${userId} on device ${deviceId} failed (${reason}), triggering device-specific re-election`
+      );
     } else {
-      logger.warn(
-        "No Primus instance available, cannot notify clients about leader failure"
+      // Notify all tabs about leader failure
+      this.emitToUser(userId, EVENT_NAMES.LEADER_FAILED, {
+        previousLeaderId: leaderId,
+        reason,
+        timestamp: Date.now(),
+      });
+
+      logger.debug(
+        `Leader ${leaderId} for user ${userId} failed (${reason}), triggering re-election`
       );
     }
   }
@@ -937,50 +1533,28 @@ class TokenSyncService {
     // Remove from registry
     this.leaderRegistry.delete(userId);
 
-    // If we have a Primus instance
-    if (this.io) {
-      // If deviceId is specified, only notify tabs on that device
-      if (deviceId) {
-        // Notify all tabs on the device about leader being cleared
-        this.io.forEach((client) => {
-          // Only send to clients for this user and device
-          if (
-            client.data &&
-            client.authData &&
-            client.authData.userId === userId &&
-            client.data.deviceId === deviceId
-          ) {
-            client.emit(EVENT_NAMES.LEADER_FAILED, {
-              previousLeaderId: leaderId,
-              deviceId,
-              reason: "forced_election",
-              timestamp: Date.now(),
-            });
-          }
-        });
+    // If deviceId is specified, only notify tabs on that device
+    if (deviceId) {
+      // Notify all tabs on the device about leader being cleared
+      this.emitToDevice(deviceId, EVENT_NAMES.LEADER_FAILED, {
+        previousLeaderId: leaderId,
+        deviceId,
+        reason: "forced_election",
+        timestamp: Date.now(),
+      });
 
-        logger.info(
-          `Leader ${leaderId} cleared for user ${userId} on device ${deviceId}`
-        );
-      } else {
-        // Notify all tabs about leader being cleared
-        this.io.forEach((client) => {
-          // Only send to clients for this user
-          if (client.authData && client.authData.userId === userId) {
-            client.emit(EVENT_NAMES.LEADER_FAILED, {
-              previousLeaderId: leaderId,
-              reason: "forced_election",
-              timestamp: Date.now(),
-            });
-          }
-        });
-
-        logger.info(`Leader ${leaderId} cleared for user ${userId}`);
-      }
-    } else {
-      logger.warn(
-        "No Primus instance available, cannot notify clients about leader being cleared"
+      logger.info(
+        `Leader ${leaderId} cleared for user ${userId} on device ${deviceId}`
       );
+    } else {
+      // Notify all tabs about leader being cleared
+      this.emitToUser(userId, EVENT_NAMES.LEADER_FAILED, {
+        previousLeaderId: leaderId,
+        reason: "forced_election",
+        timestamp: Date.now(),
+      });
+
+      logger.info(`Leader ${leaderId} cleared for user ${userId}`);
     }
 
     return true;
@@ -999,16 +1573,8 @@ class TokenSyncService {
         return false;
       }
 
-      // Get all sockets for this user
-      const userSockets = [];
-
-      // In Primus, we need to iterate through all clients
-      this.io.forEach((client) => {
-        // Only count clients for this user
-        if (client.authData && client.authData.userId === userId) {
-          userSockets.push(client);
-        }
-      });
+      // Get all sockets for this user using the cache
+      const userSockets = this.getUserSockets(userId);
 
       // If there's only one socket, this is the only tab
       if (userSockets.length === 1) {
@@ -1149,8 +1715,18 @@ class TokenSyncService {
       return;
     }
 
+    // Validate data against schema
+    const validation = this.validateData(data, this.schemas.tabClosing);
+    if (!validation.isValid) {
+      logger.warn(`Invalid tab closing data: ${validation.errors.join(", ")}`, {
+        socketId: socket?.id,
+        data,
+      });
+      return;
+    }
+
     const { userId, tabId, isLeader } = socket.data;
-    const deviceId = socket.data.deviceId || (data && data.deviceId);
+    const deviceId = socket.data.deviceId || validation.data.deviceId;
 
     if (!userId || !tabId) {
       logger.warn("Cannot handle tab closing: missing userId or tabId", {
@@ -1631,18 +2207,8 @@ class TokenSyncService {
    */
   async findLeadershipCandidate(userId, currentLeaderId) {
     try {
-      // Get all sockets for this user
-      const sockets = [];
-
-      if (this.io) {
-        // In Primus, we need to iterate through all clients
-        this.io.forEach((client) => {
-          // Only include clients for this user
-          if (client.authData && client.authData.userId === userId) {
-            sockets.push(client);
-          }
-        });
-      }
+      // Get all sockets for this user using the cache
+      const sockets = this.getUserSockets(userId);
 
       // Filter out current leader and sort by priority
       const candidates = sockets
@@ -1676,10 +2242,16 @@ class TokenSyncService {
       return;
     }
 
-    if (!data) {
-      logger.warn("Cannot handle visibility change: data is undefined", {
-        socketId: socket?.id,
-      });
+    // Validate data against schema
+    const validation = this.validateData(data, this.schemas.visibilityChange);
+    if (!validation.isValid) {
+      logger.warn(
+        `Invalid visibility change data: ${validation.errors.join(", ")}`,
+        {
+          socketId: socket?.id,
+          data,
+        }
+      );
       return;
     }
 
@@ -1692,16 +2264,7 @@ class TokenSyncService {
       return;
     }
 
-    const { state } = data;
-
-    if (!state) {
-      logger.warn("Cannot handle visibility change: missing state", {
-        socketId: socket.id,
-        userId,
-        tabId,
-      });
-      return;
-    }
+    const { state } = validation.data;
 
     // Update socket data
     socket.data.visibilityState = state;
@@ -1770,18 +2333,8 @@ class TokenSyncService {
    */
   async findVisibleTabCandidate(userId, currentLeaderId) {
     try {
-      // Get all sockets for this user
-      const sockets = [];
-
-      if (this.io) {
-        // In Primus, we need to iterate through all clients
-        this.io.forEach((client) => {
-          // Only include clients for this user
-          if (client.authData && client.authData.userId === userId) {
-            sockets.push(client);
-          }
-        });
-      }
+      // Get all sockets for this user using the cache
+      const sockets = this.getUserSockets(userId);
 
       // Filter for visible tabs and sort by priority
       const candidates = sockets
