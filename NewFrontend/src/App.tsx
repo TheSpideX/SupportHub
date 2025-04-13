@@ -9,14 +9,26 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { store } from "@/store";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
+// import { ProfilePage } from "@/pages/profile/ProfilePage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import EnhancedAdminDashboard from "@/pages/dashboard/EnhancedAdminDashboard";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
+// Admin Pages
+import UserManagementPage from "@/pages/admin/UserManagementPage";
+import TeamManagementPage from "@/pages/admin/TeamManagementPage";
+import ApprovalsPage from "@/pages/admin/ApprovalsPage";
+import SystemStatusPage from "@/pages/admin/SystemStatusPage";
+import SettingsPage from "@/pages/admin/SettingsPage";
+import AuditLogsPage from "@/pages/admin/AuditLogsPage";
+import SecurityPage from "@/pages/admin/SecurityPage";
+// These pages will be implemented later
+// import DiagnosticsPage from "@/pages/admin/DiagnosticsPage";
+// import CustomersPage from "@/pages/admin/CustomersPage";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { Toaster } from "react-hot-toast";
 import { ErrorBoundary } from "./core/errors/ErrorBoundary";
 import { APP_ROUTES } from "@/config/routes";
-import { useEffect, useRef, useMemo, useState } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import { useDispatch } from "react-redux";
 import { logger } from "./utils/logger";
@@ -134,6 +146,135 @@ const routes = [
         element: (
           <AuthGuard>
             <ProfilePage />
+          </AuthGuard>
+        ),
+      },
+      // Admin routes
+      {
+        path: "admin",
+        element: (
+          <AuthGuard>
+            <EnhancedAdminDashboard />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/user-management",
+        element: (
+          <AuthGuard>
+            <UserManagementPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/team-management",
+        element: (
+          <AuthGuard>
+            <TeamManagementPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/approvals",
+        element: (
+          <AuthGuard>
+            <ApprovalsPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/system-status",
+        element: (
+          <AuthGuard>
+            <SystemStatusPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/settings",
+        element: (
+          <AuthGuard>
+            <SettingsPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/audit-logs",
+        element: (
+          <AuthGuard>
+            <AuditLogsPage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/security",
+        element: (
+          <AuthGuard>
+            <div>Security Page</div>
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/diagnostics",
+        element: (
+          <AuthGuard>
+            <div>Diagnostics Page</div>
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/security",
+        element: (
+          <AuthGuard>
+            <SecurityPage />
+          </AuthGuard>
+        ),
+      },
+      // {
+      //   path: "admin/diagnostics",
+      //   element: (
+      //     <AuthGuard>
+      //       <DiagnosticsPage />
+      //     </AuthGuard>
+      //   ),
+      // },
+      // {
+      //   path: "admin/customers",
+      //   element: (
+      //     <AuthGuard>
+      //       <CustomersPage />
+      //     </AuthGuard>
+      //   ),
+      // },
+      {
+        path: "admin/analytics",
+        element: (
+          <AuthGuard>
+            <div>Analytics Dashboard</div>
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/analytics/dashboard",
+        element: (
+          <AuthGuard>
+            <div>Analytics Dashboard</div>
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/analytics/reports",
+        element: (
+          <AuthGuard>
+            <div>Analytics Reports</div>
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "admin/analytics/metrics",
+        element: (
+          <AuthGuard>
+            <div>Analytics Metrics</div>
           </AuthGuard>
         ),
       },
