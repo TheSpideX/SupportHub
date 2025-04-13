@@ -10,6 +10,7 @@ import { store } from "@/store";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
+import EnhancedAdminDashboard from "@/pages/dashboard/EnhancedAdminDashboard";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { Toaster } from "react-hot-toast";
@@ -31,9 +32,12 @@ import { getAuthService } from "./features/auth/services";
 // Import the toast service
 import { ToastService } from "./utils/toast.service";
 import AuthMonitorWidget from "./features/auth/components/AuthMonitorWidget";
-import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
+import {
+  ThemeProvider as MuiThemeProvider,
+  createTheme,
+} from "@mui/material/styles";
 import TicketsPage from "./pages/tickets/TicketsPage";
-import ProfilePage from './pages/profile/ProfilePage';
+import ProfilePage from "./pages/profile/ProfilePage";
 
 // Component name for logging
 const COMPONENT = "App";
@@ -53,7 +57,7 @@ const RootLayout = () => (
 // Application routes configuration
 const routes = [
   {
-    path: '/',
+    path: "/",
     element: <RootLayout />,
     children: [
       {
@@ -61,24 +65,24 @@ const routes = [
         element: <Navigate to="/auth/login" replace />,
       },
       {
-        path: 'auth',
+        path: "auth",
         children: [
           {
             index: true,
             element: <Navigate to="/auth/login" replace />,
           },
           {
-            path: 'login',
+            path: "login",
             element: <LoginPage />,
           },
           {
-            path: 'register',
+            path: "register",
             element: <RegisterPage />,
           },
         ],
       },
       {
-        path: 'dashboard',
+        path: "dashboard",
         element: (
           <AuthGuard>
             <DashboardPage />
@@ -86,7 +90,15 @@ const routes = [
         ),
       },
       {
-        path: 'tickets',
+        path: "admin-dashboard",
+        element: (
+          <AuthGuard>
+            <EnhancedAdminDashboard />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "tickets",
         element: (
           <AuthGuard>
             <TicketsPage view="all" />
@@ -94,7 +106,7 @@ const routes = [
         ),
       },
       {
-        path: 'tickets/all',
+        path: "tickets/all",
         element: (
           <AuthGuard>
             <TicketsPage view="all" />
@@ -102,7 +114,7 @@ const routes = [
         ),
       },
       {
-        path: 'tickets/my-tickets',
+        path: "tickets/my-tickets",
         element: (
           <AuthGuard>
             <TicketsPage view="my-tickets" />
@@ -110,7 +122,7 @@ const routes = [
         ),
       },
       {
-        path: 'tickets/create',
+        path: "tickets/create",
         element: (
           <AuthGuard>
             <TicketsPage view="create" />
@@ -118,7 +130,7 @@ const routes = [
         ),
       },
       {
-        path: 'profile',
+        path: "profile",
         element: (
           <AuthGuard>
             <ProfilePage />
