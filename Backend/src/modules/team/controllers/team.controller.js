@@ -14,10 +14,13 @@ const logger = require("../../../utils/logger");
  */
 exports.createTeam = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, teamType } = req.body;
     const userId = req.user._id;
 
-    const team = await teamService.createTeam({ name, description }, userId);
+    const team = await teamService.createTeam(
+      { name, description, teamType },
+      userId
+    );
 
     res.status(201).json({
       success: true,
@@ -40,10 +43,14 @@ exports.getAllTeams = async (req, res, next) => {
 
     // Check if user is admin, if not, only return teams they are a member of
     const isAdmin = req.user.role === "admin";
-    
+
     let result;
     if (isAdmin) {
-      result = await teamService.getAllTeams(filters, parseInt(page), parseInt(limit));
+      result = await teamService.getAllTeams(
+        filters,
+        parseInt(page),
+        parseInt(limit)
+      );
     } else {
       // For non-admins, only return teams they are a member of
       const userTeams = await teamService.getUserTeams(userId);

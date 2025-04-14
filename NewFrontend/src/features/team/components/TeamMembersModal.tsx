@@ -1,21 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import SafeModal from "@/components/ui/modal/SafeModal";
 import { Button } from "@/components/ui/buttons/Button";
 import { useTeamManagement } from "../hooks/useTeamManagement";
 import { toast } from "react-hot-toast";
-import { FaUserPlus, FaUserMinus, FaCrown, FaEllipsisH } from "react-icons/fa";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { FaUserPlus } from "react-icons/fa";
+import InvitationCodeManager from "./InvitationCodeManager";
+import VirtualizedMembersList from "./VirtualizedMembersList";
+import { useResizeObserver } from "@/hooks/useResizeObserver";
 
 interface TeamMembersModalProps {
   isOpen: boolean;
@@ -57,12 +53,33 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
   const [actionInProgress, setActionInProgress] = useState("");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [membersPerPage] = useState(10);
+  const [displayedMembers, setDisplayedMembers] = useState<TeamMember[]>([]);
+
+  // Container ref for virtualized list
+  const { ref: containerRef, dimensions } = useResizeObserver<HTMLDivElement>();
+
   // Load team data when modal opens
   useEffect(() => {
     if (isOpen && teamId) {
       loadTeamData();
+      // Reset pagination when modal opens
+      setCurrentPage(1);
     }
   }, [isOpen, teamId]);
+
+  // Update displayed members when team or pagination changes
+  useEffect(() => {
+    if (team && team.members) {
+      const indexOfLastMember = currentPage * membersPerPage;
+      const indexOfFirstMember = indexOfLastMember - membersPerPage;
+      setDisplayedMembers(
+        team.members.slice(indexOfFirstMember, indexOfLastMember)
+      );
+    }
+  }, [team, currentPage, membersPerPage]);
 
   const loadTeamData = async () => {
     setIsLoadingTeam(true);
@@ -189,137 +206,112 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
     }
   };
 
+  // Handle close
+  const handleClose = () => {
+    // Reset state before closing
+    setTeam(null);
+    setActionInProgress("");
+    onClose();
+  };
+
   return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent className="bg-gray-900 text-white border-gray-800 max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
-            {team ? `${team.name} - Team Members` : "Team Members"}
-          </DialogTitle>
-          <DialogDescription className="text-gray-400">
-            Manage team members and their roles
-          </DialogDescription>
-        </DialogHeader>
+    <SafeModal isOpen={isOpen} onClose={handleClose} className="max-w-3xl">
+      <DialogHeader>
+        <DialogTitle className="text-xl font-semibold">
+          {team ? `${team.name} - Team Members` : "Team Members"}
+        </DialogTitle>
+        <DialogDescription className="text-gray-400">
+          Manage team members and their roles
+        </DialogDescription>
+      </DialogHeader>
 
-        {isLoadingTeam ? (
-          <div className="py-8 flex justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="text-lg font-medium">
-                  Members ({team?.members.length || 0})
-                </h3>
+      {isLoadingTeam ? (
+        <div className="py-8 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-medium">
+                Members ({team?.members.length || 0})
+              </h3>
+              <div className="text-sm text-gray-400 flex items-center">
+                <span className="mr-2">Team Type:</span>
+                <span
+                  className={`px-2 py-1 rounded text-xs font-medium ${
+                    team?.teamType === "technical"
+                      ? "bg-purple-900 text-purple-200"
+                      : "bg-blue-900 text-blue-200"
+                  }`}
+                >
+                  {team?.teamType === "technical"
+                    ? "Technical Team"
+                    : "Support Team"}
+                </span>
               </div>
-              <Button
-                onClick={onAddMember}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <FaUserPlus className="mr-2 h-4 w-4" />
-                Add Member
-              </Button>
             </div>
+            <Button
+              onClick={onAddMember}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <FaUserPlus className="mr-2 h-4 w-4" />
+              Add Member
+            </Button>
+          </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="text-xs uppercase text-gray-400 border-b border-gray-800">
-                  <tr>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {team?.members.length ? (
-                    team.members.map((member) => (
-                      <tr
-                        key={member.id}
-                        className="border-b border-gray-800/30"
-                      >
-                        <td className="px-4 py-3 flex items-center">
-                          <div className="h-8 w-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-blue-300 mr-3">
-                            {member.name.charAt(0) +
-                              (member.name.split(" ")[1]?.charAt(0) || "")}
-                          </div>
-                          <div>
-                            <div className="font-medium text-white flex items-center">
-                              {member.name}
-                              {member.id === team.leadId && (
-                                <FaCrown
-                                  className="ml-2 h-3 w-3 text-yellow-500"
-                                  title="Team Lead"
-                                />
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-300">
-                          {member.email}
-                        </td>
-                        <td className="px-4 py-3 text-gray-300">
-                          {member.role}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                              >
-                                <FaEllipsisH className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="bg-gray-800 border-gray-700 text-white">
-                              {member.id !== team.leadId && (
-                                <DropdownMenuItem
-                                  onClick={() => handlePromoteToLead(member.id)}
-                                  disabled={actionInProgress === member.id}
-                                  className="hover:bg-gray-700 focus:bg-gray-700"
-                                >
-                                  <FaCrown className="h-4 w-4 mr-2 text-yellow-500" />
-                                  Make Team Lead
-                                </DropdownMenuItem>
-                              )}
-                              {member.id !== team.leadId && (
-                                <DropdownMenuItem
-                                  onClick={() => handleRemoveMember(member.id)}
-                                  disabled={actionInProgress === member.id}
-                                  className="text-red-400 hover:bg-gray-700 focus:bg-gray-700"
-                                >
-                                  <FaUserMinus className="h-4 w-4 mr-2" />
-                                  Remove from Team
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-4 py-6 text-center text-gray-400"
-                      >
-                        No team members found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          <div className="overflow-x-auto" ref={containerRef}>
+            {team && (
+              <VirtualizedMembersList
+                members={displayedMembers}
+                teamLeadId={team.leadId}
+                onRemoveMember={handleRemoveMember}
+                onMakeTeamLead={handlePromoteToLead}
+                actionInProgress={actionInProgress}
+                height={400}
+                maxHeight={500} // Limit the maximum height to prevent modal overflow
+                width={dimensions?.width || "100%"}
+              />
+            )}
+          </div>
+
+          {/* Pagination Controls */}
+          {team && team.members.length > membersPerPage && (
+            <div className="flex justify-between items-center mt-4 text-sm">
+              <div className="text-gray-400">
+                Showing{" "}
+                {displayedMembers.length > 0
+                  ? (currentPage - 1) * membersPerPage + 1
+                  : 0}{" "}
+                to {Math.min(currentPage * membersPerPage, team.members.length)}{" "}
+                of {team.members.length} members
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() =>
+                    setCurrentPage((prev) => Math.max(prev - 1, 1))
+                  }
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 h-8 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-600"
+                >
+                  Previous
+                </Button>
+                <Button
+                  onClick={() => setCurrentPage((prev) => prev + 1)}
+                  disabled={currentPage * membersPerPage >= team.members.length}
+                  className="px-3 py-1 h-8 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-600"
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+          )}
+
+          {/* Invitation Code Manager */}
+          {team && <InvitationCodeManager teamId={team.id} />}
+        </>
+      )}
+    </SafeModal>
   );
 };
 

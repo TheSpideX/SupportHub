@@ -18,6 +18,13 @@ exports.createTeam = {
     description: Joi.string().max(500).allow("").messages({
       "string.max": "Description cannot exceed {#limit} characters",
     }),
+    teamType: Joi.string()
+      .valid("technical", "support")
+      .default("support")
+      .messages({
+        "string.base": "Team type must be a string",
+        "any.only": "Team type must be either 'technical' or 'support'",
+      }),
   }),
 };
 
@@ -34,6 +41,10 @@ exports.updateTeam = {
     }),
     description: Joi.string().max(500).allow("").messages({
       "string.max": "Description cannot exceed {#limit} characters",
+    }),
+    teamType: Joi.string().valid("technical", "support").messages({
+      "string.base": "Team type must be a string",
+      "any.only": "Team type must be either 'technical' or 'support'",
     }),
   }).min(1),
 };

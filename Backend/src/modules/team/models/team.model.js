@@ -20,6 +20,12 @@ const TeamSchema = new Schema(
       trim: true,
       maxlength: [500, "Description cannot exceed 500 characters"],
     },
+    teamType: {
+      type: String,
+      enum: ["technical", "support"],
+      required: [true, "Team type is required"],
+      default: "support",
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -50,6 +56,42 @@ const TeamSchema = new Schema(
           type: Schema.Types.ObjectId,
           ref: "User",
         },
+      },
+    ],
+    invitationCodes: [
+      {
+        code: {
+          type: String,
+          required: true,
+        },
+        role: {
+          type: String,
+          enum: ["lead", "member"],
+          required: true,
+        },
+        createdBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        expiresAt: {
+          type: Date,
+          required: true,
+          default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        },
+        isUsed: {
+          type: Boolean,
+          default: false,
+        },
+        usedBy: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+        usedAt: Date,
       },
     ],
     metrics: {
@@ -107,8 +149,7 @@ TeamSchema.methods.isTeamLead = function (userId) {
     this.leadId.toString() === userId.toString() &&
     this.members.some(
       (member) =>
-        member.userId.toString() === userId.toString() &&
-        member.role === "lead"
+        member.userId.toString() === userId.toString() && member.role === "lead"
     )
   );
 };
@@ -131,7 +172,7 @@ TeamSchema.methods.addMember = async function (memberData) {
     // Update existing member if needed
     if (memberData.role && memberData.role !== existingMember.role) {
       existingMember.role = memberData.role;
-      
+
       // Update leadId if role is lead
       if (memberData.role === "lead") {
         this.leadId = memberData.userId;
@@ -183,7 +224,7 @@ TeamSchema.methods.updateMetrics = async function (metrics) {
   Object.assign(this.metrics, metrics, {
     lastMetricsUpdate: new Date(),
   });
-  
+
   return this.save();
 };
 

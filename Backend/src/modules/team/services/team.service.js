@@ -27,8 +27,11 @@ exports.createTeam = async (teamData, userId) => {
     const team = await Team.create({
       name: teamData.name,
       description: teamData.description,
+      teamType: teamData.teamType || "support", // Default to support if not specified
       createdBy: userId,
     });
+
+    logger.info(`Team created with type: ${team.teamType}`);
 
     // Add creator as team lead
     await team.addMember({
@@ -194,8 +197,8 @@ exports.deleteTeam = async (teamId, userId) => {
       throw new ApiError(403, "Only admins can delete teams");
     }
 
-    // Delete team
-    await team.remove();
+    // Delete team using findByIdAndDelete instead of deprecated remove() method
+    await Team.findByIdAndDelete(teamId);
     logger.info(`Team deleted: ${team.name} (${team._id}) by user ${userId}`);
 
     return { success: true, message: "Team deleted successfully" };
@@ -434,6 +437,30 @@ exports.checkTeamMembership = async (userId, teamId) => {
     };
   } catch (error) {
     logger.error(`Error checking team membership: ${error.message}`, error);
+    throw error;
+  }
+};
+
+/**
+ * Find a team by invitation code
+ * @param {string} code - Invitation code
+ * @returns {Promise<Team|null>} Team or null if not found
+ */
+exports.findTeamByInvitationCode = async (code) => {
+  try {
+    // Find team with this code that is not used and not expired
+    const team = await Team.findOne({
+      "invitationCodes.code": code,
+      "invitationCodes.isUsed": false,
+      "invitationCodes.expiresAt": { $gt: new Date() },
+    });
+
+    return team;
+  } catch (error) {
+    logger.error(
+      `Error finding team by invitation code: ${error.message}`,
+      error
+    );
     throw error;
   }
 };

@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { store } from "@/store";
 import { LoginPage } from "@/pages/auth/LoginPage";
 import { RegisterPage } from "@/pages/auth/RegisterPage";
+import RegisterWithCodePage from "@/pages/auth/RegisterWithCodePage";
 // import { ProfilePage } from "@/pages/profile/ProfilePage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import EnhancedAdminDashboard from "@/pages/dashboard/EnhancedAdminDashboard";
@@ -27,6 +28,8 @@ import SecurityPage from "@/pages/admin/SecurityPage";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { TeamProvider } from "@/features/team/providers/TeamProvider";
 import { Toaster } from "react-hot-toast";
+import ModalProvider from "@/context/ModalContext";
+import ModalStateProvider from "@/context/ModalStateContext";
 import { ErrorBoundary } from "./core/errors/ErrorBoundary";
 import { APP_ROUTES } from "@/config/routes";
 import React, { useEffect, useRef, useMemo, useState } from "react";
@@ -91,6 +94,10 @@ const routes = [
           {
             path: "register",
             element: <RegisterPage />,
+          },
+          {
+            path: "register-with-code",
+            element: <RegisterWithCodePage />,
           },
         ],
       },
@@ -413,10 +420,14 @@ export function App() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
             <TeamProvider>
-              <MuiThemeProvider theme={muiTheme}>
-                <RouterProvider router={router} />
-                <Toaster />
-              </MuiThemeProvider>
+              <ModalStateProvider>
+                <ModalProvider>
+                  <MuiThemeProvider theme={muiTheme}>
+                    <RouterProvider router={router} />
+                    <Toaster />
+                  </MuiThemeProvider>
+                </ModalProvider>
+              </ModalStateProvider>
             </TeamProvider>
           </ThemeProvider>
         </QueryClientProvider>

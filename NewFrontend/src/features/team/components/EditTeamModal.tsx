@@ -139,8 +139,11 @@ const EditTeamModal: React.FC<EditTeamModalProps> = ({
   };
 
   const handleClose = () => {
+    // Reset form state
     setFormData({ name: "", description: "" });
     setErrors({ name: "", description: "" });
+
+    // Call onClose directly
     onClose();
   };
 
@@ -148,7 +151,9 @@ const EditTeamModal: React.FC<EditTeamModalProps> = ({
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
-        if (!open) handleClose();
+        if (!open) {
+          handleClose();
+        }
       }}
     >
       <DialogContent className="bg-gray-900 text-white border-gray-800 max-w-md">

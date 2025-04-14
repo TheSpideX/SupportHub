@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React Modal Test</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #1a1a1a;
+      color: white;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .modal {
+      background-color: #2d3748;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 100%;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .modal-title {
+      margin: 0;
+      font-size: 20px;
+    }
+    
+    .close-button {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #a0aec0;
+      padding: 0;
+    }
+    
+    .modal-body {
+      margin-bottom: 20px;
+    }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+    }
+    
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #4a5568;
+      border: 1px solid #2d3748;
+      border-radius: 4px;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    // Modal component
+    const Modal = ({ isOpen, onClose, title, children }) => {
+      if (!isOpen) return null;
+      
+      const handleOverlayClick = (e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      };
+      
+      React.useEffect(() => {
+        const handleEscape = (e) => {
+          if (e.key === 'Escape') {
+            onClose();
+          }
+        };
+        
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+      }, [onClose]);
+      
+      return (
+        <div className="modal-overlay" onClick={handleOverlayClick}>
+          <div className="modal">
+            <div className="modal-header">
+              <h2 className="modal-title">{title}</h2>
+              <button className="close-button" onClick={onClose}>&times;</button>
+            </div>
+            <div className="modal-body">
+              {children}
+            </div>
+            <div className="modal-footer">
+              <button onClick={onClose}>Cancel</button>
+              <button 
+                style={{ marginLeft: '10px', backgroundColor: '#48bb78' }}
+                onClick={() => {
+                  alert('Form submitted!');
+                  onClose();
+                }}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+    
+    // App component
+    const App = () => {
+      const [isModalOpen, setIsModalOpen] = React.useState(false);
+      
+      return (
+        <div className="container">
+          <h1>React Modal Test</h1>
+          <p>This is a simple test to see if React modals work correctly.</p>
+          
+          <button onClick={() => setIsModalOpen(true)}>Open Modal</button>
+          
+          <Modal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)}
+            title="React Test Modal"
+          >
+            <p>This is a test modal to see if interaction works correctly.</p>
+            <input type="text" placeholder="Type something here..." />
+            <textarea placeholder="Type more text here..."></textarea>
+          </Modal>
+        </div>
+      );
+    };
+    
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

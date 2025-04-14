@@ -17,6 +17,16 @@ const TEAM_API = {
   CHANGE_LEAD: (id: string) => `/api/teams/${id}/lead`,
   CREATE_INVITATION: (teamId: string) => `/api/teams/${teamId}/invitations`,
   GET_INVITATIONS: (teamId: string) => `/api/teams/${teamId}/invitations`,
+
+  // Invitation code routes
+  GENERATE_INVITATION_CODE: (teamId: string) =>
+    `/api/teams/${teamId}/invitation-codes`,
+  LIST_INVITATION_CODES: (teamId: string) =>
+    `/api/teams/${teamId}/invitation-codes`,
+  REVOKE_INVITATION_CODE: (teamId: string, codeId: string) =>
+    `/api/teams/${teamId}/invitation-codes/${codeId}`,
+  VALIDATE_INVITATION_CODE: (code: string) =>
+    `/api/teams/invitation-codes/${code}/validate`,
 };
 
 // Define API routes for invitations
@@ -48,6 +58,7 @@ export interface Team {
   _id: string;
   name: string;
   description: string;
+  teamType: "technical" | "support";
   createdBy: string;
   leadId: string;
   members: TeamMember[];
@@ -58,6 +69,7 @@ export interface Team {
     lastMetricsUpdate: string;
   };
   isActive: boolean;
+  invitationCodes?: InvitationCode[];
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +87,18 @@ export interface Invitation {
   acceptedBy?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface InvitationCode {
+  _id: string;
+  code: string;
+  role: "lead" | "member";
+  createdBy: string;
+  createdAt: string;
+  expiresAt: string;
+  isUsed: boolean;
+  usedBy?: string;
+  usedAt?: string;
 }
 
 // Team API functions
@@ -181,6 +205,56 @@ export const teamApi = {
       params: { page, limit, status },
     });
     return response.data;
+  },
+
+  // Invitation code operations
+  generateInvitationCode: async (teamId: string, role: "lead" | "member") => {
+    try {
+      const response = await apiClient.post(
+        TEAM_API.GENERATE_INVITATION_CODE(teamId),
+        { role }
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error("Error generating invitation code:", error);
+      throw error;
+    }
+  },
+
+  listInvitationCodes: async (teamId: string) => {
+    try {
+      const response = await apiClient.get(
+        TEAM_API.LIST_INVITATION_CODES(teamId)
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error("Error listing invitation codes:", error);
+      throw error;
+    }
+  },
+
+  revokeInvitationCode: async (teamId: string, codeId: string) => {
+    try {
+      const response = await apiClient.delete(
+        TEAM_API.REVOKE_INVITATION_CODE(teamId, codeId)
+      );
+      return response.data.success;
+    } catch (error) {
+      console.error("Error revoking invitation code:", error);
+      throw error;
+    }
+  },
+
+  validateInvitationCode: async (code: string) => {
+    try {
+      const response = await apiClient.get(
+        TEAM_API.VALIDATE_INVITATION_CODE(code)
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error("Error validating invitation code:", error);
+      throw error;
+    }
   },
 };
 

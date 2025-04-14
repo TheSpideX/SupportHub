@@ -7,6 +7,7 @@ const express = require("express");
 const router = express.Router();
 const teamController = require("../controllers/team.controller");
 const invitationController = require("../controllers/invitation.controller");
+const invitationCodeController = require("../controllers/invitation-code.controller");
 const { authenticateToken } = require("../../auth/middleware/authenticate");
 const { validateToken: csrfProtection } = require("../../auth/middleware/csrf");
 const { apiRateLimit } = require("../../auth/middleware/rate-limit");
@@ -14,6 +15,7 @@ const { asyncHandler } = require("../../../utils/errorHandlers");
 const validate = require("../../../middleware/validate");
 const teamValidation = require("../validations/team.validation");
 const invitationValidation = require("../validations/invitation.validation");
+const invitationCodeValidation = require("../validations/invitation-code.validation");
 
 // Apply middleware to all routes
 router.use(authenticateToken);
@@ -78,6 +80,34 @@ router.post(
 router.get(
   "/:teamId/invitations",
   asyncHandler(invitationController.getTeamInvitations)
+);
+
+// Invitation code operations
+router.post(
+  "/:teamId/invitation-codes",
+  csrfProtection,
+  validate(invitationCodeValidation.generateInvitationCode),
+  asyncHandler(invitationCodeController.generateInvitationCode)
+);
+
+router.get(
+  "/:teamId/invitation-codes",
+  validate(invitationCodeValidation.listInvitationCodes),
+  asyncHandler(invitationCodeController.listInvitationCodes)
+);
+
+router.delete(
+  "/:teamId/invitation-codes/:codeId",
+  csrfProtection,
+  validate(invitationCodeValidation.revokeInvitationCode),
+  asyncHandler(invitationCodeController.revokeInvitationCode)
+);
+
+// Public route for validating invitation codes (no auth required)
+router.get(
+  "/invitation-codes/:code/validate",
+  validate(invitationCodeValidation.validateInvitationCode),
+  asyncHandler(invitationCodeController.validateInvitationCode)
 );
 
 module.exports = router;

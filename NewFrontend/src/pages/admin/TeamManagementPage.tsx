@@ -17,9 +17,10 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useTeamManagement } from "@/features/team/hooks/useTeamManagement";
 // Will be used when API integration is complete
 // import { Team as TeamType } from "@/api/teamApi";
-import CreateTeamModal from "@/features/team/components/CreateTeamModal";
-import EditTeamModal from "@/features/team/components/EditTeamModal";
+import SimpleCreateTeamModal from "@/features/team/components/SimpleCreateTeamModal";
+import SimpleEditTeamModal from "@/features/team/components/SimpleEditTeamModal";
 import DeleteTeamModal from "@/features/team/components/DeleteTeamModal";
+import TestModal from "@/components/ui/modal/TestModal";
 import TeamMembersModal from "@/features/team/components/TeamMembersModal";
 import AddTeamMemberModal from "@/features/team/components/AddTeamMemberModal";
 import TopNavbar from "@/components/dashboard/TopNavbar";
@@ -52,6 +53,7 @@ interface UITeam {
   id: string;
   name: string;
   description: string;
+  teamType: "technical" | "support";
   members: UITeamMember[];
   leadId: string;
   ticketsAssigned: number;
@@ -87,6 +89,7 @@ const convertApiTeamToUITeam = (apiTeam: any): UITeam => {
     id: getId(apiTeam),
     name: apiTeam.name || "Unnamed Team",
     description: apiTeam.description || "No description available",
+    teamType: apiTeam.teamType || "support",
     members: (apiTeam.members || []).map((member: any) => ({
       id: member.userId
         ? getId({ _id: member.userId })
@@ -110,6 +113,7 @@ const convertApiTeamToUITeam = (apiTeam: any): UITeam => {
 
 const TeamManagementPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [teamTypeFilter, setTeamTypeFilter] = useState("all");
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   // Get team management functions and state
   const {
@@ -261,6 +265,7 @@ const TeamManagementPage: React.FC = () => {
     id: "sample-id", // Use a clearly fake ID to avoid confusion with real IDs
     name: "Technical Support",
     description: "Handles technical issues and product-related queries",
+    teamType: "technical",
     members: [
       {
         id: "sample-member-1",
@@ -297,12 +302,19 @@ const TeamManagementPage: React.FC = () => {
     setIsPageLoading(isTeamsLoading);
   }, [isTeamsLoading]);
 
-  // Filter teams based on search query
-  const filteredTeams = teamsToDisplay.filter(
-    (team) =>
+  // Filter teams based on search query and team type
+  const filteredTeams = teamsToDisplay.filter((team) => {
+    // Filter by search query
+    const matchesSearch =
       team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      team.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      team.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Filter by team type
+    const matchesType =
+      teamTypeFilter === "all" || team.teamType === teamTypeFilter;
+
+    return matchesSearch && matchesType;
+  });
 
   // Handle team selection
   const toggleTeamSelection = (teamId: string) => {
@@ -328,6 +340,7 @@ const TeamManagementPage: React.FC = () => {
   const [deleteTeamModalOpen, setDeleteTeamModalOpen] = useState(false);
   const [viewMembersModalOpen, setViewMembersModalOpen] = useState(false);
   const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
+  const [testModalOpen, setTestModalOpen] = useState(false);
 
   // Selected team for modals
   const [selectedTeamId, setSelectedTeamId] = useState("");
@@ -431,13 +444,21 @@ const TeamManagementPage: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                <Button
-                  className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white shadow-md"
-                  onClick={handleCreateTeamClick}
-                >
-                  <FaPlus className="mr-2 h-4 w-4" />
-                  Create Team
-                </Button>
+                <div className="flex space-x-2">
+                  <Button
+                    className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white shadow-md"
+                    onClick={handleCreateTeamClick}
+                  >
+                    <FaPlus className="mr-2 h-4 w-4" />
+                    Create Team
+                  </Button>
+                  <Button
+                    className="bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white shadow-md"
+                    onClick={() => setTestModalOpen(true)}
+                  >
+                    Test Modal
+                  </Button>
+                </div>
               </div>
             </motion.div>
             {/* Tabs section */}
@@ -486,6 +507,17 @@ const TeamManagementPage: React.FC = () => {
                             className="w-full py-2 px-10 rounded-lg bg-gray-900/50 border border-gray-700 focus:border-blue-500 text-white"
                           />
                         </div>
+
+                        {/* Team Type Filter */}
+                        <select
+                          value={teamTypeFilter}
+                          onChange={(e) => setTeamTypeFilter(e.target.value)}
+                          className="py-2 px-3 rounded-lg bg-gray-900/50 border border-gray-700 focus:border-blue-500 text-white"
+                        >
+                          <option value="all">All Types</option>
+                          <option value="technical">Technical Teams</option>
+                          <option value="support">Support Teams</option>
+                        </select>
                         <Button
                           variant="outline"
                           size="icon"
@@ -607,8 +639,21 @@ const TeamManagementPage: React.FC = () => {
                                       />
                                     </td>
                                     <td className="px-4 py-3">
-                                      <div className="font-medium text-white">
-                                        {team.name}
+                                      <div className="flex items-center gap-2">
+                                        <div className="font-medium text-white">
+                                          {team.name}
+                                        </div>
+                                        <span
+                                          className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                            team.teamType === "technical"
+                                              ? "bg-purple-900/60 text-purple-200 border border-purple-700/50"
+                                              : "bg-blue-900/60 text-blue-200 border border-blue-700/50"
+                                          }`}
+                                        >
+                                          {team.teamType === "technical"
+                                            ? "Technical"
+                                            : "Support"}
+                                        </span>
                                       </div>
                                       <div className="text-xs text-gray-400 max-w-xs truncate">
                                         {team.description}
@@ -829,13 +874,13 @@ const TeamManagementPage: React.FC = () => {
       <Footer />
 
       {/* Team Management Modals */}
-      <CreateTeamModal
+      <SimpleCreateTeamModal
         isOpen={createTeamModalOpen}
         onClose={() => setCreateTeamModalOpen(false)}
         onSuccess={handleTeamOperationSuccess}
       />
 
-      <EditTeamModal
+      <SimpleEditTeamModal
         isOpen={editTeamModalOpen}
         onClose={() => setEditTeamModalOpen(false)}
         teamId={selectedTeamId}
@@ -862,7 +907,10 @@ const TeamManagementPage: React.FC = () => {
         teamId={selectedTeamId}
         onAddMember={() => {
           setViewMembersModalOpen(false);
-          setAddMemberModalOpen(true);
+          // Use a small delay to ensure the first modal is fully closed
+          setTimeout(() => {
+            setAddMemberModalOpen(true);
+          }, 50);
         }}
       />
 
@@ -873,13 +921,24 @@ const TeamManagementPage: React.FC = () => {
         teamName={selectedTeamName}
         onSuccess={() => {
           // If we were viewing members before, go back to that view
+          setAddMemberModalOpen(false);
+
           if (viewMembersModalOpen) {
-            setAddMemberModalOpen(false);
-            setViewMembersModalOpen(true);
+            // Use a small delay to ensure the first modal is fully closed
+            setTimeout(() => {
+              setViewMembersModalOpen(true);
+            }, 50);
           } else {
+            // Just refresh the data
             handleTeamOperationSuccess();
           }
         }}
+      />
+
+      {/* Test Modal */}
+      <TestModal
+        isOpen={testModalOpen}
+        onClose={() => setTestModalOpen(false)}
       />
     </div>
   );

@@ -26,10 +26,15 @@ interface TeamContextType {
   createTeam: (teamData: {
     name: string;
     description?: string;
+    teamType?: "technical" | "support";
   }) => Promise<Team | null>;
   updateTeam: (
     id: string,
-    teamData: { name?: string; description?: string }
+    teamData: {
+      name?: string;
+      description?: string;
+      teamType?: "technical" | "support";
+    }
   ) => Promise<Team | null>;
   deleteTeam: (id: string) => Promise<boolean>;
 
@@ -256,6 +261,7 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
   const createTeam = async (teamData: {
     name: string;
     description?: string;
+    teamType?: "technical" | "support";
   }) => {
     try {
       setIsLoading(true);
@@ -279,7 +285,11 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
   // Update team
   const updateTeam = async (
     id: string,
-    teamData: { name?: string; description?: string }
+    teamData: {
+      name?: string;
+      description?: string;
+      teamType?: "technical" | "support";
+    }
   ) => {
     try {
       setIsLoading(true);

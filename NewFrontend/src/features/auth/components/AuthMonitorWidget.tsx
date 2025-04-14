@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useModalState } from "@/context/ModalStateContext";
 import { useAuth } from "../hooks/useAuth";
 import { useTokenService } from "../hooks/useTokenService";
 import { usePrimusAuthService } from "../hooks/usePrimusAuthService";
@@ -13,6 +14,7 @@ const AuthMonitorWidget: React.FC = () => {
   const { auth } = useAuth();
   const tokenService = useTokenService();
   const primusService = usePrimusAuthService();
+  const { isAnyModalOpen } = useModalState();
   const [healthStatus, setHealthStatus] = useState<any>(null);
   const [monitorStatus, setMonitorStatus] = useState<AuthMonitorStatus>(
     AuthMonitorStatus.INITIALIZING
@@ -159,12 +161,53 @@ const AuthMonitorWidget: React.FC = () => {
             // Compare as strings
             const isLeader = storedTabId === currentTabId;
 
-            // Only update if changed
-            if (isLeader !== isLeaderTab) {
+            // Only update if changed and no modal is open
+            console.log("Checking leader status change:", {
+              isLeader,
+              isLeaderTab,
+              isAnyModalOpen,
+            });
+
+            // Force refresh the modal state from context
+            const modalStateElement =
+              document.getElementById("modal-state-debug");
+            const currentModalState = modalStateElement
+              ? modalStateElement.getAttribute("data-is-open") === "true"
+              : false;
+
+            // Also check for any visible modal elements as a fallback
+            const visibleModals = document.querySelectorAll(
+              '.modal-overlay:not([style*="display: none"])'
+            );
+            const hasVisibleModals = visibleModals.length > 0;
+
+            console.log("Modal state check:", {
+              contextValue: isAnyModalOpen,
+              domValue: currentModalState,
+              visibleModals: hasVisibleModals,
+              modalCount: visibleModals.length,
+            });
+
+            // Use the most accurate modal state - any indication of an open modal should prevent leader changes
+            const modalIsOpen =
+              isAnyModalOpen || currentModalState || hasVisibleModals;
+
+            console.log("Final modal state check:", {
+              contextValue: isAnyModalOpen,
+              domValue: currentModalState,
+              visibleModals: hasVisibleModals,
+              finalDecision: modalIsOpen,
+            });
+
+            if (isLeader !== isLeaderTab && !modalIsOpen) {
               console.log(
                 `Leader status changed: ${isLeaderTab} -> ${isLeader}`
               );
               setIsLeaderTab(isLeader);
+            } else if (isLeader !== isLeaderTab && modalIsOpen) {
+              console.log(
+                `Leader status change prevented due to open modal: ${isLeaderTab} -> ${isLeader}`
+              );
             }
 
             // Check if leader data is stale (older than 30 seconds)

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modal Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #1a1a1a;
+      color: white;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    button {
+      background-color: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .modal {
+      background-color: #2d3748;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 100%;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .modal-title {
+      margin: 0;
+      font-size: 20px;
+    }
+    
+    .close-button {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #a0aec0;
+      padding: 0;
+    }
+    
+    .modal-body {
+      margin-bottom: 20px;
+    }
+    
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+    }
+    
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      background-color: #4a5568;
+      border: 1px solid #2d3748;
+      border-radius: 4px;
+      color: white;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Modal Test</h1>
+    <p>This is a simple test to see if vanilla HTML/CSS/JS modals work correctly.</p>
+    
+    <button id="openModalBtn">Open Modal</button>
+  </div>
+  
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Test Modal</h2>
+        <button class="close-button" id="closeModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>This is a test modal to see if interaction works correctly.</p>
+        <input type="text" placeholder="Type something here...">
+        <textarea placeholder="Type more text here..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="cancelBtn">Cancel</button>
+        <button id="submitBtn" style="margin-left: 10px; background-color: #48bb78;">Submit</button>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Get elements
+    const openModalBtn = document.getElementById('openModalBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const modalOverlay = document.getElementById('modalOverlay');
+    
+    // Open modal
+    openModalBtn.addEventListener('click', () => {
+      modalOverlay.classList.remove('hidden');
+      console.log('Modal opened');
+    });
+    
+    // Close modal
+    const closeModal = () => {
+      modalOverlay.classList.add('hidden');
+      console.log('Modal closed');
+    };
+    
+    closeModalBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    submitBtn.addEventListener('click', () => {
+      alert('Form submitted!');
+      closeModal();
+    });
+    
+    // Close modal when clicking outside
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        closeModal();
+      }
+    });
+    
+    // Close modal when pressing Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modalOverlay.classList.contains('hidden')) {
+        closeModal();
+      }
+    });
+    
+    console.log('Modal test page loaded');
+  </script>
+</body>
+</html>
