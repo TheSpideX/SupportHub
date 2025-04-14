@@ -114,8 +114,16 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
 
       toast.success("Invitation sent successfully!");
       setFormData({ email: "", role: "member" });
-      onSuccess?.();
-      onClose();
+
+      // Call success callback first to trigger data refresh
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      // Close modal after a small delay to ensure refresh has started
+      setTimeout(() => {
+        onClose();
+      }, 50);
     } catch (error: any) {
       toast.error(error.message || "Failed to send invitation");
     }
@@ -131,18 +139,17 @@ const AddTeamMemberModal: React.FC<AddTeamMemberModalProps> = ({
   };
 
   return (
-    <SafeModal isOpen={isOpen} onClose={handleClose} className="max-w-md">
-      <DialogHeader>
-        <DialogTitle className="text-xl font-semibold">
-          Add Team Member
-        </DialogTitle>
-        <DialogDescription className="text-gray-400">
-          {teamName
-            ? `Invite a new member to join ${teamName}`
-            : "Invite a new member to join the team"}
-        </DialogDescription>
-      </DialogHeader>
-
+    <SafeModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      className="max-w-md"
+      title="Add Team Member"
+      description={
+        teamName
+          ? `Invite a new member to join ${teamName}`
+          : "Invite a new member to join the team"
+      }
+    >
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
         <div className="space-y-2">
           <label

@@ -97,13 +97,15 @@ const SimpleCreateTeamModal: React.FC<CreateTeamModalProps> = ({
         teamType: "support",
       });
 
-      // Close modal
-      onClose();
-
-      // Call success callback
+      // Call success callback first to trigger data refresh
       if (onSuccess) {
         onSuccess();
       }
+
+      // Close modal after a small delay to ensure refresh has started
+      setTimeout(() => {
+        onClose();
+      }, 50);
     } catch (error: any) {
       toast.error(error.message || "Failed to create team");
     } finally {

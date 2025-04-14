@@ -1,17 +1,13 @@
-import React, { ReactNode } from 'react';
-import { TeamProvider } from './TeamContext';
-import { CacheProvider } from './CacheContext';
+import React, { ReactNode } from "react";
+import { TeamProvider } from "./TeamContext";
 
 interface TeamProviderWithCacheProps {
   children: ReactNode;
 }
 
-export const TeamProviderWithCache: React.FC<TeamProviderWithCacheProps> = ({ children }) => {
-  return (
-    <CacheProvider>
-      <TeamProvider>
-        {children}
-      </TeamProvider>
-    </CacheProvider>
-  );
+// This component no longer uses cache, but kept for backward compatibility
+export const TeamProviderWithCache: React.FC<TeamProviderWithCacheProps> = ({
+  children,
+}) => {
+  return <TeamProvider>{children}</TeamProvider>;
 };

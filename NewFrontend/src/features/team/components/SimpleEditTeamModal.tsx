@@ -28,18 +28,16 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    teamType: "support" as "support" | "technical",
   });
 
   const [errors, setErrors] = useState({
     name: "",
     description: "",
-    teamType: "",
   });
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const { updateTeam, fetchTeamById } = useTeamManagement();
+  const { handleUpdateTeam } = useTeamManagement();
 
   // Load team data when modal opens
   useEffect(() => {
@@ -48,27 +46,11 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
       setFormData({
         name: initialData.name || "",
         description: initialData.description || "",
-        teamType: "support", // Default value, will be updated when we fetch the team
       });
 
-      // Fetch full team data to get the team type
-      const fetchTeam = async () => {
-        try {
-          const team = await fetchTeamById(teamId);
-          if (team) {
-            setFormData((prev) => ({
-              ...prev,
-              teamType: team.teamType || "support",
-            }));
-          }
-        } catch (error) {
-          console.error("Failed to fetch team details", error);
-        }
-      };
-
-      fetchTeam();
+      // No need to fetch team data just for the team type since we're not allowing it to be changed
     }
-  }, [isOpen, teamId, initialData, fetchTeamById]);
+  }, [isOpen, teamId, initialData]);
 
   // Handle form input changes
   const handleChange = (
@@ -90,7 +72,6 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
     const newErrors = {
       name: "",
       description: "",
-      teamType: "",
     };
 
     if (!formData.name.trim()) {
@@ -99,10 +80,6 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
 
     if (!formData.description.trim()) {
       newErrors.description = "Description is required";
-    }
-
-    if (!formData.teamType) {
-      newErrors.teamType = "Team type is required";
     }
 
     setErrors(newErrors);
@@ -118,21 +95,22 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
     setIsLoading(true);
 
     try {
-      await updateTeam(teamId, {
+      await handleUpdateTeam(teamId, {
         name: formData.name,
         description: formData.description,
-        teamType: formData.teamType,
       });
 
       toast.success("Team updated successfully");
 
-      // Close modal
-      onClose();
-
-      // Call success callback
+      // Call success callback first to trigger data refresh
       if (onSuccess) {
         onSuccess();
       }
+
+      // Close modal after a small delay to ensure refresh has started
+      setTimeout(() => {
+        onClose();
+      }, 50);
     } catch (error: any) {
       toast.error(error.message || "Failed to update team");
     } finally {
@@ -146,12 +124,10 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
     setFormData({
       name: "",
       description: "",
-      teamType: "support",
     });
     setErrors({
       name: "",
       description: "",
-      teamType: "",
     });
 
     // Call onClose
@@ -217,53 +193,7 @@ const SimpleEditTeamModal: React.FC<EditTeamModalProps> = ({
           )}
         </div>
 
-        {/* Team Type */}
-        <div className="space-y-2">
-          <label
-            htmlFor="teamType"
-            className="block text-sm font-medium text-gray-200"
-          >
-            Team Type
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Technical Team */}
-            <div
-              className={`cursor-pointer rounded-lg border p-4 ${
-                formData.teamType === "technical"
-                  ? "bg-purple-900/30 border-purple-500"
-                  : "bg-gray-800/50 border-gray-700 hover:bg-gray-800"
-              }`}
-              onClick={() =>
-                setFormData((prev) => ({ ...prev, teamType: "technical" }))
-              }
-            >
-              <div className="font-medium text-white mb-1">Technical Team</div>
-              <div className="text-sm text-gray-400">
-                Handles technical issues and bug fixes
-              </div>
-            </div>
-
-            {/* Support Team */}
-            <div
-              className={`cursor-pointer rounded-lg border p-4 ${
-                formData.teamType === "support"
-                  ? "bg-blue-900/30 border-blue-500"
-                  : "bg-gray-800/50 border-gray-700 hover:bg-gray-800"
-              }`}
-              onClick={() =>
-                setFormData((prev) => ({ ...prev, teamType: "support" }))
-              }
-            >
-              <div className="font-medium text-white mb-1">Support Team</div>
-              <div className="text-sm text-gray-400">
-                Handles customer queries and support
-              </div>
-            </div>
-          </div>
-          {errors.teamType && (
-            <p className="text-sm text-red-500">{errors.teamType}</p>
-          )}
-        </div>
+        {/* Team Type is not editable */}
 
         {/* Form Actions */}
         <DialogFooter className="pt-4">

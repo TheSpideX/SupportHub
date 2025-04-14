@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import {
   FaChartBar,
   FaUsers,
-  FaTicketAlt,
   FaCheckCircle,
   FaClock,
   FaExclamationTriangle,
@@ -39,7 +38,9 @@ interface TeamAnalyticsProps {
   teamId: string;
 }
 
-const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
+import ErrorBoundary from "@/components/common/ErrorBoundary";
+
+const TeamAnalyticsContent: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
   const [performanceData, setPerformanceData] =
     useState<TeamPerformanceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,18 +70,29 @@ const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
             ticketsAssigned: analyticsData.overview.totalTickets,
             averageResolutionTime: analyticsData.overview.averageResolutionTime,
             memberPerformance: analyticsData.memberPerformance.map(
-              (member) => ({
+              (member: {
+                userId: string;
+                name: string;
+                ticketsResolved: number;
+                averageResolutionTime: number;
+              }) => ({
                 userId: member.userId,
                 name: member.name,
                 ticketsResolved: member.ticketsResolved,
                 averageResolutionTime: member.averageResolutionTime,
               })
             ),
-            weeklyActivity: analyticsData.weeklyActivity.map((week) => ({
-              week: week.week,
-              ticketsOpened: week.ticketsOpened,
-              ticketsClosed: week.ticketsClosed,
-            })),
+            weeklyActivity: analyticsData.weeklyActivity.map(
+              (week: {
+                week: string;
+                ticketsOpened: number;
+                ticketsClosed: number;
+              }) => ({
+                week: week.week,
+                ticketsOpened: week.ticketsOpened,
+                ticketsClosed: week.ticketsClosed,
+              })
+            ),
             priorityDistribution: [
               {
                 priority: "Low",
@@ -303,13 +315,13 @@ const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
           </div>
           <div className="mt-4">
             <div className="flex -space-x-2">
-              {team.members.slice(0, 5).map((member, index) => (
+              {team.members.slice(0, 5).map((_, index) => (
                 <div
                   key={index}
                   className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold border-2 border-gray-800"
-                  title={member.name}
+                  title="Team Member"
                 >
-                  {member.name.charAt(0)}
+                  {"U"}
                 </div>
               ))}
               {team.members.length > 5 && (
@@ -413,7 +425,7 @@ const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
                             style={{
                               width: `${Math.min(
                                 100,
-                                (member.ticketsResolved / 30) * 100
+                                ((member.ticketsResolved || 0) / 30) * 100
                               )}%`,
                             }}
                           />
@@ -452,7 +464,7 @@ const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
             );
             const percentage = (item.count / total) * 100;
 
-            let color;
+            let color: string;
             switch (item.priority) {
               case "Low":
                 color = "bg-green-500/70";
@@ -484,7 +496,7 @@ const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
         </div>
         <div className="flex justify-between mt-4">
           {performanceData.priorityDistribution.map((item, index) => {
-            let color;
+            let color: string;
             switch (item.priority) {
               case "Low":
                 color = "text-green-500";
@@ -540,6 +552,14 @@ const TeamAnalytics: React.FC<TeamAnalyticsProps> = ({ teamId }) => {
         </button>
       </div>
     </div>
+  );
+};
+
+const TeamAnalytics: React.FC<TeamAnalyticsProps> = (props) => {
+  return (
+    <ErrorBoundary>
+      <TeamAnalyticsContent {...props} />
+    </ErrorBoundary>
   );
 };
 

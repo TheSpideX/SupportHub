@@ -116,8 +116,13 @@ const BulkMemberAssignmentModal: React.FC<BulkMemberAssignmentModalProps> = ({
           `Added ${selectedUsers.length} users to ${successful} teams`
         );
       }
+      // Call success callback first to trigger data refresh
       onSuccess();
-      onClose();
+
+      // Close modal after a small delay to ensure refresh has started
+      setTimeout(() => {
+        onClose();
+      }, 50);
     } catch (error) {
       console.error("Failed to assign members:", error);
       toast.error("Failed to assign members to teams");

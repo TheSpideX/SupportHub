@@ -66,7 +66,14 @@ export const useTeamManagement = () => {
 
   // Handle team update
   const handleUpdateTeam = useCallback(
-    async (id: string, teamData: { name?: string; description?: string }) => {
+    async (
+      id: string,
+      teamData: {
+        name?: string;
+        description?: string;
+        teamType?: "technical" | "support";
+      }
+    ) => {
       try {
         const updatedTeam = await updateTeam(id, teamData);
 

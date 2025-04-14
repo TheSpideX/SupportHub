@@ -127,7 +127,11 @@ export const teamApi = {
   },
 
   // Create team
-  createTeam: async (teamData: { name: string; description?: string }) => {
+  createTeam: async (teamData: {
+    name: string;
+    description?: string;
+    teamType?: "technical" | "support";
+  }) => {
     const response = await apiClient.post(TEAM_API.CREATE, teamData);
     return response.data;
   },
@@ -135,7 +139,11 @@ export const teamApi = {
   // Update team
   updateTeam: async (
     id: string,
-    teamData: { name?: string; description?: string }
+    teamData: {
+      name?: string;
+      description?: string;
+      teamType?: "technical" | "support";
+    }
   ) => {
     const response = await apiClient.put(TEAM_API.UPDATE(id), teamData);
     return response.data;

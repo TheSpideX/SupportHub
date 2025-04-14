@@ -35,14 +35,16 @@ const DeleteTeamModal: React.FC<DeleteTeamModalProps> = ({
       if (success) {
         toast.success("Team deleted successfully");
 
-        // Call onSuccess callback to refresh team lists
+        // Call onSuccess callback first to trigger data refresh
         if (onSuccess) {
           console.log("Calling onSuccess after team deletion");
           onSuccess();
         }
 
-        // Close the modal
-        onClose();
+        // Close the modal after a small delay to ensure refresh has started
+        setTimeout(() => {
+          onClose();
+        }, 50);
       } else {
         toast.error("Failed to delete team");
       }

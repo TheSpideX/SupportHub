@@ -8,8 +8,13 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useCache } from "./CacheContext";
-import { teamApi, invitationApi, Team, Invitation } from "@/api/teamApi";
+// Cache has been removed to ensure fresh data
+import {
+  extendedTeamApi as teamApi,
+  invitationApi,
+  Team,
+  Invitation,
+} from "@/api/teamApi";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { toast } from "react-hot-toast";
 
@@ -165,10 +170,7 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
     []
   );
 
-  // Get cache functions
-  const { getCache, setCache, invalidateCache } = useCache();
-
-  // Fetch teams with caching
+  // Fetch teams directly from API (no caching)
   const fetchTeams = async (
     filters = {
       page: 1,
@@ -181,44 +183,48 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
       sortBy: "name",
       sortOrder: "asc" as "asc" | "desc",
     },
-    forceRefresh = false
+    _forceRefresh = false // Parameter kept for backward compatibility
   ) => {
     // Check if we're rate limited for this endpoint
     if (isRateLimitedRef.current.teams) {
       return [];
     }
 
-    // Generate cache key based on filters
-    const filterKey = JSON.stringify(filters);
-    const cacheKey = `teams_${filterKey}`;
-
-    // Try to get data from cache if not forcing refresh
-    if (!forceRefresh) {
-      const cachedData = getCache<Team[]>(cacheKey);
-      if (cachedData) {
-        console.log("Using cached teams data");
-        setTeams(cachedData);
-        return cachedData;
-      }
-    } else {
-      // If forcing refresh, invalidate the cache
-      invalidateCache(cacheKey);
-    }
+    console.log("Fetching teams directly from API with filters:", filters);
 
     try {
       setIsLoading(true);
       setError(null);
 
       // Use the new filtered API endpoint
-      const response = await teamApi.getTeamsWithFilters(filters);
-      console.log("API response for teams:", response.teams);
+      console.log(
+        "Fetching teams from API with filters:",
+        filters,
+        "forceRefresh:",
+        forceRefresh
+      );
+
+      // For now, since the backend endpoint might not be fully implemented,
+      // we'll use the existing getAllTeams method as a fallback
+      let response;
+      try {
+        response = await teamApi.getTeamsWithFilters(filters);
+        console.log("API response for teams with filters:", response);
+      } catch (error) {
+        console.warn(
+          "Error using getTeamsWithFilters, falling back to getAllTeams:",
+          error
+        );
+        // Fallback to the old method
+        response = await teamApi.getAllTeams(filters.page, filters.limit);
+        console.log("Fallback API response for teams:", response);
+      }
 
       // Completely replace the teams state with the API response
-      const teamsData = response.teams || [];
+      // Handle both response formats (teams property or direct array)
+      const teamsData = response.teams || response.data || [];
+      console.log("Teams data to set:", teamsData);
       setTeams(teamsData);
-
-      // Cache the data for 5 minutes (300 seconds)
-      setCache(cacheKey, teamsData, 300);
 
       return teamsData;
     } catch (err: any) {
@@ -237,42 +243,27 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Fetch my teams with caching
-  const fetchMyTeams = async (forceRefresh = false) => {
+  // Fetch my teams directly from API (no caching)
+  const fetchMyTeams = async (_forceRefresh = false) => {
+    // Parameter kept for backward compatibility
     // Check if we're rate limited for this endpoint
     if (isRateLimitedRef.current.myTeams) {
       return [];
     }
 
-    // Generate cache key
-    const cacheKey = `my_teams`;
-
-    // Try to get data from cache if not forcing refresh
-    if (!forceRefresh) {
-      const cachedData = getCache<Team[]>(cacheKey);
-      if (cachedData) {
-        console.log("Using cached my teams data");
-        setMyTeams(cachedData);
-        return cachedData;
-      }
-    } else {
-      // If forcing refresh, invalidate the cache
-      invalidateCache(cacheKey);
-    }
+    console.log("Fetching my teams directly from API");
 
     try {
       setIsLoading(true);
       setError(null);
 
+      console.log("Fetching my teams from API");
       const response = await teamApi.getMyTeams();
-      console.log("API response for my teams:", response.data);
+      console.log("API response for my teams:", response);
 
       // Completely replace the myTeams state with the API response
       const myTeamsData = response.data || [];
       setMyTeams(myTeamsData);
-
-      // Cache the data for 5 minutes (300 seconds)
-      setCache(cacheKey, myTeamsData, 300);
 
       return myTeamsData;
     } catch (err: any) {
@@ -301,28 +292,15 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
         return null;
       }
 
-      // Generate cache key
-      const cacheKey = `team_${id}`;
-
-      // Try to get data from cache if not forcing refresh
-      if (!forceRefresh) {
-        const cachedData = getCache<Team>(cacheKey);
-        if (cachedData) {
-          console.log(`Using cached data for team ${id}`);
-          return cachedData;
-        }
-      } else {
-        // If forcing refresh, invalidate the cache
-        invalidateCache(cacheKey);
-      }
+      // No cache - always fetch from API
+      console.log(`Fetching team ${id} from API`);
 
       setIsLoading(true);
       setError(null);
 
       const response = await teamApi.getTeamById(id);
 
-      // Cache the data for 5 minutes (300 seconds)
-      setCache(cacheKey, response.data, 300);
+      // No cache - data is only stored in state
 
       return response.data;
     } catch (err: any) {
@@ -783,67 +761,79 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   // Create debounced versions of fetch functions with longer delays and no immediate execution
+  // Use longer debounce times to reduce API calls
   const debouncedFetchTeams = useCallback(
-    debounce((page = 1, limit = 10) => fetchTeams(page, limit), 2000),
+    debounce((page = 1, limit = 10) => fetchTeams(page, limit), 5000), // 5 seconds
     [fetchTeams]
   );
 
   const debouncedFetchMyTeams = useCallback(
-    debounce(() => fetchMyTeams(), 2500),
+    debounce(() => fetchMyTeams(), 6000), // 6 seconds
     [fetchMyTeams]
   );
 
   const debouncedFetchMyInvitations = useCallback(
-    debounce(() => fetchMyInvitations(), 3000),
+    debounce(() => fetchMyInvitations(), 7000), // 7 seconds
     [fetchMyInvitations]
   );
 
   // Create throttled versions for initial load (with immediate execution)
+  // Use longer throttle times to reduce API calls
   const throttledFetchTeams = useCallback(
-    debounce((page = 1, limit = 10) => fetchTeams(page, limit), 5000, {
-      immediate: true,
-    }),
+    debounce(
+      () =>
+        fetchTeams({
+          page: 1,
+          limit: 10,
+          search: "",
+          teamTypes: [],
+          onlyMyTeams: false,
+          fromDate: "",
+          toDate: "",
+          sortBy: "name",
+          sortOrder: "asc",
+        }),
+      10000, // 10 seconds
+      {
+        immediate: true,
+      }
+    ),
     [fetchTeams]
   );
 
   const throttledFetchMyTeams = useCallback(
-    debounce(() => fetchMyTeams(), 5000, { immediate: true }),
+    debounce(() => fetchMyTeams(), 12000, { immediate: true }), // 12 seconds
     [fetchMyTeams]
   );
 
   const throttledFetchMyInvitations = useCallback(
-    debounce(() => fetchMyInvitations(), 5000, { immediate: true }),
+    debounce(() => fetchMyInvitations(), 15000, { immediate: true }), // 15 seconds
     [fetchMyInvitations]
   );
 
   // Track if this is the first render
   const isFirstRender = useRef(true);
 
-  // Load user's teams on mount
+  // Load user's teams ONLY on first mount
+  // Data will only be refreshed in these scenarios:
+  // 1. On initial page load (here)
+  // 2. When user clicks the refresh button
+  // 3. After team operations (create, edit, delete, etc.)
   useEffect(() => {
     if (!user) return;
 
-    // Use throttled versions for the first load to ensure immediate execution but with rate limiting
+    // Only fetch on first render
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      // Stagger the API calls to avoid bursts
-      throttledFetchMyTeams();
-      // Delay the invitations fetch to avoid concurrent requests
+      console.log("TeamContext: First render - fetching teams data");
+
+      // We don't need to fetch teams here since the TeamManagementPage
+      // will handle that. We only need to fetch invitations.
       setTimeout(() => {
         if (user) throttledFetchMyInvitations();
-      }, 1000);
-    } else {
-      // For subsequent renders, use the regular debounced versions
-      debouncedFetchMyTeams();
-      debouncedFetchMyInvitations();
+      }, 3000); // Delay to avoid concurrent requests
     }
-  }, [
-    user,
-    debouncedFetchMyTeams,
-    debouncedFetchMyInvitations,
-    throttledFetchMyTeams,
-    throttledFetchMyInvitations,
-  ]);
+  }, [user, throttledFetchMyInvitations]);
 
   const value = {
     // Teams
