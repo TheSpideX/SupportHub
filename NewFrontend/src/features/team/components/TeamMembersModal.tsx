@@ -215,101 +215,271 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
   };
 
   return (
-    <SafeModal isOpen={isOpen} onClose={handleClose} className="max-w-3xl">
-      <DialogHeader>
-        <DialogTitle className="text-xl font-semibold">
-          {team ? `${team.name} - Team Members` : "Team Members"}
-        </DialogTitle>
-        <DialogDescription className="text-gray-400">
-          Manage team members and their roles
-        </DialogDescription>
-      </DialogHeader>
-
+    <SafeModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      className="max-w-4xl"
+      title={
+        <div className="flex items-center space-x-2">
+          <span className="text-xl font-semibold">
+            {team ? `${team.name}` : "Team"}
+          </span>
+          <span className="bg-gray-700 text-gray-300 text-xs px-2 py-1 rounded-full">
+            {team?.members?.length || 0} Members
+          </span>
+        </div>
+      }
+      description={
+        team
+          ? `Manage members and invitation codes for ${team.name}`
+          : "Manage team members and invitation codes"
+      }
+    >
       {isLoadingTeam ? (
-        <div className="py-8 flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <p className="text-gray-400 text-sm">Loading team information...</p>
+        </div>
+      ) : !team ? (
+        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+          <div className="bg-gray-800 rounded-full p-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-10 w-10 text-gray-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <p className="text-gray-400">Team information could not be loaded</p>
+          <Button
+            onClick={loadTeamData}
+            className="mt-2 bg-blue-600 hover:bg-blue-700"
+          >
+            Try Again
+          </Button>
         </div>
       ) : (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h3 className="text-lg font-medium">
-                Members ({team?.members.length || 0})
-              </h3>
-              <div className="text-sm text-gray-400 flex items-center">
-                <span className="mr-2">Team Type:</span>
-                <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    team?.teamType === "technical"
-                      ? "bg-purple-900 text-purple-200"
-                      : "bg-blue-900 text-blue-200"
-                  }`}
-                >
-                  {team?.teamType === "technical"
-                    ? "Technical Team"
-                    : "Support Team"}
-                </span>
+        <div>
+          <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-4 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center">
+                <div className="bg-blue-500/20 rounded-full p-2 mr-3">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-blue-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-white">
+                    Team Members
+                  </h3>
+                  <div className="flex items-center mt-1">
+                    <span className="text-sm text-gray-400 mr-2">
+                      {team?.members.length || 0} members
+                    </span>
+                    <span className="mx-2 text-gray-600">•</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        team?.teamType === "technical"
+                          ? "bg-purple-900/50 text-purple-200"
+                          : "bg-blue-900/50 text-blue-200"
+                      }`}
+                    >
+                      {team?.teamType === "technical"
+                        ? "Technical Team"
+                        : "Support Team"}
+                    </span>
+                  </div>
+                </div>
               </div>
+              <Button
+                onClick={onAddMember}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <FaUserPlus className="mr-2 h-4 w-4" />
+                Add Member
+              </Button>
             </div>
-            <Button
-              onClick={onAddMember}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <FaUserPlus className="mr-2 h-4 w-4" />
-              Add Member
-            </Button>
-          </div>
 
-          <div className="overflow-x-auto" ref={containerRef}>
-            {team && (
-              <VirtualizedMembersList
-                members={displayedMembers}
-                teamLeadId={team.leadId}
-                onRemoveMember={handleRemoveMember}
-                onMakeTeamLead={handlePromoteToLead}
-                actionInProgress={actionInProgress}
-                height={400}
-                maxHeight={500} // Limit the maximum height to prevent modal overflow
-                width={dimensions?.width || "100%"}
-              />
+            <div
+              className="overflow-hidden rounded-lg border border-gray-700"
+              ref={containerRef}
+            >
+              {team && team.members.length === 0 ? (
+                <div className="py-16 flex flex-col items-center justify-center bg-gray-800/30 text-center">
+                  <div className="bg-gray-700/50 rounded-full p-3 mb-3">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-8 w-8 text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-300 mb-1">
+                    No team members yet
+                  </h3>
+                  <p className="text-gray-500 max-w-sm mb-4">
+                    Start building your team by adding members or generating
+                    invitation codes.
+                  </p>
+                  <Button
+                    onClick={onAddMember}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <FaUserPlus className="mr-2 h-4 w-4" />
+                    Add First Member
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-gray-800/30">
+                  <VirtualizedMembersList
+                    members={displayedMembers}
+                    teamLeadId={team.leadId}
+                    onRemoveMember={handleRemoveMember}
+                    onMakeTeamLead={handlePromoteToLead}
+                    actionInProgress={actionInProgress}
+                    height={400}
+                    maxHeight={500} // Limit the maximum height to prevent modal overflow
+                    width={dimensions?.width || "100%"}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Pagination Controls */}
+            {team && team.members.length > membersPerPage && (
+              <div className="flex justify-between items-center mt-4 p-2 bg-gray-800/30 rounded-lg border border-gray-700/50 text-sm">
+                <div className="text-gray-400 px-2">
+                  <span className="hidden sm:inline">Showing </span>
+                  <span className="font-medium text-gray-300">
+                    {displayedMembers.length > 0
+                      ? (currentPage - 1) * membersPerPage + 1
+                      : 0}
+                  </span>
+                  <span className="mx-1">-</span>
+                  <span className="font-medium text-gray-300">
+                    {Math.min(
+                      currentPage * membersPerPage,
+                      team.members.length
+                    )}
+                  </span>
+                  <span className="mx-1">of</span>
+                  <span className="font-medium text-gray-300">
+                    {team.members.length}
+                  </span>
+                  <span className="hidden sm:inline"> members</span>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(prev - 1, 1))
+                    }
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 h-8 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                  </Button>
+                  <Button
+                    onClick={() => setCurrentPage((prev) => prev + 1)}
+                    disabled={
+                      currentPage * membersPerPage >= team.members.length
+                    }
+                    className="px-3 py-1 h-8 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Pagination Controls */}
-          {team && team.members.length > membersPerPage && (
-            <div className="flex justify-between items-center mt-4 text-sm">
-              <div className="text-gray-400">
-                Showing{" "}
-                {displayedMembers.length > 0
-                  ? (currentPage - 1) * membersPerPage + 1
-                  : 0}{" "}
-                to {Math.min(currentPage * membersPerPage, team.members.length)}{" "}
-                of {team.members.length} members
+          {/* Invitation Code Manager */}
+          {team && (
+            <div className="mt-6 bg-gray-800/50 rounded-lg border border-gray-700 p-4">
+              <div className="mb-4">
+                <div className="flex items-center mb-2">
+                  <div className="bg-purple-500/20 rounded-full p-2 mr-3">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5 text-purple-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium text-white">
+                      Invitation Codes
+                    </h3>
+                    <p className="text-sm text-gray-400">
+                      Generate and manage invitation codes for new team members
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="flex space-x-2">
-                <Button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 h-8 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-600"
-                >
-                  Previous
-                </Button>
-                <Button
-                  onClick={() => setCurrentPage((prev) => prev + 1)}
-                  disabled={currentPage * membersPerPage >= team.members.length}
-                  className="px-3 py-1 h-8 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-900 disabled:text-gray-600"
-                >
-                  Next
-                </Button>
-              </div>
+              <InvitationCodeManager teamId={team.id} />
             </div>
           )}
-
-          {/* Invitation Code Manager */}
-          {team && <InvitationCodeManager teamId={team.id} />}
-        </>
+        </div>
       )}
     </SafeModal>
   );

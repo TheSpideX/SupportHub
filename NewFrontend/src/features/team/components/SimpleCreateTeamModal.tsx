@@ -32,7 +32,7 @@ const SimpleCreateTeamModal: React.FC<CreateTeamModalProps> = ({
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const { createTeam } = useTeamManagement();
+  const { handleCreateTeam } = useTeamManagement();
 
   // Handle form input changes
   const handleChange = (
@@ -82,7 +82,7 @@ const SimpleCreateTeamModal: React.FC<CreateTeamModalProps> = ({
     setIsLoading(true);
 
     try {
-      await createTeam({
+      await handleCreateTeam({
         name: formData.name,
         description: formData.description,
         teamType: formData.teamType,

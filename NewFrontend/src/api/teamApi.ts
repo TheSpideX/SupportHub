@@ -27,6 +27,15 @@ const TEAM_API = {
     `/api/teams/${teamId}/invitation-codes/${codeId}`,
   VALIDATE_INVITATION_CODE: (code: string) =>
     `/api/teams/invitation-codes/${code}/validate`,
+
+  // New bulk operation routes
+  BULK_DELETE: "/api/teams/bulk",
+  BULK_ADD_MEMBERS: "/api/teams/members/bulk",
+
+  // Analytics routes
+  GET_TEAM_ANALYTICS: (teamId: string) => `/api/teams/${teamId}/analytics`,
+  GET_MEMBER_ACTIVITY: (teamId: string, memberId: string) =>
+    `/api/teams/${teamId}/members/${memberId}/activity`,
 };
 
 // Define API routes for invitations
@@ -291,4 +300,76 @@ export const invitationApi = {
   },
 };
 
-export default { teamApi, invitationApi };
+// Add new API methods to teamApi
+export const extendedTeamApi = {
+  ...teamApi,
+
+  // Bulk operations
+  bulkDeleteTeams: async (teamIds: string[]) => {
+    const response = await apiClient.delete(TEAM_API.BULK_DELETE, {
+      data: { teamIds },
+    });
+    return response.data;
+  },
+
+  bulkAddMembers: async (
+    teamIds: string[],
+    userIds: string[],
+    role = "member"
+  ) => {
+    const response = await apiClient.post(TEAM_API.BULK_ADD_MEMBERS, {
+      teamIds,
+      userIds,
+      role,
+    });
+    return response.data;
+  },
+
+  // Analytics
+  getTeamAnalytics: async (teamId: string, days = 30) => {
+    const response = await apiClient.get(TEAM_API.GET_TEAM_ANALYTICS(teamId), {
+      params: { days },
+    });
+    return response.data;
+  },
+
+  getMemberActivity: async (teamId: string, memberId: string, days = 30) => {
+    const response = await apiClient.get(
+      TEAM_API.GET_MEMBER_ACTIVITY(teamId, memberId),
+      {
+        params: { days },
+      }
+    );
+    return response.data;
+  },
+
+  // Advanced filtering
+  getTeamsWithFilters: async (filters: {
+    search?: string;
+    teamTypes?: string[];
+    onlyMyTeams?: boolean;
+    fromDate?: string;
+    toDate?: string;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await apiClient.get(TEAM_API.GET_ALL, {
+      params: {
+        search: filters.search,
+        teamTypes: filters.teamTypes?.join(","),
+        onlyMyTeams: filters.onlyMyTeams,
+        fromDate: filters.fromDate,
+        toDate: filters.toDate,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
+        page: filters.page,
+        limit: filters.limit,
+      },
+    });
+    return response.data;
+  },
+};
+
+export default { teamApi: extendedTeamApi, invitationApi };

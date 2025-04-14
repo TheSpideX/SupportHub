@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import FocusTrap from "@/components/ui/FocusTrap";
+import { useAccessibility } from "@/components/providers/AccessibilityProvider";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +13,7 @@ import {
 interface SafeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title?: string;
+  title?: React.ReactNode;
   description?: string;
   children: React.ReactNode;
   className?: string;
@@ -35,11 +37,15 @@ export const SafeModal: React.FC<SafeModalProps> = ({
 }) => {
   // Internal state to manage modal visibility
   const [internalOpen, setInternalOpen] = useState(false);
+  const initialFocusRef = useRef<HTMLDivElement>(null);
+  const { screenReaderAnnounce } = useAccessibility();
 
   // Sync internal state with external state
   useEffect(() => {
     if (isOpen) {
       setInternalOpen(true);
+      // Announce to screen readers that a modal has opened
+      screenReaderAnnounce(`Dialog opened: ${title || "Modal dialog"}`);
     } else {
       // Delay closing to ensure animations complete
       const timer = setTimeout(() => {
@@ -47,7 +53,7 @@ export const SafeModal: React.FC<SafeModalProps> = ({
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, title, screenReaderAnnounce]);
 
   // Handle close with debounce to prevent multiple triggers
   const handleClose = React.useCallback(() => {
@@ -68,21 +74,30 @@ export const SafeModal: React.FC<SafeModalProps> = ({
     >
       <DialogContent
         className={`bg-gray-900 text-white border-gray-800 max-h-[85vh] overflow-y-auto py-8 ${className}`}
+        aria-labelledby={title ? "dialog-title" : undefined}
+        aria-describedby={description ? "dialog-description" : undefined}
       >
-        {title && (
+        <FocusTrap active={internalOpen} initialFocus={initialFocusRef}>
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
+            <DialogTitle id="dialog-title" className="text-xl font-semibold">
+              {title || <span className="sr-only">Dialog</span>}
+            </DialogTitle>
             {description && (
-              <DialogDescription className="text-gray-400">
+              <DialogDescription
+                id="dialog-description"
+                className="text-gray-400"
+              >
                 {description}
               </DialogDescription>
             )}
           </DialogHeader>
-        )}
 
-        {children}
+          <div ref={initialFocusRef} tabIndex={-1} className="outline-none">
+            {children}
+          </div>
 
-        {footer && <DialogFooter>{footer}</DialogFooter>}
+          {footer && <DialogFooter>{footer}</DialogFooter>}
+        </FocusTrap>
       </DialogContent>
     </Dialog>
   );

@@ -6,7 +6,9 @@ import React, {
   ReactNode,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
+import { useCache } from "./CacheContext";
 import { teamApi, invitationApi, Team, Invitation } from "@/api/teamApi";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { toast } from "react-hot-toast";
@@ -163,21 +165,62 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
     []
   );
 
-  // Fetch teams
-  const fetchTeams = async (page = 1, limit = 10) => {
+  // Get cache functions
+  const { getCache, setCache, invalidateCache } = useCache();
+
+  // Fetch teams with caching
+  const fetchTeams = async (
+    filters = {
+      page: 1,
+      limit: 10,
+      search: "",
+      teamTypes: [],
+      onlyMyTeams: false,
+      fromDate: "",
+      toDate: "",
+      sortBy: "name",
+      sortOrder: "asc" as "asc" | "desc",
+    },
+    forceRefresh = false
+  ) => {
     // Check if we're rate limited for this endpoint
     if (isRateLimitedRef.current.teams) {
       return [];
+    }
+
+    // Generate cache key based on filters
+    const filterKey = JSON.stringify(filters);
+    const cacheKey = `teams_${filterKey}`;
+
+    // Try to get data from cache if not forcing refresh
+    if (!forceRefresh) {
+      const cachedData = getCache<Team[]>(cacheKey);
+      if (cachedData) {
+        console.log("Using cached teams data");
+        setTeams(cachedData);
+        return cachedData;
+      }
+    } else {
+      // If forcing refresh, invalidate the cache
+      invalidateCache(cacheKey);
     }
 
     try {
       setIsLoading(true);
       setError(null);
 
-      const response = await teamApi.getAllTeams(page, limit);
-      setTeams(response.data);
+      // Use the new filtered API endpoint
+      const response = await teamApi.getTeamsWithFilters(filters);
+      console.log("API response for teams:", response.teams);
 
-      return response.data;
+      // Completely replace the teams state with the API response
+      const teamsData = response.teams || [];
+      setTeams(teamsData);
+
+      // Cache the data for 5 minutes (300 seconds)
+      setCache(cacheKey, teamsData, 300);
+
+      return teamsData;
     } catch (err: any) {
       // Handle rate limiting (429 status code)
       if (err.response?.status === 429) {
@@ -194,11 +237,27 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Fetch my teams
-  const fetchMyTeams = async () => {
+  // Fetch my teams with caching
+  const fetchMyTeams = async (forceRefresh = false) => {
     // Check if we're rate limited for this endpoint
     if (isRateLimitedRef.current.myTeams) {
       return [];
+    }
+
+    // Generate cache key
+    const cacheKey = `my_teams`;
+
+    // Try to get data from cache if not forcing refresh
+    if (!forceRefresh) {
+      const cachedData = getCache<Team[]>(cacheKey);
+      if (cachedData) {
+        console.log("Using cached my teams data");
+        setMyTeams(cachedData);
+        return cachedData;
+      }
+    } else {
+      // If forcing refresh, invalidate the cache
+      invalidateCache(cacheKey);
     }
 
     try {
@@ -206,9 +265,16 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
       setError(null);
 
       const response = await teamApi.getMyTeams();
-      setMyTeams(response.data);
+      console.log("API response for my teams:", response.data);
 
-      return response.data;
+      // Completely replace the myTeams state with the API response
+      const myTeamsData = response.data || [];
+      setMyTeams(myTeamsData);
+
+      // Cache the data for 5 minutes (300 seconds)
+      setCache(cacheKey, myTeamsData, 300);
+
+      return myTeamsData;
     } catch (err: any) {
       // Handle rate limiting (429 status code)
       if (err.response?.status === 429) {
@@ -226,7 +292,7 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   // Fetch team by ID
-  const fetchTeamById = async (id: string) => {
+  const fetchTeamById = async (id: string, forceRefresh = false) => {
     try {
       // Validate ID format to avoid sending invalid ObjectIds to the server
       if (!id || id === "sample-id" || id.startsWith("sample-")) {
@@ -235,10 +301,29 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
         return null;
       }
 
+      // Generate cache key
+      const cacheKey = `team_${id}`;
+
+      // Try to get data from cache if not forcing refresh
+      if (!forceRefresh) {
+        const cachedData = getCache<Team>(cacheKey);
+        if (cachedData) {
+          console.log(`Using cached data for team ${id}`);
+          return cachedData;
+        }
+      } else {
+        // If forcing refresh, invalidate the cache
+        invalidateCache(cacheKey);
+      }
+
       setIsLoading(true);
       setError(null);
 
       const response = await teamApi.getTeamById(id);
+
+      // Cache the data for 5 minutes (300 seconds)
+      setCache(cacheKey, response.data, 300);
+
       return response.data;
     } catch (err: any) {
       // Handle specific error cases
@@ -267,11 +352,38 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(true);
       setError(null);
 
+      // Create a temporary team with a temporary ID
+      const tempId = `temp-${Date.now()}`;
+      const tempTeam = {
+        _id: tempId,
+        id: tempId,
+        name: teamData.name,
+        description: teamData.description || "",
+        teamType: teamData.teamType || "technical",
+        members: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isLoading: true,
+      };
+
+      // Optimistically update UI immediately
+      setTeams((prevTeams) => [...prevTeams, tempTeam as any]);
+      setMyTeams((prevTeams) => [...prevTeams, tempTeam as any]);
+
+      // Make the API call
       const response = await teamApi.createTeam(teamData);
 
-      // Update teams list
-      setTeams((prevTeams) => [...prevTeams, response.data]);
-      setMyTeams((prevTeams) => [...prevTeams, response.data]);
+      // Update with the real data
+      setTeams((prevTeams) =>
+        prevTeams.map((team) =>
+          team._id === tempId || team.id === tempId ? response.data : team
+        )
+      );
+      setMyTeams((prevTeams) =>
+        prevTeams.map((team) =>
+          team._id === tempId || team.id === tempId ? response.data : team
+        )
+      );
 
       return response.data;
     } catch (err: any) {
@@ -295,19 +407,56 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(true);
       setError(null);
 
+      // Find the team in the current state
+      const teamToUpdate = teams.find(
+        (team) => team._id === id || team.id === id
+      );
+
+      if (teamToUpdate) {
+        // Create an optimistically updated version
+        const optimisticTeam = {
+          ...teamToUpdate,
+          ...teamData,
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Optimistically update UI immediately
+        setTeams((prevTeams) =>
+          prevTeams.map((team) =>
+            team._id === id || team.id === id ? optimisticTeam : team
+          )
+        );
+
+        setMyTeams((prevTeams) =>
+          prevTeams.map((team) =>
+            team._id === id || team.id === id ? optimisticTeam : team
+          )
+        );
+
+        // Update current team if it's the one being updated
+        if (currentTeam && (currentTeam._id === id || currentTeam.id === id)) {
+          setCurrentTeam(optimisticTeam);
+        }
+      }
+
+      // Make the API call
       const response = await teamApi.updateTeam(id, teamData);
 
-      // Update teams list
+      // Update with the real data
       setTeams((prevTeams) =>
-        prevTeams.map((team) => (team._id === id ? response.data : team))
+        prevTeams.map((team) =>
+          team._id === id || team.id === id ? response.data : team
+        )
       );
 
       setMyTeams((prevTeams) =>
-        prevTeams.map((team) => (team._id === id ? response.data : team))
+        prevTeams.map((team) =>
+          team._id === id || team.id === id ? response.data : team
+        )
       );
 
       // Update current team if it's the one being updated
-      if (currentTeam && currentTeam._id === id) {
+      if (currentTeam && (currentTeam._id === id || currentTeam.id === id)) {
         setCurrentTeam(response.data);
       }
 
@@ -326,16 +475,31 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(true);
       setError(null);
 
-      await teamApi.deleteTeam(id);
+      // Optimistically update UI immediately before API call
+      // Update teams list - handle different ID formats
+      setTeams((prevTeams) =>
+        prevTeams.filter((team) => {
+          // Check both _id and id properties
+          const teamId = team._id || team.id;
+          return teamId !== id;
+        })
+      );
 
-      // Update teams list
-      setTeams((prevTeams) => prevTeams.filter((team) => team._id !== id));
-      setMyTeams((prevTeams) => prevTeams.filter((team) => team._id !== id));
+      setMyTeams((prevTeams) =>
+        prevTeams.filter((team) => {
+          // Check both _id and id properties
+          const teamId = team._id || team.id;
+          return teamId !== id;
+        })
+      );
 
       // Clear current team if it's the one being deleted
       if (currentTeam && currentTeam._id === id) {
         setCurrentTeam(null);
       }
+
+      // Now make the API call
+      await teamApi.deleteTeam(id);
 
       return true;
     } catch (err: any) {

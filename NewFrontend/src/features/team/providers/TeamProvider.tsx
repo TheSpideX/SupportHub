@@ -1,13 +1,18 @@
 import React from "react";
 import { TeamProvider as TeamContextProvider } from "../context/TeamContext";
+import { CacheProvider } from "../context/CacheContext";
 
 interface TeamProviderProps {
   children: React.ReactNode;
 }
 
-// Simple wrapper component that always renders the TeamContextProvider
+// Wrapper component that provides both cache and team context
 export const TeamProvider: React.FC<TeamProviderProps> = ({ children }) => {
-  return <TeamContextProvider>{children}</TeamContextProvider>;
+  return (
+    <CacheProvider>
+      <TeamContextProvider>{children}</TeamContextProvider>
+    </CacheProvider>
+  );
 };
 
 export default TeamProvider;

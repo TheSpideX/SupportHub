@@ -30,10 +30,22 @@ const DeleteTeamModal: React.FC<DeleteTeamModalProps> = ({
 
   const handleDeleteTeam = async () => {
     try {
-      await deleteTeam(teamId);
-      toast.success("Team deleted successfully");
-      onSuccess?.();
-      onClose();
+      const success = await deleteTeam(teamId);
+
+      if (success) {
+        toast.success("Team deleted successfully");
+
+        // Call onSuccess callback to refresh team lists
+        if (onSuccess) {
+          console.log("Calling onSuccess after team deletion");
+          onSuccess();
+        }
+
+        // Close the modal
+        onClose();
+      } else {
+        toast.error("Failed to delete team");
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to delete team");
     }

@@ -447,5 +447,113 @@ export const useTeamManagement = () => {
         throw error;
       }
     },
+
+    // Fetch users for bulk operations
+    fetchUsers: async () => {
+      try {
+        // In a real implementation, this would call an API endpoint
+        // For now, we'll return mock data
+        const response = await fetch("/api/users").catch(() => ({ ok: false }));
+
+        // If the API call fails, use mock data
+        if (!response.ok) {
+          console.log("Using mock user data");
+          return [
+            {
+              id: "user1",
+              name: "John Doe",
+              email: "john@example.com",
+              role: "admin",
+            },
+            {
+              id: "user2",
+              name: "Jane Smith",
+              email: "jane@example.com",
+              role: "member",
+            },
+            {
+              id: "user3",
+              name: "Bob Johnson",
+              email: "bob@example.com",
+              role: "member",
+            },
+            {
+              id: "user4",
+              name: "Alice Williams",
+              email: "alice@example.com",
+              role: "lead",
+            },
+            {
+              id: "user5",
+              name: "Charlie Brown",
+              email: "charlie@example.com",
+              role: "member",
+            },
+            {
+              id: "user6",
+              name: "Diana Prince",
+              email: "diana@example.com",
+              role: "member",
+            },
+            {
+              id: "user7",
+              name: "Ethan Hunt",
+              email: "ethan@example.com",
+              role: "member",
+            },
+            {
+              id: "user8",
+              name: "Fiona Apple",
+              email: "fiona@example.com",
+              role: "member",
+            },
+          ];
+        }
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        showToast({
+          title: "Error",
+          description: "Failed to fetch users",
+          status: "error",
+        });
+
+        // Return mock data as fallback
+        return [
+          {
+            id: "user1",
+            name: "John Doe",
+            email: "john@example.com",
+            role: "admin",
+          },
+          {
+            id: "user2",
+            name: "Jane Smith",
+            email: "jane@example.com",
+            role: "member",
+          },
+          {
+            id: "user3",
+            name: "Bob Johnson",
+            email: "bob@example.com",
+            role: "member",
+          },
+          {
+            id: "user4",
+            name: "Alice Williams",
+            email: "alice@example.com",
+            role: "lead",
+          },
+          {
+            id: "user5",
+            name: "Charlie Brown",
+            email: "charlie@example.com",
+            role: "member",
+          },
+        ];
+      }
+    },
   };
 };

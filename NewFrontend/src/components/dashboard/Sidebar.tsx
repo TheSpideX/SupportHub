@@ -383,16 +383,19 @@ const Sidebar: React.FC<SidebarProps> = ({ open, setOpen }) => {
                 )}
               </div>
               <div className="flex items-center space-x-1.5">
-                <button
-                  onClick={(e) => toggleFavorite(item.name, e)}
-                  className={`p-1 rounded-md transition-colors ${
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(item.name, e);
+                  }}
+                  className={`p-1 rounded-md transition-colors cursor-pointer ${
                     isFavorite
                       ? "text-amber-500 hover:text-amber-600 hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
                       : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
                   <FaStar className="h-3.5 w-3.5" />
-                </button>
+                </span>
                 <FaChevronDown
                   className={`h-3 w-3 transition-transform duration-200 text-gray-500 dark:text-gray-400 ${
                     isExpanded ? "transform rotate-180" : ""
@@ -464,16 +467,19 @@ const Sidebar: React.FC<SidebarProps> = ({ open, setOpen }) => {
                     {item.badge}
                   </Badge>
                 )}
-                <button
-                  onClick={(e) => toggleFavorite(item.name, e)}
-                  className={`p-1 rounded-md transition-colors ${
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(item.name, e);
+                  }}
+                  className={`p-1 rounded-md transition-colors cursor-pointer ${
                     isFavorite
                       ? "text-amber-500 hover:text-amber-600 hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
                       : "text-gray-400 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
                   <FaStar className="h-3.5 w-3.5" />
-                </button>
+                </span>
               </div>
             </NavLink>
           </div>

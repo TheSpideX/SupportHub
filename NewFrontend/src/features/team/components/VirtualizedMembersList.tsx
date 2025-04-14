@@ -50,6 +50,8 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
     style: React.CSSProperties;
   }) => {
     const member = members[index];
+    const isTeamLead = member.id === teamLeadId;
+    const isActionInProgress = actionInProgress === member.id;
 
     return (
       <div
@@ -59,7 +61,7 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
           alignItems: "center",
           borderBottom: "1px solid rgba(75, 85, 99, 0.3)",
         }}
-        className="text-sm"
+        className="text-sm hover:bg-gray-700/30 transition-colors duration-150"
       >
         {/* Name column */}
         <div
@@ -70,18 +72,20 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
             alignItems: "center",
           }}
         >
-          <div className="h-8 w-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-medium text-blue-300 mr-3">
+          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-medium text-white mr-3">
             {member.name.charAt(0) +
               (member.name.split(" ")[1]?.charAt(0) || "")}
           </div>
           <div>
             <div className="font-medium text-white flex items-center">
               {member.name}
-              {member.id === teamLeadId && (
-                <FaCrown
-                  className="ml-2 h-3 w-3 text-yellow-500"
-                  title="Team Lead"
-                />
+              {isTeamLead && (
+                <div className="ml-2 px-1.5 py-0.5 rounded-full bg-yellow-900/30 border border-yellow-700/30">
+                  <FaCrown
+                    className="h-3 w-3 text-yellow-500"
+                    title="Team Lead"
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -92,7 +96,7 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
           style={{ flex: "2", padding: "0.75rem 1rem" }}
           className="text-gray-300"
         >
-          {member.email}
+          <div className="truncate max-w-[200px]">{member.email}</div>
         </div>
 
         {/* Role column */}
@@ -100,7 +104,15 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
           style={{ flex: "1", padding: "0.75rem 1rem" }}
           className="text-gray-300"
         >
-          {member.role}
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-medium ${
+              member.role === "lead"
+                ? "bg-yellow-900/30 text-yellow-400 border border-yellow-700/30"
+                : "bg-blue-900/30 text-blue-400 border border-blue-700/30"
+            }`}
+          >
+            {member.role === "lead" ? "Team Lead" : "Member"}
+          </span>
         </div>
 
         {/* Actions column */}
@@ -109,35 +121,38 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                className="h-8 w-8 p-0 text-gray-400 hover:text-white rounded-full hover:bg-gray-700/50"
+                disabled={isActionInProgress}
               >
-                <FaEllipsisH className="h-4 w-4" />
+                {isActionInProgress ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                ) : (
+                  <FaEllipsisH className="h-4 w-4" />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="bg-gray-800 border-gray-700 text-gray-200"
+              className="bg-gray-800 border-gray-700 text-gray-200 rounded-md shadow-lg py-1 w-48"
             >
-              {member.id !== teamLeadId && (
+              {!isTeamLead && (
                 <DropdownMenuItem
                   onClick={() => onMakeTeamLead(member.id)}
-                  disabled={actionInProgress === member.id}
-                  className="hover:bg-gray-700 focus:bg-gray-700"
+                  disabled={isActionInProgress}
+                  className="hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm"
                 >
                   <FaCrown className="h-4 w-4 mr-2 text-yellow-500" />
                   Make Team Lead
                 </DropdownMenuItem>
               )}
-              {member.id !== teamLeadId && (
-                <DropdownMenuItem
-                  onClick={() => onRemoveMember(member.id)}
-                  disabled={actionInProgress === member.id}
-                  className="text-red-400 hover:bg-gray-700 focus:bg-gray-700"
-                >
-                  <FaUserMinus className="h-4 w-4 mr-2" />
-                  Remove from Team
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                onClick={() => onRemoveMember(member.id)}
+                disabled={isActionInProgress}
+                className="text-red-400 hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm"
+              >
+                <FaUserMinus className="h-4 w-4 mr-2" />
+                Remove from Team
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -152,11 +167,8 @@ const VirtualizedMembersList: React.FC<VirtualizedMembersListProps> = ({
         display: "flex",
         alignItems: "center",
         borderBottom: "1px solid rgba(75, 85, 99, 0.5)",
-        fontWeight: 600,
-        textTransform: "uppercase",
-        fontSize: "0.75rem",
-        color: "rgb(156, 163, 175)",
       }}
+      className="bg-gray-800/50 text-xs font-semibold text-gray-400 uppercase tracking-wider"
     >
       <div style={{ flex: "2", padding: "0.75rem 1rem" }}>Name</div>
       <div style={{ flex: "2", padding: "0.75rem 1rem" }}>Email</div>

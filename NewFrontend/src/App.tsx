@@ -26,8 +26,10 @@ import SecurityPage from "@/pages/admin/SecurityPage";
 // import DiagnosticsPage from "@/pages/admin/DiagnosticsPage";
 // import CustomersPage from "@/pages/admin/CustomersPage";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
+import { AccessibilityProvider } from "@/components/providers/AccessibilityProvider";
 import { TeamProvider } from "@/features/team/providers/TeamProvider";
 import { Toaster } from "react-hot-toast";
+import AccessibilityMenu from "@/components/ui/AccessibilityMenu";
 import ModalProvider from "@/context/ModalContext";
 import ModalStateProvider from "@/context/ModalStateContext";
 import { ErrorBoundary } from "./core/errors/ErrorBoundary";
@@ -419,16 +421,19 @@ export function App() {
       <Provider store={store}>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <TeamProvider>
-              <ModalStateProvider>
-                <ModalProvider>
-                  <MuiThemeProvider theme={muiTheme}>
-                    <RouterProvider router={router} />
-                    <Toaster />
-                  </MuiThemeProvider>
-                </ModalProvider>
-              </ModalStateProvider>
-            </TeamProvider>
+            <AccessibilityProvider>
+              <TeamProvider>
+                <ModalStateProvider>
+                  <ModalProvider>
+                    <MuiThemeProvider theme={muiTheme}>
+                      <RouterProvider router={router} />
+                      <Toaster />
+                      <AccessibilityMenu />
+                    </MuiThemeProvider>
+                  </ModalProvider>
+                </ModalStateProvider>
+              </TeamProvider>
+            </AccessibilityProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </Provider>
