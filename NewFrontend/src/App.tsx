@@ -25,6 +25,7 @@ import SecurityPage from "@/pages/admin/SecurityPage";
 // import DiagnosticsPage from "@/pages/admin/DiagnosticsPage";
 // import CustomersPage from "@/pages/admin/CustomersPage";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
+import { TeamProvider } from "@/features/team/providers/TeamProvider";
 import { Toaster } from "react-hot-toast";
 import { ErrorBoundary } from "./core/errors/ErrorBoundary";
 import { APP_ROUTES } from "@/config/routes";
@@ -411,10 +412,12 @@ export function App() {
       <Provider store={store}>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <MuiThemeProvider theme={muiTheme}>
-              <RouterProvider router={router} />
-              <Toaster />
-            </MuiThemeProvider>
+            <TeamProvider>
+              <MuiThemeProvider theme={muiTheme}>
+                <RouterProvider router={router} />
+                <Toaster />
+              </MuiThemeProvider>
+            </TeamProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </Provider>

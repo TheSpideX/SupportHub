@@ -9,26 +9,34 @@ class AppError extends Error {
 }
 
 class AuthError extends AppError {
-  constructor(message, code = 'auth/unknown-error', statusCode = 401) {
+  constructor(message, code = "auth/unknown-error", statusCode = 401) {
     super(message, code, statusCode);
   }
 }
 
 class NotFoundError extends AppError {
-  constructor(message, code = 'not-found', statusCode = 404) {
+  constructor(message, code = "not-found", statusCode = 404) {
     super(message, code, statusCode);
   }
 }
 
 class ValidationError extends AppError {
-  constructor(message, code = 'validation-error', statusCode = 400) {
+  constructor(message, code = "validation-error", statusCode = 400) {
+    super(message, code, statusCode);
+  }
+}
+
+// Alias for compatibility with existing code
+class ApiError extends AppError {
+  constructor(statusCode, message, code = "api-error") {
     super(message, code, statusCode);
   }
 }
 
 module.exports = {
   AppError,
+  ApiError,
   AuthError,
   NotFoundError,
-  ValidationError
+  ValidationError,
 };

@@ -1,12 +1,13 @@
 /**
  * Modules Index
- * 
+ *
  * This file exports all application modules and provides initialization functions
  * for setting up the entire application with proper module dependencies.
  */
 
-const auth = require('./auth');
-const logger = require('../utils/logger');
+const auth = require("./auth");
+const team = require("./team");
+const logger = require("../utils/logger");
 
 /**
  * Initialize all application modules
@@ -15,18 +16,18 @@ const logger = require('../utils/logger');
  * @param {Object} config - Configuration object
  */
 const initializeModules = async (app, io, config = {}) => {
-  logger.info('Initializing application modules');
-  
+  logger.info("Initializing application modules");
+
   try {
     // Initialize auth module with WebSocket support
     await auth.init(app, io, config.auth);
-    
-    // Initialize other modules here as needed
-    // await otherModule.init(app, config.otherModule);
-    
-    logger.info('All modules initialized successfully');
+
+    // Initialize team module
+    team.initialize(app);
+
+    logger.info("All modules initialized successfully");
   } catch (error) {
-    logger.error('Failed to initialize modules:', error);
+    logger.error("Failed to initialize modules:", error);
     throw error;
   }
 };
@@ -35,27 +36,28 @@ const initializeModules = async (app, io, config = {}) => {
  * Shutdown all application modules
  */
 const shutdownModules = async () => {
-  logger.info('Shutting down application modules');
-  
+  logger.info("Shutting down application modules");
+
   try {
     // Shutdown auth module
     await auth.shutdown(); // Use the correct exported function name
-    
+
     // Shutdown other modules here as needed
     // await otherModule.shutdown();
-    
-    logger.info('All modules shut down successfully');
+
+    logger.info("All modules shut down successfully");
   } catch (error) {
-    logger.error('Error during modules shutdown:', error);
+    logger.error("Error during modules shutdown:", error);
     throw error;
   }
 };
 
 module.exports = {
   auth,
+  team,
   // Add other modules here as they are created
-  
+
   // Module lifecycle functions
   initializeModules,
-  shutdownModules
+  shutdownModules,
 };

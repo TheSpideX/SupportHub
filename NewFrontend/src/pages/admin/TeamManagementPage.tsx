@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   FaUsersCog,
   FaPlus,
@@ -10,9 +10,18 @@ import {
   FaUserPlus,
   FaUsers,
   FaChartBar,
+  FaExclamationTriangle,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useTeamManagement } from "@/features/team/hooks/useTeamManagement";
+// Will be used when API integration is complete
+// import { Team as TeamType } from "@/api/teamApi";
+import CreateTeamModal from "@/features/team/components/CreateTeamModal";
+import EditTeamModal from "@/features/team/components/EditTeamModal";
+import DeleteTeamModal from "@/features/team/components/DeleteTeamModal";
+import TeamMembersModal from "@/features/team/components/TeamMembersModal";
+import AddTeamMemberModal from "@/features/team/components/AddTeamMemberModal";
 import TopNavbar from "@/components/dashboard/TopNavbar";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Footer from "@/components/dashboard/Footer";
@@ -25,8 +34,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/Checkbox";
+// import AdminLayout from "@/layouts/AdminLayout"; // Not used
+// TeamProvider is now applied at the App level
 
-interface TeamMember {
+// Using the imported types as aliases for the existing interface structure
+// UI Team Member type for display
+interface UITeamMember {
   id: string;
   name: string;
   email: string;
@@ -34,23 +47,124 @@ interface TeamMember {
   avatar?: string;
 }
 
-interface Team {
+// UI Team type for display
+interface UITeam {
   id: string;
   name: string;
   description: string;
-  members: TeamMember[];
+  members: UITeamMember[];
   leadId: string;
   ticketsAssigned: number;
   ticketsResolved: number;
   createdAt: string;
 }
 
+// Convert API Team to UI Team with proper ID handling
+const convertApiTeamToUITeam = (apiTeam: any): UITeam => {
+  // Extract ID safely, handling both string IDs and MongoDB ObjectIds
+  const getId = (obj: any): string => {
+    if (!obj) return "";
+    if (typeof obj === "string") return obj;
+    if (obj._id)
+      return typeof obj._id === "string" ? obj._id : obj._id.toString();
+    if (obj.id) return typeof obj.id === "string" ? obj.id : obj.id.toString();
+    return "";
+  };
+
+  // Extract user name safely
+  const getUserName = (user: any): string => {
+    if (!user) return "Unknown";
+    if (user.profile) {
+      const firstName = user.profile.firstName || "";
+      const lastName = user.profile.lastName || "";
+      return `${firstName} ${lastName}`.trim() || "Unknown";
+    }
+    if (user.name) return user.name;
+    return "Unknown";
+  };
+
+  return {
+    id: getId(apiTeam),
+    name: apiTeam.name || "Unnamed Team",
+    description: apiTeam.description || "No description available",
+    members: (apiTeam.members || []).map((member: any) => ({
+      id: member.userId
+        ? getId({ _id: member.userId })
+        : member.user
+        ? getId(member.user)
+        : getId(member),
+      name: member.user ? getUserName(member.user) : member.name || "Unknown",
+      email: member.user?.email || member.email || "",
+      role: member.role || "member",
+    })),
+    leadId: apiTeam.leadId ? getId({ _id: apiTeam.leadId }) : "",
+    ticketsAssigned:
+      apiTeam.metrics?.ticketsAssigned || apiTeam.ticketsAssigned || 0,
+    ticketsResolved:
+      apiTeam.metrics?.ticketsResolved || apiTeam.ticketsResolved || 0,
+    createdAt: apiTeam.createdAt
+      ? new Date(apiTeam.createdAt).toLocaleDateString()
+      : "Unknown date",
+  };
+};
+
 const TeamManagementPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  // Get team management functions and state
+  const {
+    fetchTeams,
+    teams: apiTeams,
+    isLoading: isTeamsLoading,
+    error: teamsError,
+  } = useTeamManagement();
 
-  // Sample teams data
-  const teams: Team[] = [
+  // Track if we've already fetched teams
+  const hasLoadedTeams = useRef(false);
+
+  // Animation variants
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+  };
+
+  // Fetch teams when the page loads, but only once
+  useEffect(() => {
+    if (!hasLoadedTeams.current) {
+      console.log("TeamManagementPage: Fetching teams...");
+      fetchTeams();
+      hasLoadedTeams.current = true;
+    }
+  }, [fetchTeams]);
+
+  // Convert API teams to UI format - will be used when API integration is complete
+  /* const convertApiTeamToUiTeam = (apiTeam: TeamType): Team => {
+    return {
+      id: apiTeam._id,
+      name: apiTeam.name,
+      description: apiTeam.description || "",
+      members: apiTeam.members.map((member) => ({
+        id: member.userId,
+        name:
+          member.user?.profile.firstName +
+            " " +
+            member.user?.profile.lastName || "Unknown User",
+        email: member.user?.email || "",
+        role: member.role === "lead" ? "Team Lead" : "Member",
+      })),
+      leadId: apiTeam.leadId,
+      ticketsAssigned: apiTeam.metrics.ticketsAssigned,
+      ticketsResolved: apiTeam.metrics.ticketsResolved,
+      createdAt: new Date(apiTeam.createdAt).toLocaleDateString(),
+    };
+  }; */
+
+  // Convert API teams to UI format - commented out for now
+  // const teams: Team[] = apiTeams.map(convertApiTeamToUiTeam);
+
+  // Sample teams data for fallback - commented out for now
+  /* Sample teams data - not used currently
+  const sampleTeams: Team[] = [
     {
       id: "1",
       name: "Technical Support",
@@ -140,9 +254,51 @@ const TeamManagementPage: React.FC = () => {
       createdAt: "2023-03-10",
     },
   ];
+  */
+
+  // Create a sample team for UI demonstration when no real data is available
+  const sampleTeam: UITeam = {
+    id: "sample-id", // Use a clearly fake ID to avoid confusion with real IDs
+    name: "Technical Support",
+    description: "Handles technical issues and product-related queries",
+    members: [
+      {
+        id: "sample-member-1",
+        name: "John Doe",
+        email: "john.doe@example.com",
+        role: "Team Lead",
+      },
+      {
+        id: "sample-member-2",
+        name: "Jane Smith",
+        email: "jane.smith@example.com",
+        role: "Support Specialist",
+      },
+    ],
+    leadId: "sample-member-1",
+    ticketsAssigned: 24,
+    ticketsResolved: 18,
+    createdAt: "2023-01-15",
+  };
+
+  // Use API teams if available, otherwise use sample team only in development
+  const teamsToDisplay =
+    apiTeams && apiTeams.length > 0
+      ? apiTeams.map(convertApiTeamToUITeam)
+      : process.env.NODE_ENV === "development"
+      ? [sampleTeam]
+      : [];
+
+  // Add loading state to the UI
+  const [isPageLoading, setIsPageLoading] = useState(false);
+
+  // Update loading state based on API loading state
+  useEffect(() => {
+    setIsPageLoading(isTeamsLoading);
+  }, [isTeamsLoading]);
 
   // Filter teams based on search query
-  const filteredTeams = teams.filter(
+  const filteredTeams = teamsToDisplay.filter(
     (team) =>
       team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       team.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -166,21 +322,51 @@ const TeamManagementPage: React.FC = () => {
     }
   };
 
+  // Modal states
+  const [createTeamModalOpen, setCreateTeamModalOpen] = useState(false);
+  const [editTeamModalOpen, setEditTeamModalOpen] = useState(false);
+  const [deleteTeamModalOpen, setDeleteTeamModalOpen] = useState(false);
+  const [viewMembersModalOpen, setViewMembersModalOpen] = useState(false);
+  const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
+
+  // Selected team for modals
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [selectedTeamName, setSelectedTeamName] = useState("");
+
   // Handle team actions
-  const handleEditTeam = (teamId: string) => {
-    console.log(`Editing team ${teamId}`);
+  const handleEditTeamUI = (teamId: string, teamName: string) => {
+    setSelectedTeamId(teamId);
+    setSelectedTeamName(teamName);
+    setEditTeamModalOpen(true);
   };
 
-  const handleDeleteTeam = (teamId: string) => {
-    console.log(`Deleting team ${teamId}`);
+  const handleDeleteTeamUI = (teamId: string, teamName: string) => {
+    setSelectedTeamId(teamId);
+    setSelectedTeamName(teamName);
+    setDeleteTeamModalOpen(true);
   };
 
-  const handleAddMember = (teamId: string) => {
-    console.log(`Adding member to team ${teamId}`);
+  const handleAddMember = (teamId: string, teamName: string) => {
+    setSelectedTeamId(teamId);
+    setSelectedTeamName(teamName);
+    setAddMemberModalOpen(true);
   };
 
-  const handleViewMembers = (teamId: string) => {
-    console.log(`Viewing members of team ${teamId}`);
+  const handleViewMembers = (teamId: string, teamName: string) => {
+    setSelectedTeamId(teamId);
+    setSelectedTeamName(teamName);
+    setViewMembersModalOpen(true);
+  };
+
+  // Handle create team button click
+  const handleCreateTeamClick = () => {
+    setCreateTeamModalOpen(true);
+  };
+
+  // Handle successful team operations
+  const handleTeamOperationSuccess = () => {
+    // Refresh the teams list
+    fetchTeams();
   };
 
   // Animation variants
@@ -194,16 +380,7 @@ const TeamManagementPage: React.FC = () => {
     },
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        duration: 0.5,
-      },
-    },
-  };
+  // itemVariants is already defined above
 
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -256,7 +433,7 @@ const TeamManagementPage: React.FC = () => {
                 </div>
                 <Button
                   className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white shadow-md"
-                  onClick={() => console.log("Create new team")}
+                  onClick={handleCreateTeamClick}
                 >
                   <FaPlus className="mr-2 h-4 w-4" />
                   Create Team
@@ -356,7 +533,58 @@ const TeamManagementPage: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredTeams.length > 0 ? (
+                            {isPageLoading ? (
+                              // Loading skeleton
+                              Array(3)
+                                .fill(0)
+                                .map((_, index) => (
+                                  <tr
+                                    key={`loading-${index}`}
+                                    className="border-b border-gray-700 animate-pulse"
+                                  >
+                                    <td className="px-4 py-3">
+                                      <div className="h-4 bg-gray-700 rounded w-3/4"></div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="h-4 bg-gray-700 rounded w-1/2"></div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="h-8 bg-gray-700 rounded w-full"></div>
+                                    </td>
+                                  </tr>
+                                ))
+                            ) : teamsError ? (
+                              // Error state
+                              <tr>
+                                <td
+                                  colSpan={7}
+                                  className="px-4 py-8 text-center text-red-400"
+                                >
+                                  <div className="flex flex-col items-center justify-center space-y-3">
+                                    <FaExclamationTriangle className="h-8 w-8" />
+                                    <p>Error loading teams: {teamsError}</p>
+                                    <button
+                                      onClick={() => fetchTeams()}
+                                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium"
+                                    >
+                                      Try Again
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : filteredTeams.length > 0 ? (
                               filteredTeams.map((team) => {
                                 const teamLead = team.members.find(
                                   (member) => member.id === team.leadId
@@ -396,18 +624,10 @@ const TeamManagementPage: React.FC = () => {
                                               className="h-8 w-8 rounded-full bg-gray-700 border-2 border-gray-800 flex items-center justify-center text-xs font-medium text-blue-300"
                                               title={member.name}
                                             >
-                                              {member.avatar ? (
-                                                <img
-                                                  src={member.avatar}
-                                                  alt={member.name}
-                                                  className="h-full w-full rounded-full object-cover"
-                                                />
-                                              ) : (
-                                                member.name.charAt(0) +
-                                                member.name
+                                              {member.name.charAt(0) +
+                                                (member.name
                                                   .split(" ")[1]
-                                                  ?.charAt(0)
-                                              )}
+                                                  ?.charAt(0) || "")}
                                             </div>
                                           ))}
                                         {team.members.length > 3 && (
@@ -467,7 +687,10 @@ const TeamManagementPage: React.FC = () => {
                                         >
                                           <DropdownMenuItem
                                             onClick={() =>
-                                              handleEditTeam(team.id)
+                                              handleEditTeamUI(
+                                                team.id,
+                                                team.name
+                                              )
                                             }
                                             className="hover:bg-gray-700 focus:bg-gray-700"
                                           >
@@ -476,7 +699,10 @@ const TeamManagementPage: React.FC = () => {
                                           </DropdownMenuItem>
                                           <DropdownMenuItem
                                             onClick={() =>
-                                              handleAddMember(team.id)
+                                              handleAddMember(
+                                                team.id,
+                                                team.name
+                                              )
                                             }
                                             className="hover:bg-gray-700 focus:bg-gray-700"
                                           >
@@ -485,7 +711,10 @@ const TeamManagementPage: React.FC = () => {
                                           </DropdownMenuItem>
                                           <DropdownMenuItem
                                             onClick={() =>
-                                              handleViewMembers(team.id)
+                                              handleViewMembers(
+                                                team.id,
+                                                team.name
+                                              )
                                             }
                                             className="hover:bg-gray-700 focus:bg-gray-700"
                                           >
@@ -494,7 +723,10 @@ const TeamManagementPage: React.FC = () => {
                                           </DropdownMenuItem>
                                           <DropdownMenuItem
                                             onClick={() =>
-                                              handleDeleteTeam(team.id)
+                                              handleDeleteTeamUI(
+                                                team.id,
+                                                team.name
+                                              )
                                             }
                                             className="text-red-400 hover:bg-gray-700 focus:bg-gray-700"
                                           >
@@ -524,13 +756,21 @@ const TeamManagementPage: React.FC = () => {
                                       ? "Try adjusting your search"
                                       : "No teams available"}
                                   </p>
-                                  {searchQuery && (
+                                  {searchQuery ? (
                                     <Button
                                       variant="link"
                                       onClick={() => setSearchQuery("")}
                                       className="mt-2 text-blue-400 hover:text-blue-300"
                                     >
                                       Clear search
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      onClick={handleCreateTeamClick}
+                                      className="mt-4 bg-blue-600 hover:bg-blue-700"
+                                    >
+                                      <FaPlus className="mr-2 h-4 w-4" />
+                                      Create Your First Team
                                     </Button>
                                   )}
                                 </td>
@@ -587,8 +827,63 @@ const TeamManagementPage: React.FC = () => {
       </div>
 
       <Footer />
+
+      {/* Team Management Modals */}
+      <CreateTeamModal
+        isOpen={createTeamModalOpen}
+        onClose={() => setCreateTeamModalOpen(false)}
+        onSuccess={handleTeamOperationSuccess}
+      />
+
+      <EditTeamModal
+        isOpen={editTeamModalOpen}
+        onClose={() => setEditTeamModalOpen(false)}
+        teamId={selectedTeamId}
+        initialData={{
+          name: selectedTeamName,
+          description:
+            teamsToDisplay.find((t) => t.id === selectedTeamId)?.description ||
+            "",
+        }}
+        onSuccess={handleTeamOperationSuccess}
+      />
+
+      <DeleteTeamModal
+        isOpen={deleteTeamModalOpen}
+        onClose={() => setDeleteTeamModalOpen(false)}
+        teamId={selectedTeamId}
+        teamName={selectedTeamName}
+        onSuccess={handleTeamOperationSuccess}
+      />
+
+      <TeamMembersModal
+        isOpen={viewMembersModalOpen}
+        onClose={() => setViewMembersModalOpen(false)}
+        teamId={selectedTeamId}
+        onAddMember={() => {
+          setViewMembersModalOpen(false);
+          setAddMemberModalOpen(true);
+        }}
+      />
+
+      <AddTeamMemberModal
+        isOpen={addMemberModalOpen}
+        onClose={() => setAddMemberModalOpen(false)}
+        teamId={selectedTeamId}
+        teamName={selectedTeamName}
+        onSuccess={() => {
+          // If we were viewing members before, go back to that view
+          if (viewMembersModalOpen) {
+            setAddMemberModalOpen(false);
+            setViewMembersModalOpen(true);
+          } else {
+            handleTeamOperationSuccess();
+          }
+        }}
+      />
     </div>
   );
 };
 
+// Export the component directly - it will be wrapped with TeamProvider in App.tsx
 export default TeamManagementPage;
