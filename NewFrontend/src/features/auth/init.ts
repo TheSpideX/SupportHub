@@ -210,24 +210,14 @@ export function initAuth(
       );
     }
 
-    // Initialize WebSocket if user is authenticated
-    if (authService.getAuthState().isAuthenticated) {
-      logger.info(
-        "User is authenticated after initialization - connecting WebSocket"
-      );
-      webSocketAuthService.connect();
-    } else {
-      logger.info("User is not authenticated after initialization");
-      // Try to validate session one more time
-      authService.validateSession().then((isValid) => {
-        if (isValid) {
-          logger.info(
-            "Session validated on second attempt - connecting WebSocket"
-          );
-          webSocketAuthService.connect();
-        }
-      });
-    }
+    // WebSocket connection will be established automatically when auth state changes
+    // The PrimusAuthService now checks the Redux store for authentication state
+    logger.info(
+      "Auth initialization complete - WebSocket will connect automatically when authenticated"
+    );
+
+    // No need to manually connect here as the PrimusAuthService will handle this
+    // based on the authentication state in the Redux store
   });
 
   const authServiceInstance = {

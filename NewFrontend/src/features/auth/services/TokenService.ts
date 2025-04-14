@@ -586,6 +586,20 @@ export class TokenService {
   }
 
   /**
+   * Check if user has a valid token
+   * This combines token existence and authentication checks
+   */
+  public hasValidToken(): boolean {
+    // First check if tokens exist
+    if (!this.hasTokens()) {
+      return false;
+    }
+
+    // Then check if the user is authenticated
+    return this.isAuthenticated();
+  }
+
+  /**
    * Validates the current token state
    */
   public isAuthenticated(): boolean {

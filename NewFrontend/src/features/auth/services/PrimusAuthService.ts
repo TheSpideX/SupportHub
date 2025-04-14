@@ -160,6 +160,9 @@ export class PrimusAuthService {
 
     // Load Primus client library
     this.loadPrimusLibrary();
+
+    // Set up auth state change listener
+    this.setupAuthStateListener();
   }
 
   /**
@@ -304,9 +307,62 @@ export class PrimusAuthService {
   }
 
   /**
+   * Check if user is authenticated by checking the Redux store
+   * @returns {boolean} Whether the user is authenticated
+   */
+  private isUserAuthenticated(): boolean {
+    try {
+      // Check if Redux store is available
+      if (typeof window !== "undefined" && (window as any).__REDUX_STORE__) {
+        const store = (window as any).__REDUX_STORE__;
+        const state = store.getState();
+
+        // Check if auth state exists and user is authenticated
+        if (state && state.auth) {
+          const isAuthenticated = state.auth.isAuthenticated;
+
+          logger.debug("Checked authentication state from Redux store", {
+            isAuthenticated,
+            component: "PrimusAuthService",
+          });
+
+          return !!isAuthenticated;
+        }
+      }
+
+      // If we can't access the store, check if we have a token as fallback
+      if (this.tokenService) {
+        const hasToken = this.tokenService.hasValidToken();
+        logger.debug("Fallback authentication check using TokenService", {
+          hasToken,
+          component: "PrimusAuthService",
+        });
+        return hasToken;
+      }
+
+      // Default to false if we can't determine auth state
+      return false;
+    } catch (error) {
+      logger.error("Error checking authentication state", {
+        error,
+        component: "PrimusAuthService",
+      });
+      return false;
+    }
+  }
+
+  /**
    * Connect to the server
    */
   public connect(): void {
+    // First check if the user is authenticated
+    if (!this.isUserAuthenticated()) {
+      logger.warn("Cannot connect: User is not authenticated", {
+        component: "PrimusAuthService",
+      });
+      return;
+    }
+
     if (this.primus && this.status === "connected") {
       logger.debug("Already connected", {
         component: "PrimusAuthService",
@@ -2647,6 +2703,87 @@ export class PrimusAuthService {
    */
   public removeAllListeners(event?: string): void {
     this.eventEmitter.removeAllListeners(event);
+  }
+
+  /**
+   * Set up listener for auth state changes in Redux store
+   */
+  private setupAuthStateListener(): void {
+    if (typeof window === "undefined") return;
+
+    try {
+      // Check if Redux store is available
+      if ((window as any).__REDUX_STORE__) {
+        const store = (window as any).__REDUX_STORE__;
+
+        // Subscribe to store changes
+        store.subscribe(() => {
+          const state = store.getState();
+          const isAuthenticated = state?.auth?.isAuthenticated;
+
+          // Get previous auth state
+          const wasAuthenticated = this.isUserAuthenticated();
+
+          // If auth state changed from not authenticated to authenticated, connect
+          if (isAuthenticated && !wasAuthenticated && !this.primus) {
+            logger.info(
+              "Auth state changed to authenticated, connecting to Primus",
+              {
+                component: "PrimusAuthService",
+              }
+            );
+            this.connect();
+          }
+
+          // If auth state changed from authenticated to not authenticated, disconnect
+          if (!isAuthenticated && wasAuthenticated && this.primus) {
+            logger.info(
+              "Auth state changed to not authenticated, disconnecting from Primus",
+              {
+                component: "PrimusAuthService",
+              }
+            );
+            this.disconnect();
+          }
+        });
+
+        logger.debug("Set up auth state change listener", {
+          component: "PrimusAuthService",
+        });
+      }
+    } catch (error) {
+      logger.error("Error setting up auth state change listener", {
+        error,
+        component: "PrimusAuthService",
+      });
+    }
+  }
+
+  /**
+   * Disconnect from the server
+   */
+  public disconnect(): void {
+    if (!this.primus) {
+      logger.debug("Not connected, nothing to disconnect", {
+        component: "PrimusAuthService",
+      });
+      return;
+    }
+
+    logger.info("Manually disconnecting from Primus", {
+      component: "PrimusAuthService",
+    });
+
+    try {
+      this.primus.end();
+      this.primus = null;
+      this.status = "disconnected";
+    } catch (error) {
+      logger.error("Error disconnecting from Primus", {
+        error,
+        component: "PrimusAuthService",
+      });
+    }
   }
 }
 
