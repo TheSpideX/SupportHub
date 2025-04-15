@@ -15,7 +15,15 @@ const { asyncHandler } = require("../../../utils/errorHandlers");
  */
 exports.getAllUsers = asyncHandler(async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, role, status, sortBy, sortOrder } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      role,
+      status,
+      sortBy,
+      sortOrder,
+    } = req.query;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
 
@@ -31,7 +39,7 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
         role,
         status,
         organizationId,
-        excludeCustomers: true // Exclude customers from user management
+        excludeCustomers: true, // Exclude customers from user management
       },
       parseInt(page),
       parseInt(limit),
@@ -59,13 +67,13 @@ exports.getUserById = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
 
     const user = await userService.getUserById(id);
-    
+
     res.status(200).json({
       success: true,
       data: user,
@@ -84,8 +92,14 @@ exports.getUserById = asyncHandler(async (req, res) => {
 exports.createUser = asyncHandler(async (req, res) => {
   try {
     const { email, password, firstName, lastName, role, status } = req.body;
+
+    // Prepare profile data
+    const profile = {
+      firstName: firstName || "",
+      lastName: lastName || "",
+    };
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
@@ -93,15 +107,12 @@ exports.createUser = asyncHandler(async (req, res) => {
     const user = await userService.createUser({
       email,
       password,
-      profile: {
-        firstName,
-        lastName
-      },
+      profile,
       role,
       status,
-      organizationId: req.user.organizationId
+      organizationId: req.user.organizationId,
     });
-    
+
     res.status(201).json({
       success: true,
       data: user,
@@ -120,15 +131,31 @@ exports.createUser = asyncHandler(async (req, res) => {
 exports.updateUser = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const { email, firstName, lastName, status } = req.body;
+
+    // Prepare update data
+    const updateData = {};
+
+    if (email) updateData.email = email;
+
+    // Handle profile fields
+    if (firstName || lastName) {
+      updateData.profile = {};
+      if (firstName) updateData.profile.firstName = firstName;
+      if (lastName) updateData.profile.lastName = lastName;
+    }
+
+    if (status) updateData.status = status;
+
+    // Note: role is intentionally not included to prevent role changes
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
 
     const user = await userService.updateUser(id, updateData);
-    
+
     res.status(200).json({
       success: true,
       data: user,
@@ -148,13 +175,13 @@ exports.deleteUser = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
 
     await userService.deleteUser(id);
-    
+
     res.status(200).json({
       success: true,
       message: "User deleted successfully",
@@ -174,13 +201,13 @@ exports.getUsersByIds = asyncHandler(async (req, res) => {
   try {
     const { userIds } = req.body;
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
 
     const users = await userService.getUsersByIds(userIds);
-    
+
     res.status(200).json({
       success: true,
       data: users,
@@ -201,13 +228,13 @@ exports.changeUserStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
 
     const user = await userService.changeUserStatus(id, status);
-    
+
     res.status(200).json({
       success: true,
       data: user,
@@ -228,13 +255,13 @@ exports.resetUserPassword = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { newPassword } = req.body;
     const isAdmin = req.user.role === "admin";
-    
+
     if (!isAdmin) {
       throw new ApiError(403, "Access denied. Admin privileges required.");
     }
 
     await userService.resetUserPassword(id, newPassword);
-    
+
     res.status(200).json({
       success: true,
       message: "Password reset successfully",

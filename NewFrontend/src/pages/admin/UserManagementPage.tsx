@@ -13,6 +13,7 @@ import {
   FaTimes,
   FaExclamationTriangle,
   FaSync,
+  FaChevronDown,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -25,6 +26,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -140,11 +142,6 @@ const UserManagementPage: React.FC = () => {
     setResetPasswordModalOpen(true);
   };
 
-  const handleSendEmail = (userId: string) => {
-    console.log(`Sending email to user ${userId}`);
-    toast.success("Email functionality not implemented yet");
-  };
-
   const handleChangeStatus = async (userId: string, newStatus: string) => {
     try {
       await userApi.changeUserStatus(userId, newStatus);
@@ -196,6 +193,13 @@ const UserManagementPage: React.FC = () => {
       console.error("Error updating users:", error);
       toast.error("Failed to update users");
     }
+  };
+
+  const handleSendEmail = (userId: string) => {
+    // This is a placeholder for email functionality
+    // In a real application, this would open an email composition modal
+    // or integrate with an email service
+    toast.success("Email feature will be implemented in a future update");
   };
 
   // Define available roles and statuses
@@ -414,21 +418,54 @@ const UserManagementPage: React.FC = () => {
             >
               <div className="px-6 py-4 border-b border-gray-700/70 flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-white">Users</h2>
-                {selectedUsers.length > 0 && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-300">
+                <div className="flex items-center space-x-2">
+                  {selectedUsers.length > 0 && (
+                    <span className="text-sm text-gray-300 mr-2">
                       {selectedUsers.length} selected
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => console.log("Bulk action")}
-                      className="border-gray-700 hover:bg-gray-700/50 text-gray-300"
-                    >
-                      Bulk Actions
-                    </Button>
-                  </div>
-                )}
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors duration-200"
+                        disabled={selectedUsers.length === 0}
+                      >
+                        Bulk Actions{" "}
+                        {selectedUsers.length > 0 &&
+                          `(${selectedUsers.length})`}
+                        <FaChevronDown className="ml-2 h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="bg-gray-800 border-gray-700 text-white rounded-md shadow-lg py-1 animate-in fade-in-50 zoom-in-95 duration-100">
+                      <DropdownMenuItem
+                        onClick={() => handleBulkChangeStatus("active")}
+                        className="cursor-pointer hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm transition-colors duration-150"
+                        disabled={selectedUsers.length === 0}
+                      >
+                        <FaCheck className="mr-2 h-4 w-4 text-green-400" />
+                        Set Active
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleBulkChangeStatus("inactive")}
+                        className="cursor-pointer hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm transition-colors duration-150"
+                        disabled={selectedUsers.length === 0}
+                      >
+                        <FaTimes className="mr-2 h-4 w-4 text-red-400" />
+                        Set Inactive
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-gray-700 my-1" />
+                      <DropdownMenuItem
+                        onClick={handleBulkDelete}
+                        className="cursor-pointer hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm text-red-400 transition-colors duration-150"
+                        disabled={selectedUsers.length === 0}
+                      >
+                        <FaTrash className="mr-2 h-4 w-4" />
+                        Delete Selected Users
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <div className="p-6">
                 {filteredUsers.length > 0 ? (
@@ -517,39 +554,56 @@ const UserManagementPage: React.FC = () => {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0 text-gray-300 hover:text-white"
+                                    className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors duration-200"
+                                    aria-label={`Actions for ${user.firstName} ${user.lastName}`}
+                                    aria-haspopup="true"
                                   >
+                                    <span className="sr-only">
+                                      Open menu for {user.firstName}{" "}
+                                      {user.lastName}
+                                    </span>
                                     <FaEllipsisH className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
                                   align="end"
-                                  className="bg-gray-800 border-gray-700 text-white"
+                                  className="bg-gray-800 border-gray-700 text-gray-200 rounded-md shadow-lg py-1 w-48 animate-in fade-in-50 zoom-in-95 duration-100"
                                 >
                                   <DropdownMenuItem
                                     onClick={() => handleEditUser(user)}
+                                    className="hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm transition-colors duration-150"
+                                    role="menuitem"
+                                    aria-label={`Edit ${user.firstName} ${user.lastName}`}
                                   >
-                                    <FaUserEdit className="h-4 w-4 mr-2" />
-                                    Edit
+                                    <FaUserEdit className="h-4 w-4 mr-2 text-blue-400" />
+                                    Edit User
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleResetPassword(user)}
+                                    className="hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm transition-colors duration-150"
+                                    role="menuitem"
+                                    aria-label={`Reset password for ${user.firstName} ${user.lastName}`}
                                   >
-                                    <FaLock className="h-4 w-4 mr-2" />
+                                    <FaLock className="h-4 w-4 mr-2 text-yellow-400" />
                                     Reset Password
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleSendEmail(user.id)}
+                                    className="hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm transition-colors duration-150"
+                                    role="menuitem"
+                                    aria-label={`Send email to ${user.firstName} ${user.lastName}`}
                                   >
-                                    <FaEnvelope className="h-4 w-4 mr-2" />
+                                    <FaEnvelope className="h-4 w-4 mr-2 text-green-400" />
                                     Send Email
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onClick={() => handleDeleteUser(user)}
-                                    className="text-red-400"
+                                    className="text-red-400 hover:bg-gray-700 focus:bg-gray-700 px-3 py-2 text-sm transition-colors duration-150"
+                                    role="menuitem"
+                                    aria-label={`Delete ${user.firstName} ${user.lastName}`}
                                   >
                                     <FaTrash className="h-4 w-4 mr-2" />
-                                    Delete
+                                    Delete User
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>

@@ -1,16 +1,10 @@
 import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
+import SafeModal from "@/components/ui/modal/SafeModal";
 import { Button } from "@/components/ui/buttons/Button";
 import { toast } from "react-hot-toast";
 import { userApi, User } from "@/api/userApi";
-import { FaExclamationTriangle } from "react-icons/fa";
+import { FaExclamationTriangle, FaTrash } from "react-icons/fa";
 
 interface DeleteUserModalProps {
   isOpen: boolean;
@@ -42,18 +36,24 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
     }
   };
 
+  const handleClose = () => {
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="bg-gray-800 text-white border-gray-700 max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold flex items-center">
-            <FaExclamationTriangle className="text-red-500 mr-2" />
-            Delete User
-          </DialogTitle>
-          <DialogDescription className="text-gray-300">
-            Are you sure you want to delete this user? This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
+    <SafeModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={
+        <div className="flex items-center">
+          <FaTrash className="text-red-500 mr-2 h-4 w-4" />
+          Delete User
+        </div>
+      }
+      className="max-w-md"
+      description="Are you sure you want to delete this user? This action cannot be undone."
+    >
+      <div className="mt-4">
         <div className="bg-gray-700/50 p-4 rounded-lg">
           <div className="flex flex-col space-y-1">
             <p className="text-white font-medium">
@@ -63,11 +63,12 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
             <p className="text-gray-400">Role: {user.role}</p>
           </div>
         </div>
-        <DialogFooter className="pt-4">
+
+        <div className="flex justify-end space-x-2 pt-4 mt-4">
           <Button
             type="button"
             variant="outline"
-            onClick={onClose}
+            onClick={handleClose}
             className="border-gray-600 text-gray-300 hover:text-white"
           >
             Cancel
@@ -80,9 +81,9 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({
           >
             {loading ? "Deleting..." : "Delete User"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </SafeModal>
   );
 };
 

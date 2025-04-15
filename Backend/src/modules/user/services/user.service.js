@@ -226,10 +226,9 @@ exports.updateUser = async (id, updateData) => {
       };
     }
 
-    // Update role
-    if (updateData.role) {
-      user.role = updateData.role;
-    }
+    // Role cannot be changed through the update function
+    // This is intentional to prevent unauthorized role changes
+    // Roles should only be changed through specific role management functions
 
     // Update status
     if (updateData.status) {
