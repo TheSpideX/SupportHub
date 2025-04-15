@@ -1,0 +1,280 @@
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus client library found {component: 'PrimusAuthService'}
+logger.ts:137 [storage.utils.ts] Storage type localStorage available: true {}
+logger.ts:137 [storage.utils.ts] Storage type sessionStorage available: true {}
+logger.ts:137 [storage.utils.ts] Storage type cookie available: true {}
+logger.ts:137 [TokenService.ts] TokenService initialized with refresh threshold: 300s, heartbeat: 30s {}
+logger.ts:137 [TokenService.ts] TokenService initialized in standby mode (no authenticated user) {}
+logger.ts:137 [TokenService.ts] Created new TokenService instance {}
+logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
+logger.ts:137 [SessionService.ts] SessionService initialized {}
+logger.ts:137 [auth/init][init.ts] Initializing authentication system {component: 'auth/init'}
+logger.ts:137 [SecurityService.ts] Security context initialized {}
+logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
+logger.ts:137 [SecurityService.ts] SecurityService initialized {}
+logger.ts:137 [SessionService.ts] Cross-tab communication initialized for SessionService {}
+logger.ts:137 [SessionService.ts] SessionService initialized {}
+logger.ts:137 [AuthService.ts] Initializing auth state with cookies: {cookieString: 'access_token_exists=true; refresh_token_exists=tru…7b2b3345a53c58d4d8928bc70e222255f164e1e6b042373bb', hasVisibleCookies: true, hasAppSessionCookie: true, hasRefreshTokenCookie: '[REDACTED]'}
+logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: true, isInitialized: false, hasUser: false}
+logger.ts:137 [AuthService.ts] Checking for session cookies {cookieString: 'access_token_exists=true; refresh_token_exists=tru…7b2b3345a53c58d4d8928bc70e222255f164e1e6b042373bb', hasAppSessionCookie: true, hasRefreshTokenCookie: '[REDACTED]', hasAccessTokenCookie: '[REDACTED]'}
+logger.ts:137 [AuthService.ts] Found session cookies, session exists {}
+logger.ts:137 [AuthService][AuthService.ts] Cookie state: {cookieString: 'access_token_exists=true; refresh_token_exists=tru…7b2b3345a53c58d4d8928bc70e222255f164e1e6b042373bb', hasVisibleCookies: true, component: 'AuthService'}
+logger.ts:137 [AuthService.ts] AuthService initialized {}
+logger.ts:137 [TokenService.ts] CSRF protection initialized {}
+logger.ts:137 [AuthService.ts] Initializing auth state with cookies: {cookieString: 'access_token_exists=true; refresh_token_exists=tru…true; csrf_token=c999ed9eca8fbd298eacd9f129c12644', hasVisibleCookies: true, hasAppSessionCookie: true, hasRefreshTokenCookie: '[REDACTED]'}
+logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: true, isInitialized: false, hasUser: false}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: false, isLoading: true, path: '/dashboard', …}
+logger.ts:137 [init.ts] Auth initialization complete - WebSocket will connect automatically when authenticated {}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard verifyAuth started {component: 'AuthGuard', isInitialized: false, isAuthenticated: '[REDACTED]', cookies: 'Cookies present', path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth service state check {component: 'AuthGuard', serviceIsAuthenticated: '[REDACTED]', serviceHasUser: false, reduxIsAuthenticated: '[REDACTED]'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth not initialized, initializing now {component: 'AuthGuard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] Calling validateSession API {component: 'AuthGuard'}
+logger.ts:137 [AuthService.ts] Current auth state: {isAuthenticated: '[REDACTED]', isLoading: false, isInitialized: true, hasUser: false}
+AuthMonitorWidget.tsx:30 TokenService or PrimusService not available yet
+logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth validation already in progress, skipping {component: 'AuthGuard'}
+AuthMonitorWidget.tsx:30 TokenService or PrimusService not available yet
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: true, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: true, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] Auth validation already in progress, skipping {component: 'AuthGuard'}
+logger.ts:137 [AppPrimusClient][appPrimusClient.ts] App Primus client initialized successfully {component: 'AppPrimusClient', url: 'http://localhost:4290/primus/app'}
+logger.ts:137 [AppPrimusClient][appPrimusClient.ts] App Primus client initialized successfully {component: 'AppPrimusClient', url: 'http://localhost:4290/primus/app'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard redirecting to login {component: 'AuthGuard', from: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard redirecting to login {component: 'AuthGuard', from: '/dashboard'}
+dashboard:42 Primus client library loaded successfully.
+AuthMonitorWidget.tsx:30 TokenService or PrimusService not available yet
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:137 [AuthService.ts] Session validated successfully {}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage rendered with detailed auth state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, reduxUser: 'null', …}
+logger.ts:137 [AppPrimusClient][appPrimusClient.ts] Disconnecting from App Primus server... {component: 'AppPrimusClient'}
+logger.ts:137 [LoginPage][LoginPage.tsx] LoginPage authentication check effect with detailed state {component: 'LoginPage', hookIsAuthenticated: '[REDACTED]', reduxIsAuthenticated: '[REDACTED]', reduxIsInitialized: true, from: '/dashboard'}
+logger.ts:137 [LoginPage][LoginPage.tsx] User authenticated, redirecting from login page {component: 'LoginPage', redirectTo: '/dashboard'}
+logger.ts:137 [AppPrimusClient][appPrimusClient.ts] Connecting to App Primus server... {component: 'AppPrimusClient'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+DashboardPage.tsx:18 Dashboard user data: null isAuthenticated: true isLoading: false
+DashboardPage.tsx:18 Dashboard user data: null isAuthenticated: true isLoading: false
+logger.ts:137 [SecurityService.ts] Security context initialized {}
+logger.ts:137 [SecurityService.ts] Device fingerprint generated {}
+logger.ts:137 [SecurityService.ts] SecurityService initialized {}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus client library found {component: 'PrimusAuthService'}
+logger.ts:137 [usePrimusAuthService][usePrimusAuthService.ts] PrimusAuthService initialized {component: 'usePrimusAuthService', isAuthenticated: '[REDACTED]'}
+logger.ts:137 [AuthService.ts] Connecting to WebSocket after session validation {}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus connection details {url: 'http://localhost:4290', path: '/primus', withCredentials: '[REDACTED]', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+DashboardPage.tsx:18 Dashboard user data: {id: '67fdbb94d9abc6964779483e', email: 'test@example.com', role: 'admin', permissions: Array(0), createdAt: '2025-04-15T01:51:16.151Z', …} isAuthenticated: true isLoading: false
+logger.ts:137 [AuthService.ts] Session validated successfully, user is authenticated {}
+logger.ts:137 [AuthService.ts] Connecting to WebSocket after session validation {}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus connection details {url: 'http://localhost:4290', path: '/primus', withCredentials: '[REDACTED]', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard evaluation {component: 'AuthGuard', isAuthenticated: '[REDACTED]', isInitialized: true, isLoading: false, path: '/dashboard', …}
+logger.ts:137 [AuthGuard][AuthGuard.tsx] AuthGuard rendering protected content {component: 'AuthGuard', path: '/dashboard'}
+logger.ts:137 [AppPrimusClient][appPrimusClient.ts] App Primus connection established {component: 'AppPrimusClient', socketId: ƒ}
+logger.ts:137 [usePrimusAuthService][usePrimusAuthService.ts] User is authenticated, connecting to Primus {component: 'usePrimusAuthService'}
+logger.ts:137 [AuthMonitorService.ts] No leader found, forcing election {tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [AuthMonitorService.ts] Forcing new leader election {tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Forcing new leader election {component: 'PrimusAuthService', tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [ConnectionRecoveryService.ts] Connection recovery service initialized {deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', isOnline: true}
+logger.ts:137 [FallbackApiService.ts] Fallback API service initialized {deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', isLeaderTab: false}
+logger.ts:137 [AuthMonitorService.ts] Auth monitor service initialized {deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', isLeaderTab: false}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus connection established successfully {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', timestamp: '2025-04-15T06:11:06.399Z', socketId: ƒ, …}
+PrimusAuthService.ts:654 ✅ Primus WebSocket Connected {deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', url: 'http://localhost:4290', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus connection established successfully {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', timestamp: '2025-04-15T06:11:06.405Z', socketId: ƒ, …}
+PrimusAuthService.ts:654 ✅ Primus WebSocket Connected {deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', url: 'http://localhost:4290', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus authentication successful {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', timestamp: '2025-04-15T06:11:06.457Z', socketId: ƒ, …}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Attempting to join Primus rooms {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', userId: '67fdbb94d9abc6964779483e', socketId: ƒ, …}
+PrimusAuthService.ts:2399 🔄 Joining Primus Rooms {userId: '67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+PrimusAuthService.ts:1002 ✅ Primus Authentication Successful {userId: 'unknown', sessionId: 'unknown', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus authentication successful {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', timestamp: '2025-04-15T06:11:06.475Z', socketId: ƒ, …}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Attempting to join Primus rooms {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', userId: '67fdbb94d9abc6964779483e', socketId: ƒ, …}
+PrimusAuthService.ts:2399 🔄 Joining Primus Rooms {userId: '67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+PrimusAuthService.ts:1002 ✅ Primus Authentication Successful {userId: 'unknown', sessionId: 'unknown', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'user:67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'user:67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'user:67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'user:67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+DashboardPage.tsx:63 Rendering dashboard for role: admin
+DashboardPage.tsx:63 Rendering dashboard for role: admin
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Primus connection details {url: 'http://localhost:4290', path: '/primus', withCredentials: '[REDACTED]', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', …}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus connection established successfully {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', timestamp: '2025-04-15T06:11:06.952Z', socketId: ƒ, …}
+PrimusAuthService.ts:654 ✅ Primus WebSocket Connected {deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', url: 'http://localhost:4290', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus authentication successful {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', timestamp: '2025-04-15T06:11:06.968Z', socketId: ƒ, …}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Attempting to join Primus rooms {component: 'PrimusAuthService', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', userId: '67fdbb94d9abc6964779483e', socketId: ƒ, …}
+PrimusAuthService.ts:2399 🔄 Joining Primus Rooms {userId: '67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+PrimusAuthService.ts:1002 ✅ Primus Authentication Successful {userId: 'unknown', sessionId: 'unknown', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'user:67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'user:67fdbb94d9abc6964779483e', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+DashboardPage.tsx:63 Rendering dashboard for role: admin
+DashboardPage.tsx:63 Rendering dashboard for role: admin
+logger.ts:137 [AuthMonitorService.ts] Forcing new leader election {tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Forcing new leader election {component: 'PrimusAuthService', tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] No leader exists for this device, forcing election for this tab {component: 'PrimusAuthService', tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] No leader exists for this device, forcing election for this tab {component: 'PrimusAuthService', tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Tab registration confirmed by server {data: {…}, component: 'PrimusAuthService', tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Leader elected: tab_mq1whgx_1744694079009 (this tab: is leader) {electedTabId: 'tab_mq1whgx_1744694079009', thisTabId: 'tab_mq1whgx_1744694079009', wasLeader: false, isLeader: true, deviceId: 'device_8vsj3n', …}
+PrimusAuthService.ts:1538 👑 This tab is now the LEADER {electedTabId: 'tab_mq1whgx_1744694079009', thisTabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', comparison: 'tab_mq1whgx_1744694079009 === tab_mq1whgx_1744694079009 is true', tabIdType: 'string', …}
+PrimusAuthService.ts:1559 ✅ MATCH: Tab IDs match exactly!
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'tab:tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] ✅ Primus room joined successfully {component: 'PrimusAuthService', room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ, …}
+PrimusAuthService.ts:1281 ✅ Primus Room Joined {room: 'device:device_8vsj3n', deviceId: 'device_8vsj3n', tabId: 'tab_mq1whgx_1744694079009', socketId: ƒ}
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Leader elected: tab_mq1whgx_1744694079009 (this tab: is leader) {electedTabId: 'tab_mq1whgx_1744694079009', thisTabId: 'tab_mq1whgx_1744694079009', wasLeader: false, isLeader: true, deviceId: 'device_8vsj3n', …}
+logger.ts:137 [AuthMonitorService.ts] Leader elected: tab_mq1whgx_1744694079009 (this tab: is leader) {electedTabId: 'tab_mq1whgx_1744694079009', thisTabId: 'tab_mq1whgx_1744694079009', wasLeader: false, isLeader: true, deviceId: 'device_8vsj3n'}
+AuthMonitorWidget.tsx:140 Leader elected event: This tab is leader {tabId: 'tab_mq1whgx_1744694079009', isLeader: true, timestamp: 1744697468006}
+AuthMonitorWidget.tsx:140 Leader elected event: This tab is leader {tabId: 'tab_mq1whgx_1744694079009', isLeader: true, timestamp: 1744697468006}
+PrimusAuthService.ts:1538 👑 This tab is now the LEADER {electedTabId: 'tab_mq1whgx_1744694079009', thisTabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n', comparison: 'tab_mq1whgx_1744694079009 === tab_mq1whgx_1744694079009 is true', tabIdType: 'string', …}
+PrimusAuthService.ts:1559 ✅ MATCH: Tab IDs match exactly!
+logger.ts:137 [PrimusAuthService][PrimusAuthService.ts] Tab registration confirmed by server {data: {…}, component: 'PrimusAuthService', tabId: 'tab_mq1whgx_1744694079009', deviceId: 'device_8vsj3n'}
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+ Leader status changed: false -> true
+ Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+ Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+ Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true
+AuthMonitorWidget.tsx:165 Checking leader status change: {isLeader: true, isLeaderTab: false, isAnyModalOpen: false}
+AuthMonitorWidget.tsx:184 Modal state check: {contextValue: false, domValue: false, visibleModals: false, modalCount: 0}
+AuthMonitorWidget.tsx:195 Final modal state check: {contextValue: false, domValue: false, visibleModals: false, finalDecision: false}
+AuthMonitorWidget.tsx:203 Leader status changed: false -> true

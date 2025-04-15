@@ -28,6 +28,7 @@ import CustomerManagementPage from "@/pages/admin/CustomerManagementPage";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { AccessibilityProvider } from "@/components/providers/AccessibilityProvider";
 import { TeamProvider } from "@/features/team/providers/TeamProvider";
+import AppPrimusProvider from "@/providers/AppPrimusProvider";
 import { Toaster } from "react-hot-toast";
 import AccessibilityMenu from "@/components/ui/AccessibilityMenu";
 import ModalProvider from "@/context/ModalContext";
@@ -423,15 +424,17 @@ export function App() {
           <ThemeProvider>
             <AccessibilityProvider>
               <TeamProvider>
-                <ModalStateProvider>
-                  <ModalProvider>
-                    <MuiThemeProvider theme={muiTheme}>
-                      <RouterProvider router={router} />
-                      <Toaster />
-                      <AccessibilityMenu />
-                    </MuiThemeProvider>
-                  </ModalProvider>
-                </ModalStateProvider>
+                <AppPrimusProvider>
+                  <ModalStateProvider>
+                    <ModalProvider>
+                      <MuiThemeProvider theme={muiTheme}>
+                        <RouterProvider router={router} />
+                        <Toaster />
+                        <AccessibilityMenu />
+                      </MuiThemeProvider>
+                    </ModalProvider>
+                  </ModalStateProvider>
+                </AppPrimusProvider>
               </TeamProvider>
             </AccessibilityProvider>
           </ThemeProvider>
