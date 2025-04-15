@@ -1,5 +1,5 @@
-import { apiClient } from './apiClient';
-import { logger } from '@/utils/logger';
+import { apiClient } from "./apiClient";
+import { logger } from "@/utils/logger";
 
 /**
  * API service for invite code operations
@@ -12,10 +12,25 @@ export const inviteCodeApi = {
    */
   async validate(code: string) {
     try {
-      const response = await apiClient.get(`/api/invite-codes/validate/${code}`);
-      return response.data.data;
+      // Try the team module endpoint first
+      try {
+        const response = await apiClient.get(
+          `/api/teams/invitation-codes/${code}/validate`
+        );
+        return response.data.data;
+      } catch (teamError) {
+        // If team endpoint fails, try the organization endpoint
+        logger.warn(
+          "Team invitation code validation failed, trying organization endpoint:",
+          teamError
+        );
+        const response = await apiClient.get(
+          `/api/invite-codes/validate/${code}`
+        );
+        return response.data.data;
+      }
     } catch (error) {
-      logger.error('Error validating invite code:', error);
+      logger.error("Error validating invite code:", error);
       throw error;
     }
   },
@@ -27,15 +42,15 @@ export const inviteCodeApi = {
    */
   async generate(data: {
     teamId: string;
-    role: 'team_lead' | 'team_member';
+    role: "team_lead" | "team_member";
     email?: string;
     expiryDays?: number;
   }) {
     try {
-      const response = await apiClient.post('/api/invite-codes/generate', data);
+      const response = await apiClient.post("/api/invite-codes/generate", data);
       return response.data.data;
     } catch (error) {
-      logger.error('Error generating invite code:', error);
+      logger.error("Error generating invite code:", error);
       throw error;
     }
   },
@@ -46,18 +61,21 @@ export const inviteCodeApi = {
    * @param params - Optional query parameters
    * @returns Promise with the list of invite codes
    */
-  async list(teamId: string, params?: {
-    status?: 'active' | 'used' | 'expired' | 'revoked';
-    page?: number;
-    limit?: number;
-  }) {
+  async list(
+    teamId: string,
+    params?: {
+      status?: "active" | "used" | "expired" | "revoked";
+      page?: number;
+      limit?: number;
+    }
+  ) {
     try {
       const response = await apiClient.get(`/api/invite-codes/team/${teamId}`, {
         params,
       });
       return response.data.data;
     } catch (error) {
-      logger.error('Error listing invite codes:', error);
+      logger.error("Error listing invite codes:", error);
       throw error;
     }
   },
@@ -72,7 +90,7 @@ export const inviteCodeApi = {
       const response = await apiClient.post(`/api/invite-codes/revoke/${code}`);
       return response.data.data;
     } catch (error) {
-      logger.error('Error revoking invite code:', error);
+      logger.error("Error revoking invite code:", error);
       throw error;
     }
   },

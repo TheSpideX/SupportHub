@@ -49,11 +49,8 @@ exports.registerUser = async (userData, session = null) => {
       );
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     // Create user with session if provided
+    // Let the User model's pre-save middleware handle password hashing
     const userDoc = {
       email,
       profile: {
@@ -61,12 +58,17 @@ exports.registerUser = async (userData, session = null) => {
         lastName,
       },
       security: {
-        password: hashedPassword,
+        password: password, // Pass the plain password, let model middleware hash it
         emailVerified: false,
       },
       role,
       organizationId: userData.organizationId || null,
     };
+
+    // Log for debugging
+    logger.debug(
+      `Creating user with email: ${email} and letting model hash password`
+    );
 
     const user = session
       ? await User.create([userDoc], { session }).then((docs) => docs[0])
