@@ -399,19 +399,39 @@ export const RegistrationForm = ({ type, onBack }: RegistrationFormProps) => {
                   Valid invitation code
                 </p>
                 <p className="text-xs text-gray-300">
-                  Organization: {inviteCodeInfo.organization.name}
+                  Organization:{" "}
+                  {inviteCodeInfo.organizationName ||
+                    inviteCodeInfo.organization?.name ||
+                    "Unknown"}
                 </p>
-                {inviteCodeInfo.team && (
-                  <p className="text-xs text-gray-300">
-                    Team: {inviteCodeInfo.team.name}
-                  </p>
-                )}
+                <p className="text-xs text-gray-300">
+                  Team:{" "}
+                  {inviteCodeInfo.teamName ||
+                    inviteCodeInfo.team?.name ||
+                    "Unknown"}
+                </p>
+                <p className="text-xs text-gray-300">
+                  Team Type:{" "}
+                  {inviteCodeInfo.teamType ||
+                  inviteCodeInfo.team?.type === "technical"
+                    ? "Technical"
+                    : "Support"}
+                </p>
                 <p className="text-xs text-gray-300">
                   Role:{" "}
-                  {inviteCodeInfo.role === "team_lead"
+                  {inviteCodeInfo.role === "team_lead" ||
+                  inviteCodeInfo.role === "lead" ||
+                  inviteCodeInfo.inviteCode?.role === "team_lead" ||
+                  inviteCodeInfo.inviteCode?.role === "lead" ||
+                  inviteCodeInfo.metadata?.position === "lead"
                     ? "Team Lead"
                     : "Team Member"}
                 </p>
+                {inviteCodeInfo.metadata && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Code format: Enhanced
+                  </p>
+                )}
               </div>
             )}
           </div>

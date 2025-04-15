@@ -234,12 +234,91 @@ exports.registerWithInviteCode = async (data) => {
   try {
     const { email, password, firstName, lastName, inviteCode } = data;
 
-    // Validate invitation code
-    const validation = await inviteCodeService.validateInviteCode(inviteCode);
+    // Try to validate the invitation code using both systems
+    let validation;
+    let isTeamInvite = false;
 
-    if (!validation.isValid) {
+    try {
+      // First try organization invite code system
+      validation = await inviteCodeService.validateInviteCode(inviteCode);
+
+      if (!validation.isValid) {
+        // If organization invite code is invalid, try team invite code system
+        const teamService = require("../../team/services/team.service");
+        const team = await teamService.findTeamByInvitationCode(inviteCode);
+
+        if (team) {
+          // Found a valid team invitation code
+          isTeamInvite = true;
+          const invitationCode = team.invitationCodes.find(
+            (c) => c.code === inviteCode
+          );
+
+          // Create a validation result in the same format as organization invite codes
+          validation = {
+            isValid: true,
+            message: "Valid team invitation code",
+            inviteCode: {
+              code: invitationCode.code,
+              role: invitationCode.role,
+              expiresAt: invitationCode.expiresAt,
+            },
+            organization: {
+              id: team.organizationId,
+              name: "Organization", // Will be populated later
+            },
+            team: {
+              id: team._id,
+              name: team.name,
+              type: team.teamType,
+            },
+          };
+
+          // Use metadata if available
+          if (invitationCode.metadata) {
+            logger.info(
+              `Using metadata from invitation code: ${JSON.stringify(
+                invitationCode.metadata
+              )}`
+            );
+
+            // Update validation with metadata information
+            validation.organization.id = invitationCode.metadata.organizationId;
+            validation.organization.name =
+              invitationCode.metadata.organizationName;
+            validation.team.id = invitationCode.metadata.teamId;
+            validation.team.name = invitationCode.metadata.teamName;
+            validation.team.type = invitationCode.metadata.teamType;
+            validation.inviteCode.role = invitationCode.metadata.position;
+          } else {
+            // Fallback to populating organization info manually
+            logger.info(
+              `No metadata found in invitation code, populating manually`
+            );
+            const Organization = require("../../organization/models/organization.model");
+            const org = await Organization.findById(team.organizationId);
+            if (org) {
+              validation.organization.name = org.name;
+              validation.organization.orgId = org.orgId;
+              validation.organization.type = org.type;
+            }
+          }
+
+          logger.info(
+            `Using team invitation code: ${inviteCode} for team ${team.name}`
+          );
+        } else {
+          // Neither organization nor team invitation code is valid
+          throw new AuthError("Invalid invitation code", "INVALID_INVITE_CODE");
+        }
+      }
+    } catch (error) {
+      if (error.code === "INVALID_INVITE_CODE") {
+        throw error;
+      }
+      logger.error(`Error validating invitation code: ${error.message}`, error);
       throw new AuthError(
-        validation.message || "Invalid invitation code",
+        "Error validating invitation code",
         "INVALID_INVITE_CODE"
       );
     }
@@ -255,12 +334,39 @@ exports.registerWithInviteCode = async (data) => {
 
     // Determine role based on invitation code and team type
     let role;
-    if (inviteCodeData.role === "team_lead") {
+
+    // Log the invitation code data for debugging
+    logger.debug(`Invitation code data: ${JSON.stringify(inviteCodeData)}`);
+
+    // Check if we have metadata with position information
+    const metadata = validation.metadata || (team && team.metadata);
+    const position = metadata ? metadata.position : inviteCodeData.role;
+
+    logger.info(
+      `Position from invitation code: ${position}, Role from inviteCode: ${inviteCodeData.role}`
+    );
+
+    // Handle different role naming conventions between team and user systems
+    if (
+      position === "lead" ||
+      inviteCodeData.role === "lead" ||
+      position === "team_lead" ||
+      inviteCodeData.role === "team_lead"
+    ) {
       role = USER_ROLES.TEAM_LEAD;
+      logger.info(
+        `Assigning team_lead role to user based on invitation code role: ${
+          position || inviteCodeData.role
+        }`
+      );
     } else if (team && team.type === "technical") {
       role = USER_ROLES.TECHNICAL;
+      logger.info(
+        `Assigning technical role to user based on team type: ${team.type}`
+      );
     } else {
       role = USER_ROLES.SUPPORT;
+      logger.info(`Assigning support role to user (default)`);
     }
 
     // Register user
@@ -277,25 +383,47 @@ exports.registerWithInviteCode = async (data) => {
     if (team) {
       const teamDoc = await Team.findById(team.id);
 
-      // Add user to team members
-      if (!teamDoc.members.includes(user._id)) {
-        teamDoc.members.push(user._id);
-      }
-
-      // If user is a team lead, update team with the lead
-      if (role === "team_lead") {
-        teamDoc.teamLead = user._id;
-      }
-
-      await teamDoc.save();
+      // Add user to team members properly using the addMember method
+      await teamDoc.addMember({
+        userId: user._id,
+        role: role === "team_lead" ? "lead" : "member",
+        invitedBy: inviteCodeData.createdBy || null,
+      });
 
       // Update user with team ID
       user.teamId = team.id;
       await user.save();
+
+      logger.info(
+        `User ${user.email} added to team ${teamDoc.name} with role ${role}`
+      );
     }
 
     // Mark invite code as used
-    await inviteCodeService.useInviteCode(inviteCode, user._id);
+    if (isTeamInvite) {
+      // For team invitation codes
+      const teamService = require("../../team/services/team.service");
+      const team = await teamService.findTeamByInvitationCode(inviteCode);
+
+      if (team) {
+        // Find the code and mark it as used
+        const codeIndex = team.invitationCodes.findIndex(
+          (c) => c.code === inviteCode
+        );
+        if (codeIndex !== -1) {
+          team.invitationCodes[codeIndex].isUsed = true;
+          team.invitationCodes[codeIndex].usedBy = user._id;
+          team.invitationCodes[codeIndex].usedAt = new Date();
+          await team.save();
+          logger.info(
+            `Team invitation code ${inviteCode} marked as used by user ${user._id}`
+          );
+        }
+      }
+    } else {
+      // For organization invitation codes
+      await inviteCodeService.useInviteCode(inviteCode, user._id);
+    }
 
     logger.info(
       `User registered with invitation code: ${user.email} for organization: ${organization.name}`

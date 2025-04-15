@@ -87,6 +87,11 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
       const teamData = await fetchTeamById(teamId);
       console.log("Team data received:", teamData);
 
+      // Log the members structure for debugging
+      if (teamData && teamData.members) {
+        console.log("Team members structure:", teamData.members[0]);
+      }
+
       if (teamData) {
         // Convert API team to UI team format
         setTeam({
@@ -100,8 +105,18 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
               userEmail,
               userName = "Unknown";
 
+            console.log("Processing member:", member);
+
+            // Handle case where member is just an ID (no userId field)
+            if (!member.userId && member._id && !member.user) {
+              // This is a member without populated user data
+              userId = member._id;
+              userName = `Member ${member._id.substring(0, 6)}...`;
+              userEmail = "";
+              console.log("Member without populated user data:", member._id);
+            }
             // Check if userId is an object (populated) or a string
-            if (member.userId && typeof member.userId === "object") {
+            else if (member.userId && typeof member.userId === "object") {
               // Case: userId is populated with user object
               userId = member.userId._id || member.userId.id;
               userProfile = member.userId.profile;

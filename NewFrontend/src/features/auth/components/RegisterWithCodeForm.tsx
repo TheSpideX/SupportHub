@@ -35,6 +35,16 @@ const RegisterWithCodeForm: React.FC<RegisterWithCodeFormProps> = ({
     teamName: string;
     teamType: "technical" | "support";
     role: "lead" | "member";
+    organizationId?: string;
+    organizationName?: string;
+    metadata?: {
+      organizationId: string;
+      organizationName: string;
+      teamId: string;
+      teamName: string;
+      teamType: string;
+      position: string;
+    };
   } | null>(null);
 
   // Extract code from URL if present
@@ -60,14 +70,26 @@ const RegisterWithCodeForm: React.FC<RegisterWithCodeFormProps> = ({
       if (response.isValid) {
         // Format the response to match what the component expects
         const teamInfo = {
-          teamId: response.team?.id || "",
-          teamName: response.team?.name || "Unknown Team",
-          teamType: response.team?.type || "support",
-          role: response.inviteCode?.role || "member",
+          teamId: response.teamId || response.team?.id || "",
+          teamName: response.teamName || response.team?.name || "Unknown Team",
+          teamType: response.teamType || response.team?.type || "support",
+          role: response.role || response.inviteCode?.role || "member",
+          organizationId:
+            response.organizationId || response.organization?.id || "",
+          organizationName:
+            response.organizationName ||
+            response.organization?.name ||
+            "Unknown Organization",
+          metadata: response.metadata,
         };
 
         setCodeInfo(teamInfo);
-        toast.success(`Valid invitation code for ${teamInfo.teamName}`);
+        const orgInfo = teamInfo.organizationName
+          ? ` for ${teamInfo.organizationName}`
+          : "";
+        toast.success(
+          `Valid invitation code for ${teamInfo.teamName}${orgInfo}`
+        );
       } else {
         toast.error(response.message || "Invalid invitation code");
         setCodeInfo(null);
@@ -375,6 +397,25 @@ const RegisterWithCodeForm: React.FC<RegisterWithCodeFormProps> = ({
           </div>
           {errors.invitationCode && (
             <p className="mt-1 text-sm text-red-500">{errors.invitationCode}</p>
+          )}
+
+          {codeInfo && (
+            <div className="mt-2 p-3 bg-gray-800/50 border border-gray-700 rounded-lg">
+              <p className="text-sm text-green-400 mb-1">
+                Valid invitation code
+              </p>
+              <p className="text-xs text-gray-300">
+                Organization: {codeInfo.organizationName || "Unknown"}
+              </p>
+              <p className="text-xs text-gray-300">Team: {codeInfo.teamName}</p>
+              <p className="text-xs text-gray-300">
+                Team Type:{" "}
+                {codeInfo.teamType === "technical" ? "Technical" : "Support"}
+              </p>
+              <p className="text-xs text-gray-300">
+                Role: {codeInfo.role === "lead" ? "Team Lead" : "Team Member"}
+              </p>
+            </div>
           )}
         </div>
 

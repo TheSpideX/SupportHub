@@ -98,6 +98,26 @@ const TeamSchema = new Schema(
           ref: "User",
         },
         usedAt: Date,
+        metadata: {
+          organizationId: {
+            type: Schema.Types.ObjectId,
+            ref: "Organization",
+          },
+          organizationName: String,
+          teamId: {
+            type: Schema.Types.ObjectId,
+            ref: "Team",
+          },
+          teamName: String,
+          teamType: {
+            type: String,
+            enum: ["technical", "support"],
+          },
+          position: {
+            type: String,
+            enum: ["lead", "member"],
+          },
+        },
       },
     ],
     metrics: {
@@ -173,10 +193,24 @@ TeamSchema.methods.isTeamLead = function (userId) {
  * @returns {Promise<Team>} Updated team
  */
 TeamSchema.methods.addMember = async function (memberData) {
+  // Ensure userId is provided
+  if (!memberData.userId) {
+    throw new Error("User ID is required to add a member");
+  }
+
   // Check if user is already a member
-  const existingMember = this.members.find(
-    (member) => member.userId.toString() === memberData.userId.toString()
-  );
+  const existingMember = this.members.find((member) => {
+    // Handle both populated and non-populated userId
+    const memberId =
+      member.userId && typeof member.userId === "object"
+        ? member.userId._id.toString()
+        : member.userId
+        ? member.userId.toString()
+        : null;
+
+    const newMemberId = memberData.userId.toString();
+    return memberId === newMemberId;
+  });
 
   if (existingMember) {
     // Update existing member if needed

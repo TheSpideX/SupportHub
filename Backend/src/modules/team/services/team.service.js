@@ -110,6 +110,7 @@ exports.getTeamById = async (teamId) => {
       throw new ApiError(400, "Invalid team ID format");
     }
 
+    // First get the team with populated fields
     const team = await Team.findById(teamId)
       .populate("leadId", "profile.firstName profile.lastName email")
       .populate("createdBy", "profile.firstName profile.lastName email")
@@ -118,6 +119,39 @@ exports.getTeamById = async (teamId) => {
         "members.invitedBy",
         "profile.firstName profile.lastName email"
       );
+
+    // If team exists, check for members without populated userId
+    if (team) {
+      // Find members that don't have userId populated
+      const membersToUpdate = team.members.filter(
+        (member) => !member.userId && member._id
+      );
+
+      if (membersToUpdate.length > 0) {
+        logger.info(
+          `Found ${membersToUpdate.length} members without populated userId`
+        );
+
+        // For each member without userId, try to find the user by _id
+        const User = require("../../auth/models/user.model");
+
+        for (const member of membersToUpdate) {
+          try {
+            // Try to find the user by the member's _id
+            const user = await User.findById(member._id);
+            if (user) {
+              // If found, set the userId field
+              member.userId = user;
+              logger.info(`Updated member ${member._id} with user data`);
+            }
+          } catch (err) {
+            logger.warn(
+              `Could not find user for member ${member._id}: ${err.message}`
+            );
+          }
+        }
+      }
+    }
 
     if (!team) {
       throw new ApiError(404, "Team not found");

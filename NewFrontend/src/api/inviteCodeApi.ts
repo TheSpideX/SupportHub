@@ -17,7 +17,36 @@ export const inviteCodeApi = {
         const response = await apiClient.get(
           `/api/teams/invitation-codes/${code}/validate`
         );
-        return response.data.data;
+        const data = response.data.data;
+
+        // Format the response to be consistent
+        return {
+          isValid: true,
+          teamId: data.teamId,
+          teamName: data.teamName,
+          teamType: data.teamType,
+          role: data.role,
+          expiresAt: data.expiresAt,
+          organizationId: data.organizationId,
+          organizationName: data.organizationName,
+          // Include metadata if available
+          metadata: data.metadata,
+          // Add team and organization objects for backward compatibility
+          team: {
+            id: data.teamId,
+            name: data.teamName,
+            type: data.teamType,
+          },
+          organization: {
+            id: data.organizationId,
+            name: data.organizationName,
+          },
+          inviteCode: {
+            code: code,
+            role: data.role,
+            expiresAt: data.expiresAt,
+          },
+        };
       } catch (teamError) {
         // If team endpoint fails, try the organization endpoint
         logger.warn(
