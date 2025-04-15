@@ -11,12 +11,17 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Request tracking for metrics
+const requestTracker = require("./middleware/requestTracker");
+app.use(requestTracker);
+
 // Import routes
 const authRoutes = require("./routes/authRoutes");
 const teamRoutes = require("./routes/teamRoutes");
 const userRoutes = require("./routes/userRoutes");
 const teamAnalyticsRoutes = require("./routes/teamAnalyticsRoutes");
 const inviteCodeRoutes = require("./modules/organization/routes/inviteCode.routes");
+const systemRoutes = require("./modules/system/routes/system.routes");
 
 // Use routes
 app.use("/api/auth", authRoutes);
@@ -24,6 +29,7 @@ app.use("/api/teams", teamRoutes);
 app.use("/api", userRoutes);
 app.use("/api", teamAnalyticsRoutes);
 app.use("/api/invite-codes", inviteCodeRoutes);
+app.use("/api/system", systemRoutes);
 
 // Connect to MongoDB
 mongoose

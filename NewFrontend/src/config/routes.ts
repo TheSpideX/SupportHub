@@ -131,6 +131,8 @@ export const API_ROUTES = {
     HEALTH: "/api/system/health",
     STATUS: "/api/system/status",
     VERSION: "/api/system/version",
+    INCIDENTS: "/api/system/incidents",
+    METRICS: "/api/system/metrics",
   },
 } as const;
 
@@ -194,6 +196,7 @@ export const APP_ROUTES = {
     TEAM_MANAGEMENT: "/admin/team-management",
     USER_MANAGEMENT: "/admin/user-management",
     CUSTOMER_MANAGEMENT: "/admin/customer-management",
+    SYSTEM_STATUS: "/admin/system-status",
   },
 
   // Error pages
