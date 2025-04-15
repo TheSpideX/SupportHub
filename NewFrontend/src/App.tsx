@@ -24,7 +24,7 @@ import AuditLogsPage from "@/pages/admin/AuditLogsPage";
 import SecurityPage from "@/pages/admin/SecurityPage";
 // These pages will be implemented later
 // import DiagnosticsPage from "@/pages/admin/DiagnosticsPage";
-// import CustomersPage from "@/pages/admin/CustomersPage";
+import CustomerManagementPage from "@/pages/admin/CustomerManagementPage";
 import { ThemeProvider } from "@/components/providers/ThemeProvider/ThemeProvider";
 import { AccessibilityProvider } from "@/components/providers/AccessibilityProvider";
 import { TeamProvider } from "@/features/team/providers/TeamProvider";
@@ -248,14 +248,14 @@ const routes = [
       //     </AuthGuard>
       //   ),
       // },
-      // {
-      //   path: "admin/customers",
-      //   element: (
-      //     <AuthGuard>
-      //       <CustomersPage />
-      //     </AuthGuard>
-      //   ),
-      // },
+      {
+        path: "admin/customer-management",
+        element: (
+          <AuthGuard>
+            <CustomerManagementPage />
+          </AuthGuard>
+        ),
+      },
       {
         path: "admin/analytics",
         element: (

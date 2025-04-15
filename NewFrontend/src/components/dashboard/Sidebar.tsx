@@ -156,7 +156,11 @@ const Sidebar: React.FC<SidebarProps> = ({ open, setOpen }) => {
             },
           ],
         },
-        { name: "Customers", icon: FaUsers, href: "/admin/customers" },
+        {
+          name: "Customer Management",
+          icon: FaUsers,
+          href: "/admin/customer-management",
+        },
         { name: "System Status", icon: FaServer, href: "/admin/system-status" },
         { name: "Diagnostics", icon: FaTools, href: "/admin/diagnostics" },
         {

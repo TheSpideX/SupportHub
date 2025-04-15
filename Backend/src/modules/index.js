@@ -8,6 +8,8 @@
 const auth = require("./auth");
 const team = require("./team");
 const admin = require("./admin");
+const user = require("./user");
+const customer = require("./customer");
 const logger = require("../utils/logger");
 
 /**
@@ -28,6 +30,12 @@ const initializeModules = async (app, io, config = {}) => {
 
     // Initialize admin module
     admin.initialize(app);
+
+    // Initialize user module
+    user.initialize(app);
+
+    // Initialize customer module
+    customer.initialize(app);
 
     logger.info("All modules initialized successfully");
   } catch (error) {
@@ -60,6 +68,8 @@ module.exports = {
   auth,
   team,
   admin,
+  user,
+  customer,
   // Add other modules here as they are created
 
   // Module lifecycle functions

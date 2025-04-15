@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FaUsers,
   FaUserPlus,
@@ -9,6 +9,10 @@ import {
   FaTrash,
   FaLock,
   FaEnvelope,
+  FaCheck,
+  FaTimes,
+  FaExclamationTriangle,
+  FaSync,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -33,89 +37,71 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Label } from "@/components/ui/label";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: "active" | "inactive" | "pending";
-  lastLogin: string;
-  createdAt: string;
-}
+import { Input } from "@/components/ui/input";
+import { toast } from "react-hot-toast";
+import { userApi, User } from "@/api/userApi";
+import CreateUserModal from "@/features/user/components/CreateUserModal";
+import EditUserModal from "@/features/user/components/EditUserModal";
+import DeleteUserModal from "@/features/user/components/DeleteUserModal";
+import ResetPasswordModal from "@/features/user/components/ResetPasswordModal";
+import { formatDistanceToNow } from "date-fns";
 
 const UserManagementPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
 
-  // Sample users data
-  const users: User[] = [
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john.doe@example.com",
-      role: "Admin",
-      status: "active",
-      lastLogin: "2023-10-16 14:30",
-      createdAt: "2023-01-15",
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane.smith@example.com",
-      role: "Agent",
-      status: "active",
-      lastLogin: "2023-10-15 09:45",
-      createdAt: "2023-02-20",
-    },
-    {
-      id: "3",
-      name: "Robert Johnson",
-      email: "robert.johnson@example.com",
-      role: "Manager",
-      status: "active",
-      lastLogin: "2023-10-14 16:20",
-      createdAt: "2023-03-10",
-    },
-    {
-      id: "4",
-      name: "Emily Davis",
-      email: "emily.davis@example.com",
-      role: "Agent",
-      status: "inactive",
-      lastLogin: "2023-09-30 11:15",
-      createdAt: "2023-04-05",
-    },
-    {
-      id: "5",
-      name: "Michael Wilson",
-      email: "michael.wilson@example.com",
-      role: "Customer",
-      status: "pending",
-      lastLogin: "Never",
-      createdAt: "2023-10-10",
-    },
-  ];
+  // Modal states
+  const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserData, setSelectedUserData] = useState<User | null>(null);
 
-  // Filter users based on search query, role, and status
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+  const { user } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const matchesRole = selectedRole === null || user.role === selectedRole;
-    const matchesStatus =
-      selectedStatus === null || user.status === selectedStatus;
+  // Fetch users
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await userApi.getAllUsers({
+        search: searchQuery || undefined,
+        role: selectedRole || undefined,
+        status: selectedStatus || undefined,
+        page: currentPage,
+        limit: pageSize,
+      });
 
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+      setUsers(response.data);
+      setTotalPages(response.pagination.pages);
+      setTotalUsers(response.pagination.total);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to load users");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Get unique roles and statuses
-  const roles = Array.from(new Set(users.map((user) => user.role)));
-  const statuses = Array.from(new Set(users.map((user) => user.status)));
+  // Initial fetch
+  useEffect(() => {
+    fetchUsers();
+  }, [currentPage, pageSize, selectedRole, selectedStatus]);
+
+  // Handle search
+  const handleSearch = () => {
+    setCurrentPage(1);
+    fetchUsers();
+  };
 
   // Handle user selection
   const toggleUserSelection = (userId: string) => {
@@ -128,46 +114,108 @@ const UserManagementPage: React.FC = () => {
 
   // Handle select all users
   const toggleSelectAll = () => {
-    if (selectedUsers.length === filteredUsers.length) {
+    if (selectedUsers.length === users.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(filteredUsers.map((user) => user.id));
+      setSelectedUsers(users.map((user) => user.id));
     }
   };
 
   // Handle user actions
-  const handleEditUser = (userId: string) => {
-    console.log(`Editing user ${userId}`);
+  const handleEditUser = (user: User) => {
+    setSelectedUserId(user.id);
+    setSelectedUserData(user);
+    setEditUserModalOpen(true);
   };
 
-  const handleDeleteUser = (userId: string) => {
-    console.log(`Deleting user ${userId}`);
+  const handleDeleteUser = (user: User) => {
+    setSelectedUserId(user.id);
+    setSelectedUserData(user);
+    setDeleteUserModalOpen(true);
   };
 
-  const handleResetPassword = (userId: string) => {
-    console.log(`Resetting password for user ${userId}`);
+  const handleResetPassword = (user: User) => {
+    setSelectedUserId(user.id);
+    setSelectedUserData(user);
+    setResetPasswordModalOpen(true);
   };
 
   const handleSendEmail = (userId: string) => {
     console.log(`Sending email to user ${userId}`);
+    toast.success("Email functionality not implemented yet");
   };
 
-  // Get status badge color
-  const getStatusBadgeColor = (status: User["status"]) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "inactive":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
+  const handleChangeStatus = async (userId: string, newStatus: string) => {
+    try {
+      await userApi.changeUserStatus(userId, newStatus);
+      toast.success(`User status changed to ${newStatus}`);
+      fetchUsers();
+    } catch (error) {
+      console.error("Error changing user status:", error);
+      toast.error("Failed to change user status");
     }
   };
 
-  const { user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return;
+
+    if (
+      confirm(`Are you sure you want to delete ${selectedUsers.length} users?`)
+    ) {
+      try {
+        // In a real implementation, you would use a bulk delete endpoint
+        // For now, we'll delete them one by one
+        for (const userId of selectedUsers) {
+          await userApi.deleteUser(userId);
+        }
+
+        toast.success(`${selectedUsers.length} users deleted successfully`);
+        setSelectedUsers([]);
+        fetchUsers();
+      } catch (error) {
+        console.error("Error deleting users:", error);
+        toast.error("Failed to delete users");
+      }
+    }
+  };
+
+  const handleBulkChangeStatus = async (newStatus: string) => {
+    if (selectedUsers.length === 0) return;
+
+    try {
+      // In a real implementation, you would use a bulk update endpoint
+      // For now, we'll update them one by one
+      for (const userId of selectedUsers) {
+        await userApi.changeUserStatus(userId, newStatus);
+      }
+
+      toast.success(`${selectedUsers.length} users updated to ${newStatus}`);
+      setSelectedUsers([]);
+      fetchUsers();
+    } catch (error) {
+      console.error("Error updating users:", error);
+      toast.error("Failed to update users");
+    }
+  };
+
+  // Define available roles and statuses
+  const availableRoles = ["admin", "team_lead", "technical", "support"];
+  const availableStatuses = ["active", "inactive", "pending"];
+
+  // Filter users based on search query, role, and status
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      user.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesRole = selectedRole === null || user.role === selectedRole;
+    const matchesStatus =
+      selectedStatus === null || user.status === selectedStatus;
+
+    return matchesSearch && matchesRole && matchesStatus;
+  });
 
   // Animation variants
   const containerVariants = {
@@ -189,6 +237,48 @@ const UserManagementPage: React.FC = () => {
         duration: 0.5,
       },
     },
+  };
+
+  // Get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return (
+          <Badge className="bg-green-500 text-white">
+            <FaCheck className="mr-1 h-3 w-3" /> Active
+          </Badge>
+        );
+      case "inactive":
+        return (
+          <Badge className="bg-red-500 text-white">
+            <FaTimes className="mr-1 h-3 w-3" /> Inactive
+          </Badge>
+        );
+      case "pending":
+        return (
+          <Badge className="bg-yellow-500 text-white">
+            <FaExclamationTriangle className="mr-1 h-3 w-3" /> Pending
+          </Badge>
+        );
+      default:
+        return <Badge className="bg-gray-500 text-white">{status}</Badge>;
+    }
+  };
+
+  // Get role badge
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "admin":
+        return <Badge className="bg-purple-500 text-white">Admin</Badge>;
+      case "team_lead":
+        return <Badge className="bg-blue-500 text-white">Team Lead</Badge>;
+      case "technical":
+        return <Badge className="bg-indigo-500 text-white">Technical</Badge>;
+      case "support":
+        return <Badge className="bg-teal-500 text-white">Support</Badge>;
+      default:
+        return <Badge className="bg-gray-500 text-white">{role}</Badge>;
+    }
   };
 
   return (
@@ -235,7 +325,7 @@ const UserManagementPage: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white shadow-md"
-                    onClick={() => console.log("Add new user")}
+                    onClick={() => setCreateUserModalOpen(true)}
                   >
                     <FaUserPlus className="mr-2 h-4 w-4" />
                     Add User
@@ -265,15 +355,17 @@ const UserManagementPage: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Select
-                    value={selectedRole || ""}
-                    onValueChange={(value) => setSelectedRole(value || null)}
+                    value={selectedRole || "all"}
+                    onValueChange={(value) =>
+                      setSelectedRole(value === "all" ? null : value)
+                    }
                   >
                     <SelectTrigger className="w-[150px] bg-gray-900/50 border-gray-700 text-white">
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-800 border-gray-700 text-white">
-                      <SelectItem value="">All Roles</SelectItem>
-                      {roles.map((role) => (
+                      <SelectItem value="all">All Roles</SelectItem>
+                      {availableRoles.map((role) => (
                         <SelectItem key={role} value={role}>
                           {role}
                         </SelectItem>
@@ -282,15 +374,17 @@ const UserManagementPage: React.FC = () => {
                   </Select>
 
                   <Select
-                    value={selectedStatus || ""}
-                    onValueChange={(value) => setSelectedStatus(value || null)}
+                    value={selectedStatus || "all"}
+                    onValueChange={(value) =>
+                      setSelectedStatus(value === "all" ? null : value)
+                    }
                   >
                     <SelectTrigger className="w-[150px] bg-gray-900/50 border-gray-700 text-white">
                       <SelectValue placeholder="Filter by status" />
                     </SelectTrigger>
                     <SelectContent className="bg-gray-800 border-gray-700 text-white">
-                      <SelectItem value="">All Statuses</SelectItem>
-                      {statuses.map((status) => (
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      {availableStatuses.map((status) => (
                         <SelectItem key={status} value={status}>
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </SelectItem>
@@ -369,7 +463,7 @@ const UserManagementPage: React.FC = () => {
                             Status
                           </th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">
-                            Last Login
+                            Created
                           </th>
                           <th className="px-4 py-3 text-right text-sm font-medium text-gray-300">
                             Actions
@@ -394,7 +488,7 @@ const UserManagementPage: React.FC = () => {
                             </td>
                             <td className="px-4 py-3">
                               <div className="font-medium text-white">
-                                {user.name}
+                                {user.firstName} {user.lastName}
                               </div>
                               <div className="text-xs text-gray-400">
                                 ID: {user.id}
@@ -404,23 +498,18 @@ const UserManagementPage: React.FC = () => {
                               {user.email}
                             </td>
                             <td className="px-4 py-3">
-                              <Badge
-                                variant="outline"
-                                className="bg-gray-800 text-blue-400 border-blue-500/50"
-                              >
-                                {user.role}
-                              </Badge>
+                              {getRoleBadge(user.role)}
                             </td>
                             <td className="px-4 py-3">
-                              <Badge
-                                className={getStatusBadgeColor(user.status)}
-                              >
-                                {user.status.charAt(0).toUpperCase() +
-                                  user.status.slice(1)}
-                              </Badge>
+                              {getStatusBadge(user.status)}
                             </td>
                             <td className="px-4 py-3 text-sm text-white">
-                              {user.lastLogin}
+                              {user.createdAt
+                                ? formatDistanceToNow(
+                                    new Date(user.createdAt),
+                                    { addSuffix: true }
+                                  )
+                                : "Unknown"}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <DropdownMenu>
@@ -438,13 +527,13 @@ const UserManagementPage: React.FC = () => {
                                   className="bg-gray-800 border-gray-700 text-white"
                                 >
                                   <DropdownMenuItem
-                                    onClick={() => handleEditUser(user.id)}
+                                    onClick={() => handleEditUser(user)}
                                   >
                                     <FaUserEdit className="h-4 w-4 mr-2" />
                                     Edit
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => handleResetPassword(user.id)}
+                                    onClick={() => handleResetPassword(user)}
                                   >
                                     <FaLock className="h-4 w-4 mr-2" />
                                     Reset Password
@@ -456,7 +545,7 @@ const UserManagementPage: React.FC = () => {
                                     Send Email
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => handleDeleteUser(user.id)}
+                                    onClick={() => handleDeleteUser(user)}
                                     className="text-red-400"
                                   >
                                     <FaTrash className="h-4 w-4 mr-2" />
@@ -505,6 +594,50 @@ const UserManagementPage: React.FC = () => {
       </div>
 
       <Footer />
+
+      {/* Modals */}
+      <CreateUserModal
+        isOpen={createUserModalOpen}
+        onClose={() => setCreateUserModalOpen(false)}
+        onSuccess={() => {
+          setCreateUserModalOpen(false);
+          fetchUsers();
+        }}
+      />
+
+      {selectedUserData && (
+        <>
+          <EditUserModal
+            isOpen={editUserModalOpen}
+            onClose={() => setEditUserModalOpen(false)}
+            user={selectedUserData}
+            onSuccess={() => {
+              setEditUserModalOpen(false);
+              fetchUsers();
+            }}
+          />
+
+          <DeleteUserModal
+            isOpen={deleteUserModalOpen}
+            onClose={() => setDeleteUserModalOpen(false)}
+            user={selectedUserData}
+            onSuccess={() => {
+              setDeleteUserModalOpen(false);
+              fetchUsers();
+            }}
+          />
+
+          <ResetPasswordModal
+            isOpen={resetPasswordModalOpen}
+            onClose={() => setResetPasswordModalOpen(false)}
+            user={selectedUserData}
+            onSuccess={() => {
+              setResetPasswordModalOpen(false);
+              toast.success("Password reset successfully");
+            }}
+          />
+        </>
+      )}
     </div>
   );
 };

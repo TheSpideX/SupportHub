@@ -83,6 +83,20 @@ export const API_ROUTES = {
     UPDATE: (id: string) => `/api/users/${id}`,
     DELETE: (id: string) => `/api/users/${id}`,
     SEARCH: "/api/users/search",
+    BY_IDS: "/api/users/by-ids",
+    CHANGE_STATUS: (id: string) => `/api/users/${id}/status`,
+    RESET_PASSWORD: (id: string) => `/api/users/${id}/reset-password`,
+  },
+
+  // Customer management endpoints
+  CUSTOMERS: {
+    BASE: "/api/customers",
+    GET_ALL: "/api/customers",
+    GET_BY_ID: (id: string) => `/api/customers/${id}`,
+    CREATE: "/api/customers",
+    UPDATE: (id: string) => `/api/customers/${id}`,
+    DELETE: (id: string) => `/api/customers/${id}`,
+    CHANGE_STATUS: (id: string) => `/api/customers/${id}/status`,
   },
 
   // Team management endpoints
@@ -179,6 +193,7 @@ export const APP_ROUTES = {
     DASHBOARD: "/admin/dashboard",
     TEAM_MANAGEMENT: "/admin/team-management",
     USER_MANAGEMENT: "/admin/user-management",
+    CUSTOMER_MANAGEMENT: "/admin/customer-management",
   },
 
   // Error pages
