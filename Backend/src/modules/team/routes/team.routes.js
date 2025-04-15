@@ -17,7 +17,14 @@ const teamValidation = require("../validations/team.validation");
 const invitationValidation = require("../validations/invitation.validation");
 const invitationCodeValidation = require("../validations/invitation-code.validation");
 
-// Apply middleware to all routes
+// Public route for validating invitation codes (no auth required)
+router.get(
+  "/invitation-codes/:code/validate",
+  validate(invitationCodeValidation.validateInvitationCode),
+  asyncHandler(invitationCodeController.validateInvitationCode)
+);
+
+// Apply middleware to all other routes
 router.use(authenticateToken);
 router.use(apiRateLimit());
 
@@ -103,11 +110,6 @@ router.delete(
   asyncHandler(invitationCodeController.revokeInvitationCode)
 );
 
-// Public route for validating invitation codes (no auth required)
-router.get(
-  "/invitation-codes/:code/validate",
-  validate(invitationCodeValidation.validateInvitationCode),
-  asyncHandler(invitationCodeController.validateInvitationCode)
-);
+// This route was moved to the top of the file to make it public
 
 module.exports = router;

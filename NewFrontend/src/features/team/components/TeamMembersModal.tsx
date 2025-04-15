@@ -85,6 +85,8 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
     setIsLoadingTeam(true);
     try {
       const teamData = await fetchTeamById(teamId);
+      console.log("Team data received:", teamData);
+
       if (teamData) {
         // Convert API team to UI team format
         setTeam({
@@ -92,41 +94,54 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
           name: teamData.name,
           description: teamData.description,
           members: (teamData.members || []).map((member: any) => {
-            // Extract user data safely
-            const userId =
-              member.userId ||
-              (member.user && (member.user._id || member.user.id)) ||
-              member.id;
+            // Extract user data safely - handle both nested structures
+            let userId,
+              userProfile,
+              userEmail,
+              userName = "Unknown";
 
-            // Get user profile data
-            let userName = "Unknown";
-            let userEmail = "";
+            // Check if userId is an object (populated) or a string
+            if (member.userId && typeof member.userId === "object") {
+              // Case: userId is populated with user object
+              userId = member.userId._id || member.userId.id;
+              userProfile = member.userId.profile;
+              userEmail = member.userId.email || "";
 
-            if (member.user) {
-              // If user object is populated
+              // Get name from profile or fullName
+              if (userProfile) {
+                const firstName = userProfile.firstName || "";
+                const lastName = userProfile.lastName || "";
+                userName =
+                  `${firstName} ${lastName}`.trim() ||
+                  member.userId.fullName ||
+                  "Unknown";
+              } else if (member.userId.fullName) {
+                userName = member.userId.fullName;
+              } else if (member.userId.name) {
+                userName = member.userId.name;
+              }
+            } else if (member.user) {
+              // Legacy case: user field is populated
+              userId = member.user._id || member.user.id;
+              userEmail = member.user.email || "";
+
               if (member.user.profile) {
                 const firstName = member.user.profile.firstName || "";
                 const lastName = member.user.profile.lastName || "";
-                userName = `${firstName} ${lastName}`.trim() || "Unknown";
+                userName =
+                  `${firstName} ${lastName}`.trim() ||
+                  member.user.fullName ||
+                  "Unknown";
               } else if (member.user.name) {
                 userName = member.user.name;
+              } else if (member.user.fullName) {
+                userName = member.user.fullName;
               }
-
-              userEmail = member.user.email || "";
-            } else if (member.name) {
-              // If name is directly on the member
-              userName = member.name;
-            } else if (
-              userId === teamData.createdBy?._id ||
-              userId === teamData.createdBy?.id ||
-              userId === teamData.createdBy
-            ) {
-              // If this is the creator and we have creator info
-              userName = "Team Creator";
-            }
-
-            if (member.email) {
-              userEmail = member.email;
+            } else {
+              // Fallback to direct member properties
+              userId = member.userId || member.id || member._id;
+              userName = member.name || "Unknown";
+              userEmail = member.email || "";
             }
 
             // Determine role with better display name
@@ -152,10 +167,12 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
               role: userRole,
             };
           }),
-          leadId: teamData.leadId,
+          leadId:
+            teamData.leadId?._id || teamData.leadId?.id || teamData.leadId,
         });
       }
     } catch (error: any) {
+      console.error("Error loading team data:", error);
       toast.error(error.message || "Failed to load team data");
     } finally {
       setIsLoadingTeam(false);
