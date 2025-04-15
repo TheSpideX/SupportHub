@@ -7,6 +7,7 @@
 
 const auth = require("./auth");
 const team = require("./team");
+const admin = require("./admin");
 const logger = require("../utils/logger");
 
 /**
@@ -24,6 +25,9 @@ const initializeModules = async (app, io, config = {}) => {
 
     // Initialize team module
     team.initialize(app);
+
+    // Initialize admin module
+    admin.initialize(app);
 
     logger.info("All modules initialized successfully");
   } catch (error) {
@@ -55,6 +59,7 @@ const shutdownModules = async () => {
 module.exports = {
   auth,
   team,
+  admin,
   // Add other modules here as they are created
 
   // Module lifecycle functions

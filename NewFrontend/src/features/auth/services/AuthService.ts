@@ -34,8 +34,8 @@ import {
 import { apiClient } from "@/api/apiClient";
 import { authApi } from "../api/auth-api";
 import { debounce } from "lodash";
-import { setAuthState } from "../store/authSlice";
-import { APP_ROUTES } from '../../../config/routes';
+import { setAuthState, updateOrganizationContext } from "../store";
+import { APP_ROUTES } from "../../../config/routes";
 
 export interface AuthServiceConfig {
   apiBaseUrl: string;
@@ -70,6 +70,8 @@ export class AuthService {
   private authState: AuthState;
   private stateChangeListeners: Array<(state: AuthState) => void> = [];
   private broadcastChannel: BroadcastChannel | null = null;
+  // Storage for persisting data
+  private storage: Storage | null = null;
   // Add authApi as a class property
   private authApi: any; // Use proper type if available
   // Existing properties
@@ -143,6 +145,32 @@ export class AuthService {
 
     // Initialize authApi
     this.authApi = authApi;
+
+    // Initialize storage with fallback
+    try {
+      this.storage = typeof window !== "undefined" ? window.localStorage : null;
+
+      // Test storage availability
+      if (this.storage) {
+        const testKey = `__storage_test__${Math.random()}`;
+        this.storage.setItem(testKey, "test");
+        const result = this.storage.getItem(testKey) === "test";
+        this.storage.removeItem(testKey);
+
+        if (!result) {
+          logger.warn(
+            "localStorage test failed, using memory storage fallback"
+          );
+          this.storage = null;
+        }
+      }
+    } catch (storageError) {
+      logger.warn(
+        "Error initializing localStorage, using memory storage fallback",
+        storageError
+      );
+      this.storage = null;
+    }
 
     // Initialize auth state
     this.authState = {
@@ -360,21 +388,54 @@ export class AuthService {
     newState: Partial<AuthState>,
     broadcast: boolean = true
   ): void {
-    this.authState = { ...this.authState, ...newState };
+    try {
+      // Make sure authState exists
+      if (!this.authState) {
+        this.authState = {
+          isAuthenticated: false,
+          isLoading: false,
+          user: null,
+          error: null,
+        };
+      }
 
-    // Notify all listeners
-    this.stateChangeListeners.forEach((listener) => {
-      listener(this.authState);
-    });
+      // Update state
+      this.authState = { ...this.authState, ...newState };
 
-    // Broadcast to other tabs if needed
-    if (broadcast && this.broadcastChannel) {
-      this.broadcastChannel.postMessage({
-        type: "AUTH_STATE_CHANGE",
-        payload: {
-          state: this.authState,
-        },
-      });
+      // Notify all listeners
+      try {
+        if (this.stateChangeListeners && this.stateChangeListeners.forEach) {
+          this.stateChangeListeners.forEach((listener) => {
+            try {
+              if (typeof listener === "function") {
+                listener(this.authState);
+              }
+            } catch (listenerError) {
+              logger.warn("Error in auth state change listener", listenerError);
+            }
+          });
+        }
+      } catch (listenersError) {
+        logger.warn("Error notifying auth state listeners", listenersError);
+      }
+
+      // Broadcast to other tabs if needed
+      if (broadcast) {
+        try {
+          if (this.broadcastChannel) {
+            this.broadcastChannel.postMessage({
+              type: "AUTH_STATE_CHANGE",
+              payload: {
+                state: this.authState,
+              },
+            });
+          }
+        } catch (broadcastError) {
+          logger.warn("Error broadcasting auth state change", broadcastError);
+        }
+      }
+    } catch (error) {
+      logger.error("Error updating auth state", error);
     }
 
     // Update Redux store if available
@@ -653,12 +714,170 @@ export class AuthService {
   }
 
   /**
-   * Register new user
+   * Logs in a user using the registration data
+   * This is used to automatically log in a user after registration
    */
-  public async register(data: RegistrationData): Promise<boolean> {
+  public async loginWithRegistrationData(): Promise<boolean> {
+    try {
+      // Get registration data from storage using safeStorage helper
+      const registrationDataStr = this.safeStorage("get", "registrationData");
+
+      if (!registrationDataStr) {
+        logger.warn("No registration data found for auto-login");
+        return false;
+      }
+
+      // Parse registration data
+      let registrationData;
+      try {
+        registrationData = JSON.parse(registrationDataStr);
+      } catch (parseError) {
+        logger.warn("Error parsing registration data", parseError);
+        // Remove invalid data using safeStorage helper
+        this.safeStorage("remove", "registrationData");
+        return false;
+      }
+
+      // Log the registration data for debugging
+      logger.debug("Registration data for auto-login:", {
+        hasUserData: !!registrationData.userData,
+        hasTokens: !!registrationData.tokens,
+        hasResponseData: !!registrationData.responseData,
+        timestamp: registrationData.timestamp,
+      });
+
+      logger.debug("Found registration data for auto-login", registrationData);
+
+      // Check if registration data is recent (within 10 minutes)
+      try {
+        const registrationTime = new Date(registrationData.timestamp).getTime();
+        const now = new Date().getTime();
+        const tenMinutesInMs = 10 * 60 * 1000;
+
+        if (now - registrationTime > tenMinutesInMs) {
+          // Registration data is too old, remove it
+          logger.warn("Registration data is too old for auto-login");
+          // Remove old data using safeStorage helper
+          this.safeStorage("remove", "registrationData");
+          return false;
+        }
+      } catch (timeError) {
+        logger.warn("Error checking registration data timestamp", timeError);
+        return false;
+      }
+
+      // Update auth state with user data
+      if (registrationData.userData) {
+        logger.info("Auto-login with registration data", {
+          email: registrationData.userData.email || "unknown",
+          role: registrationData.userData.role || "unknown",
+        });
+
+        // Check for tokens in different places
+        try {
+          // First check if tokens are in the response data
+          let tokens = null;
+
+          if (registrationData.responseData?.data?.tokens) {
+            tokens = registrationData.responseData.data.tokens;
+            logger.debug("Found tokens in response data", {
+              hasAccessToken: !!tokens.accessToken,
+              hasRefreshToken: !!tokens.refreshToken,
+            });
+          }
+          // Then check if tokens are in the registration data
+          else if (registrationData.tokens) {
+            tokens = registrationData.tokens;
+            logger.debug("Found tokens in registration data", {
+              hasAccessToken: !!tokens.accessToken,
+              hasRefreshToken: !!tokens.refreshToken,
+            });
+          }
+
+          // Set tokens if we have them
+          if (tokens && this.tokenService) {
+            // Check if the setTokens method exists
+            if (typeof this.tokenService.setTokens === "function") {
+              this.tokenService.setTokens(tokens);
+              logger.debug("Set tokens from registration data");
+            } else {
+              logger.warn("TokenService.setTokens method not available");
+
+              // Try to set individual tokens if methods exist
+              if (
+                tokens.accessToken &&
+                typeof this.tokenService.setAccessToken === "function"
+              ) {
+                this.tokenService.setAccessToken(tokens.accessToken);
+              }
+
+              if (
+                tokens.refreshToken &&
+                typeof this.tokenService.setRefreshToken === "function"
+              ) {
+                this.tokenService.setRefreshToken(tokens.refreshToken);
+              }
+
+              if (
+                tokens.csrfToken &&
+                typeof this.tokenService.setCsrfToken === "function"
+              ) {
+                this.tokenService.setCsrfToken(tokens.csrfToken);
+              }
+            }
+          } else {
+            logger.warn("No tokens found for auto-login");
+          }
+        } catch (tokenError) {
+          logger.warn("Error setting tokens during auto-login", tokenError);
+          // Continue without tokens
+        }
+
+        // Update auth state
+        this.updateAuthState({
+          isAuthenticated: true,
+          isLoading: false,
+          user: registrationData.userData,
+          error: null,
+        });
+
+        // Start session tracking
+        this.sessionService.startSessionTracking();
+
+        // Remove registration data using safeStorage helper
+        this.safeStorage("remove", "registrationData");
+        logger.info("Auto-login successful");
+
+        return true;
+      }
+
+      logger.warn("Registration data doesn't contain user data for auto-login");
+      return false;
+    } catch (error) {
+      logger.error("Error logging in with registration data:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Register new user
+   * Supports different registration types:
+   * - Regular user registration
+   * - Organization registration
+   * - Organization member registration with invite code
+   * - Customer registration
+   */
+  public async register(
+    data: RegistrationData
+  ): Promise<{ success: boolean; userData?: any }> {
     try {
       // Security check before registration
-      if (this.securityService.isRateLimited("register")) {
+      if (
+        !import.meta.env.DEV && // Skip in development mode
+        this.securityService &&
+        typeof this.securityService.isRateLimited === "function" &&
+        this.securityService.isRateLimited("register")
+      ) {
         throw createAuthError(
           "RATE_LIMITED",
           "Too many registration attempts. Please try again later."
@@ -666,10 +885,26 @@ export class AuthService {
       }
 
       // Set loading state
-      this.updateAuthState({
-        ...this.authState,
-        isLoading: true,
-        error: null,
+      try {
+        this.updateAuthState({
+          isLoading: true,
+          error: null,
+        });
+      } catch (stateError) {
+        logger.warn(
+          "Error updating auth state during registration",
+          stateError
+        );
+        // Continue with registration even if state update fails
+      }
+
+      // Log registration attempt with type
+      logger.info(`Registration attempt with type: ${data.type || "regular"}`, {
+        email: data.email,
+        type: data.type,
+        hasInviteCode: !!data.inviteCode,
+        hasOrgId: !!data.orgId,
+        hasOrgName: !!data.organizationName,
       });
 
       // Make registration request
@@ -680,45 +915,192 @@ export class AuthService {
 
       // Process successful registration
       if (response.status === 201) {
-        // If auto-login after registration
-        if (response.data.autoLogin) {
+        logger.debug("Registration successful, response:", response.data);
+
+        // Check if we have user data in the response
+        if (response.data && response.data.data) {
           // Extract user data from response
-          const userData = extractUserData(response.data);
+          const userData = {
+            id: response.data.data.userId,
+            email: response.data.data.email,
+            role: response.data.data.role,
+            organizationId: response.data.data.organizationId,
+            organizationName: response.data.data.organizationName,
+            organizationType: response.data.data.organizationType,
+            orgId: response.data.data.orgId,
+          };
 
-          // Update auth state
-          this.updateAuthState({
-            isAuthenticated: true,
-            isLoading: false,
-            user: userData,
-            error: null,
-          });
+          logger.debug(
+            "Extracted user data from registration response:",
+            userData
+          );
 
-          // Start session tracking
-          this.sessionService.startSessionTracking();
-        } else {
-          // Just update loading state
-          this.updateAuthState({
-            isLoading: false,
-          });
+          // Get tokens if available
+          let tokens = null;
+          try {
+            // First check if tokens are in the response data
+            if (response.data.data && response.data.data.tokens) {
+              tokens = response.data.data.tokens;
+              logger.debug("Found tokens in registration response", {
+                hasAccessToken: !!tokens.accessToken,
+                hasRefreshToken: !!tokens.refreshToken,
+              });
+            } else {
+              // Initialize tokens as an empty object
+              tokens = {};
+
+              // Safely check and get tokens from cookies (set by the backend)
+              if (this.tokenService) {
+                // Safely get access token
+                try {
+                  if (typeof this.tokenService.getAccessToken === "function") {
+                    const accessToken = this.tokenService.getAccessToken();
+                    if (accessToken) {
+                      tokens.accessToken = accessToken;
+                    }
+                  }
+                } catch (accessTokenError) {
+                  logger.warn("Error getting access token", accessTokenError);
+                }
+
+                // Safely get refresh token
+                try {
+                  if (typeof this.tokenService.getRefreshToken === "function") {
+                    const refreshToken = this.tokenService.getRefreshToken();
+                    if (refreshToken) {
+                      tokens.refreshToken = refreshToken;
+                    }
+                  }
+                } catch (refreshTokenError) {
+                  logger.warn("Error getting refresh token", refreshTokenError);
+                }
+
+                // Safely get CSRF token
+                try {
+                  if (typeof this.tokenService.getCsrfToken === "function") {
+                    const csrfToken = this.tokenService.getCsrfToken();
+                    if (csrfToken) {
+                      tokens.csrfToken = csrfToken;
+                    }
+                  }
+                } catch (csrfTokenError) {
+                  logger.warn("Error getting CSRF token", csrfTokenError);
+                }
+
+                // If no tokens were added, set tokens to null
+                if (Object.keys(tokens).length === 0) {
+                  tokens = null;
+                }
+              }
+            }
+          } catch (tokenError) {
+            logger.warn(
+              "Error getting tokens for registration data",
+              tokenError
+            );
+            // Continue without tokens
+            tokens = null;
+          }
+
+          // Store the registration data for potential auto-login
+          try {
+            // Use the safeStorage helper method
+            const registrationData = JSON.stringify({
+              userData,
+              timestamp: new Date().toISOString(),
+              tokens,
+              responseData: response.data,
+            });
+
+            this.safeStorage("set", "registrationData", registrationData);
+            logger.debug("Stored registration data for auto-login");
+          } catch (storageError) {
+            logger.warn("Error storing registration data", storageError);
+            // Continue without storing data
+          }
+
+          // Log detailed info about stored data
+          if (this.storage) {
+            logger.debug("Registration data details:", {
+              hasUserData: !!userData,
+              hasTokens: !!tokens,
+              timestamp: new Date().toISOString(),
+            });
+          }
+
+          // Return the user data along with success flag and original data
+          return {
+            success: true,
+            userData,
+            data: response.data.data,
+            status: response.data.status,
+            message: response.data.message,
+          };
         }
 
-        return true;
+        // Just update loading state
+        this.updateAuthState({
+          isLoading: false,
+        });
+
+        // Return success with the response data
+        return {
+          success: true,
+          data: response.data.data,
+          status: response.data.status,
+          message: response.data.message,
+        };
       } else {
         throw new Error("Registration failed with status: " + response.status);
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Registration failed:", error);
 
       // Format error
-      const authError = error.response?.data?.error
-        ? createAuthError(
-            error.response.data.error.code,
-            error.response.data.error.message
-          )
-        : createAuthError(
+      let authError;
+      try {
+        if (
+          error &&
+          error.response &&
+          error.response.data &&
+          error.response.data.error
+        ) {
+          // Server returned a structured error
+          const errorCode =
+            error.response.data.error.code || "REGISTRATION_FAILED";
+          const errorMessage =
+            error.response.data.error.message ||
+            "Registration failed. Please try again.";
+          authError = createAuthError(errorCode, errorMessage);
+        } else if (
+          error &&
+          error.response &&
+          error.response.data &&
+          error.response.data.message
+        ) {
+          // Server returned an error message
+          authError = createAuthError(
+            "REGISTRATION_FAILED",
+            error.response.data.message
+          );
+        } else if (error && error.message) {
+          // Error has a message property
+          authError = createAuthError("REGISTRATION_FAILED", error.message);
+        } else {
+          // Generic error
+          authError = createAuthError(
             "REGISTRATION_FAILED",
             "Registration failed. Please try again."
           );
+        }
+      } catch (formatError) {
+        // If anything goes wrong during error formatting, use a generic error
+        logger.error("Error while formatting registration error:", formatError);
+        authError = createAuthError(
+          "REGISTRATION_FAILED",
+          "Registration failed. Please try again."
+        );
+      }
 
       // Update auth state
       this.updateAuthState({
@@ -726,10 +1108,23 @@ export class AuthService {
         error: authError,
       });
 
-      // Track failed attempt
-      this.securityService.trackFailedAttempt("register", data.email);
+      // Track failed attempt if securityService is available
+      try {
+        if (
+          this.securityService &&
+          typeof this.securityService.trackFailedAttempt === "function"
+        ) {
+          this.securityService.trackFailedAttempt("register", data.email);
+        }
+      } catch (trackError) {
+        logger.warn("Error tracking failed registration attempt", trackError);
+      }
 
-      return false;
+      // Return error information instead of throwing
+      return {
+        success: false,
+        error: authError,
+      };
     }
   }
 
@@ -1422,6 +1817,123 @@ export class AuthService {
     return null;
   }
 
+  // In-memory fallback storage when localStorage is not available
+  private memoryStorage: Map<string, string> = new Map();
+
+  /**
+   * Safely access storage with fallback to memory storage
+   */
+  private safeStorage(
+    operation: "get" | "set" | "remove",
+    key: string,
+    value?: string
+  ): string | null {
+    try {
+      // Check if storage is available
+      const storageAvailable = this.isStorageAvailable();
+
+      // If storage is not available, use memory storage
+      if (!storageAvailable) {
+        logger.warn(`Using memory fallback for ${operation} operation`);
+
+        switch (operation) {
+          case "get":
+            return this.memoryStorage.get(key) || null;
+          case "set":
+            if (value !== undefined) {
+              this.memoryStorage.set(key, value);
+              return value;
+            }
+            return null;
+          case "remove":
+            this.memoryStorage.delete(key);
+            return null;
+          default:
+            return null;
+        }
+      }
+
+      // Use localStorage if available
+      if (this.storage) {
+        switch (operation) {
+          case "get":
+            return this.storage.getItem(key);
+          case "set":
+            if (value !== undefined) {
+              this.storage.setItem(key, value);
+              return value;
+            }
+            return null;
+          case "remove":
+            this.storage.removeItem(key);
+            return null;
+          default:
+            return null;
+        }
+      }
+
+      // Fallback to memory storage if this.storage is somehow null
+      logger.warn(
+        `Storage not available for ${operation} operation, using memory fallback`
+      );
+      return this.safeStorage(operation, key, value);
+    } catch (error) {
+      logger.warn(
+        `Error in storage ${operation} operation for key ${key}, using memory fallback`,
+        error
+      );
+
+      // On error, fall back to memory storage
+      try {
+        switch (operation) {
+          case "get":
+            return this.memoryStorage.get(key) || null;
+          case "set":
+            if (value !== undefined) {
+              this.memoryStorage.set(key, value);
+              return value;
+            }
+            return null;
+          case "remove":
+            this.memoryStorage.delete(key);
+            return null;
+          default:
+            return null;
+        }
+      } catch (fallbackError) {
+        logger.error(
+          `Even memory fallback failed for ${operation} operation`,
+          fallbackError
+        );
+        return null;
+      }
+    }
+  }
+
+  /**
+   * Check if storage is available
+   */
+  private isStorageAvailable(): boolean {
+    try {
+      if (!this.storage) {
+        // Try to initialize storage if it's null
+        this.storage =
+          typeof window !== "undefined" ? window.localStorage : null;
+      }
+
+      if (!this.storage) return false;
+
+      // Test storage with a dummy operation
+      const testKey = `__storage_test__${Math.random()}`;
+      this.storage.setItem(testKey, "test");
+      const result = this.storage.getItem(testKey) === "test";
+      this.storage.removeItem(testKey);
+      return result;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /**
    * Update Redux store with authentication data
    */
@@ -1440,6 +1952,28 @@ export class AuthService {
             sessionExpiry: expiryTime,
           })
         );
+
+        // If user data contains organization information, update organization context
+        if (userData && (userData.organizationId || userData.teamId)) {
+          // Extract organization data
+          const organizationData = {
+            organizationId: userData.organizationId,
+            organizationName: userData.organizationName,
+            organizationType: userData.organizationType,
+            teamId: userData.teamId,
+            teamName: userData.teamName,
+            teamType: userData.teamType,
+          };
+
+          // Update organization context in Redux
+          this.store.dispatch(updateOrganizationContext(organizationData));
+
+          logger.debug("Organization context updated in Redux", {
+            component: "AuthService",
+            organizationId: userData.organizationId,
+            teamId: userData.teamId,
+          });
+        }
 
         logger.debug("Redux store updated with auth state", {
           component: "AuthService",

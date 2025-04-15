@@ -6,6 +6,7 @@
 const organizationService = require("../services/organization.service");
 const { ApiError } = require("../../../utils/errors");
 const logger = require("../../../utils/logger");
+const { sendSuccess, sendError } = require("../../../utils/apiResponse");
 const asyncHandler = require("../../../utils/asyncHandler");
 const { formatOrganizationResponse } = require("../utils/format.utils");
 
@@ -66,8 +67,8 @@ exports.getOrganizationById = asyncHandler(async (req, res) => {
   if (
     (req.user.role !== "admin" &&
       organization.owner.toString() !== req.user._id.toString() &&
-      !req.user.organization) ||
-    req.user.organization.toString() !== organization._id.toString()
+      !req.user.organizationId) ||
+    req.user.organizationId.toString() !== organization._id.toString()
   ) {
     throw new ApiError(403, "You don't have access to this organization");
   }
@@ -75,10 +76,11 @@ exports.getOrganizationById = asyncHandler(async (req, res) => {
   // Format the response to match frontend expectations
   const formattedOrganization = formatOrganizationResponse(organization);
 
-  res.status(200).json({
-    success: true,
-    data: formattedOrganization,
-  });
+  return sendSuccess(
+    res,
+    formattedOrganization,
+    "Organization retrieved successfully"
+  );
 });
 
 /**
@@ -91,10 +93,11 @@ exports.getOrganizationByOrgId = asyncHandler(async (req, res) => {
   const organization = await organizationService.getOrganizationByOrgId(orgId);
 
   // Return limited information for public access
-  res.status(200).json({
-    success: true,
-    data: formatOrganizationResponse(organization, false), // false = don't include details
-  });
+  return sendSuccess(
+    res,
+    formatOrganizationResponse(organization, false), // false = don't include details
+    "Organization found"
+  );
 });
 
 /**

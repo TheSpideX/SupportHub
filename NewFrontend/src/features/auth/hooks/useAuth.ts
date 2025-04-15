@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react';
-import { useDispatch, useSelector, useStore } from 'react-redux';
-import { 
-  selectAuthState, 
-  selectUser, 
+import { useCallback, useState } from "react";
+import { useDispatch, useSelector, useStore } from "react-redux";
+import {
+  selectAuthState,
+  selectUser,
   selectIsAuthenticated,
   selectIsLoading,
   selectAuthError,
@@ -10,15 +10,20 @@ import {
   setLoading,
   setError,
   clearAuthState,
-  setAuthState
-} from '../store';
-import { getAuthService } from '../services';
-import { LoginCredentials, RegistrationData, PasswordResetData, User } from '../types/auth.types';
-import { useNavigate, useLocation } from 'react-router-dom';
+  setAuthState,
+} from "../store";
+import { getAuthService } from "../services";
+import {
+  LoginCredentials,
+  RegistrationData,
+  PasswordResetData,
+  User,
+} from "../types/auth.types";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { logger } from "@/utils/logger";
-import { RootState } from '@/store';
-import { APP_ROUTES } from '../../../config/routes';
+import { RootState } from "@/store";
+import { APP_ROUTES } from "../../../config/routes";
 
 /**
  * Custom hook for authentication state and operations
@@ -33,11 +38,11 @@ export const useAuth = () => {
   // Fix 1: Properly type the state selector
   const authState = useSelector((state: RootState) => state.auth);
 
-  logger.debug('useAuth hook called', { 
-    component: 'useAuth', 
+  logger.debug("useAuth hook called", {
+    component: "useAuth",
     isAuthenticated: authState.isAuthenticated,
     isLoading: authState.isLoading,
-    path: location.pathname
+    path: location.pathname,
   });
 
   const redirectToLogin = useCallback(() => {
@@ -48,19 +53,24 @@ export const useAuth = () => {
    * Improved error handling for auth operations
    */
   const handleAuthError = (error: any) => {
-    logger.error('Authentication error', { component: 'useAuth', error });
-    
-    if (error?.response?.status === 500 || 
-        error?.response?.status === 401 || 
-        error?.code === 'AUTHENTICATION_ERROR') {
+    logger.error("Authentication error", { component: "useAuth", error });
+
+    if (
+      error?.response?.status === 500 ||
+      error?.response?.status === 401 ||
+      error?.code === "AUTHENTICATION_ERROR"
+    ) {
       dispatch(clearAuthState());
-      
+
       // Use consistent login path
       navigate(APP_ROUTES.AUTH.LOGIN, { replace: true });
     }
-    
-    toast.error(error?.response?.data?.message || 'Authentication failed. Please try again.');
-    
+
+    toast.error(
+      error?.response?.data?.message ||
+        "Authentication failed. Please try again."
+    );
+
     throw error;
   };
 
@@ -69,26 +79,26 @@ export const useAuth = () => {
    */
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
     dispatch(setLoading(true));
-    
+
     try {
       // Get the auth service instance
       const authServiceInstance = getAuthService();
-      
+
       // Make login request through auth service
       const result = await authServiceInstance.login(credentials);
-      
+
       if (result) {
-        logger.info('Login successful', { component: 'useAuth' });
-        
+        logger.info("Login successful", { component: "useAuth" });
+
         // Get the redirect path from state or default to dashboard
-        const from = location.state?.from?.pathname || '/dashboard';
-        
+        const from = location.state?.from?.pathname || "/dashboard";
+
         // Redirect to the intended destination
         navigate(from, { replace: true });
-        
+
         return true;
       }
-      
+
       // If login failed but no error was thrown
       return false;
     } catch (error) {
@@ -102,64 +112,79 @@ export const useAuth = () => {
   // Logout
   const logout = useCallback(async () => {
     dispatch(setLoading(true));
-    
+
     try {
       await authService.logout();
       dispatch(clearAuthState());
       return true;
     } catch (error: any) {
-      dispatch(setError({
-        code: error.code || 'LOGOUT_FAILED',
-        message: error.message || 'Logout failed. Please try again.'
-      }));
+      dispatch(
+        setError({
+          code: error.code || "LOGOUT_FAILED",
+          message: error.message || "Logout failed. Please try again.",
+        })
+      );
       return false;
     } finally {
       dispatch(setLoading(false));
     }
   }, [dispatch]);
-  
+
   // Register
-  const register = useCallback(async (data: RegistrationData) => {
-    dispatch(setLoading(true));
-    dispatch(setError(null));
-    
-    try {
-      const result = await authService.register(data);
-      return result;
-    } catch (error: any) {
-      dispatch(setError({
-        code: error.code || 'REGISTRATION_FAILED',
-        message: error.message || 'Registration failed. Please try again.'
-      }));
-      return false;
-    } finally {
-      dispatch(setLoading(false));
-    }
-  }, [dispatch]);
-  
+  const register = useCallback(
+    async (data: RegistrationData) => {
+      dispatch(setLoading(true));
+      dispatch(setError(null));
+
+      try {
+        const result = await authService.register(data);
+        return result;
+      } catch (error: any) {
+        dispatch(
+          setError({
+            code: error.code || "REGISTRATION_FAILED",
+            message: error.message || "Registration failed. Please try again.",
+          })
+        );
+
+        // Important: Re-throw the error so the component can handle it
+        throw error;
+      } finally {
+        dispatch(setLoading(false));
+      }
+    },
+    [dispatch]
+  );
+
   // Reset password
-  const resetPassword = useCallback(async (data: PasswordResetData) => {
-    dispatch(setLoading(true));
-    dispatch(setError(null));
-    
-    try {
-      const result = await authService.resetPassword(data);
-      return result;
-    } catch (error: any) {
-      dispatch(setError({
-        code: error.code || 'PASSWORD_RESET_FAILED',
-        message: error.message || 'Password reset failed. Please try again.'
-      }));
-      return false;
-    } finally {
-      dispatch(setLoading(false));
-    }
-  }, [dispatch]);
-  
+  const resetPassword = useCallback(
+    async (data: PasswordResetData) => {
+      dispatch(setLoading(true));
+      dispatch(setError(null));
+
+      try {
+        const result = await authService.resetPassword(data);
+        return result;
+      } catch (error: any) {
+        dispatch(
+          setError({
+            code: error.code || "PASSWORD_RESET_FAILED",
+            message:
+              error.message || "Password reset failed. Please try again.",
+          })
+        );
+        return false;
+      } finally {
+        dispatch(setLoading(false));
+      }
+    },
+    [dispatch]
+  );
+
   // Refresh user data
   const refreshUserData = useCallback(async () => {
     dispatch(setLoading(true));
-    
+
     try {
       const userData = await authService.refreshUserData();
       if (userData) {
@@ -168,34 +193,48 @@ export const useAuth = () => {
       }
       return false;
     } catch (error: any) {
-      dispatch(setError({
-        code: error.code || 'REFRESH_FAILED',
-        message: error.message || 'Failed to refresh user data.'
-      }));
+      dispatch(
+        setError({
+          code: error.code || "REFRESH_FAILED",
+          message: error.message || "Failed to refresh user data.",
+        })
+      );
       return false;
     } finally {
       dispatch(setLoading(false));
     }
   }, [dispatch]);
-  
+
+  // Login with registration data
+  const loginWithRegistrationData = useCallback(async () => {
+    try {
+      const result = await authService.loginWithRegistrationData();
+      return result;
+    } catch (error) {
+      logger.error("Error logging in with registration data:", error);
+      return false;
+    }
+  }, []);
+
   return {
     // Auth state
     user: authState.user,
     isAuthenticated: authState.isAuthenticated,
     isLoading: authState.isLoading,
     error: authState.error,
-    
+
     // Auth methods
     login,
     logout,
     register,
     resetPassword,
-    refreshUserData
+    refreshUserData,
+    loginWithRegistrationData,
   };
-}
+};
 
 // Example of how to use the TokenService in other files
-import { TokenService } from '../services/TokenService';
+import { TokenService } from "../services/TokenService";
 
 // Get the singleton instance instead of creating a new one
 const tokenService = TokenService.getInstance();

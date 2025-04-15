@@ -24,14 +24,30 @@ export interface User {
   emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
+  // Organization-related fields
+  organizationId?: string;
+  organizationName?: string;
+  organizationType?: OrganizationType;
+  teamId?: string;
+  teamName?: string;
+  teamType?: TeamType;
 }
+
+export type OrganizationType =
+  | "business"
+  | "educational"
+  | "nonprofit"
+  | "government"
+  | "other";
+
+export type TeamType = "technical" | "support";
 
 export enum UserRole {
   ADMIN = "admin",
   CUSTOMER = "customer",
   SUPPORT = "support",
   TECHNICAL = "technical",
-  TEAM_LEAD = "team_lead"
+  TEAM_LEAD = "team_lead",
 }
 
 // Authentication state
@@ -304,10 +320,21 @@ export interface RegistrationFormData {
   email: string;
   password: string;
   confirmPassword: string;
-  type: "customer" | "company" | "company_employee";
-  timezone: string;
-  companyName?: string;
+  type: "customer" | "organization" | "organization_member";
+  timezone?: string;
+  // Organization registration fields
+  organizationName?: string;
+  organizationType?:
+    | "business"
+    | "educational"
+    | "nonprofit"
+    | "government"
+    | "other";
+  // Organization member registration fields
   inviteCode?: string;
+  // Customer registration fields
+  orgId?: string;
+  // Common optional fields
   acceptTerms?: boolean;
 }
 
@@ -316,10 +343,21 @@ export interface RegistrationData {
   lastName: string;
   email: string;
   password: string;
-  type: "customer" | "company" | "company_employee";
-  timezone: string;
-  companyName?: string;
+  type: "customer" | "organization" | "organization_member";
+  timezone?: string;
+  // Organization registration fields
+  organizationName?: string;
+  organizationType?:
+    | "business"
+    | "educational"
+    | "nonprofit"
+    | "government"
+    | "other";
+  // Organization member registration fields
   inviteCode?: string;
+  // Customer registration fields
+  orgId?: string;
+  // Common optional fields
   acceptTerms?: boolean;
   securityContext?: {
     fingerprint?: string;
@@ -329,6 +367,11 @@ export interface RegistrationData {
       city?: string;
       ip?: string;
     };
+  };
+  deviceInfo?: {
+    userAgent?: string;
+    fingerprint?: string;
+    ip?: string;
   };
 }
 

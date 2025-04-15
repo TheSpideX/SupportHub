@@ -17,41 +17,170 @@ const { requireEmailVerification } = authConfig;
 const logger = require("../../../utils/logger");
 const { EVENT_NAMES } = require("../constants/event-names.constant");
 const eventPropagationService = require("../services/event-propagation.service");
+const { USER_ROLES } = require("../constants/roles.constant");
+const { sendSuccess, sendError } = require("../../../utils/apiResponse");
 
 /**
  * Register a new user
+ * Handles different types of registration:
+ * - Regular user registration
+ * - Organization registration
+ * - Organization member registration with invite code
+ * - Customer registration
  */
 exports.register = asyncHandler(async (req, res) => {
-  const { email, password, firstName, lastName } = req.body;
-
-  // Use auth service to handle registration
-  const { user, verificationToken } = await authService.registerUser({
+  const {
     email,
     password,
     firstName,
     lastName,
-  });
+    type,
+    organizationName,
+    organizationType,
+    inviteCode,
+    orgId,
+  } = req.body;
 
-  // Send verification email if required
-  if (requireEmailVerification) {
-    await emailService.sendVerificationEmail(user.email, {
-      name: user.firstName,
-      verificationUrl: `${authConfig.clientUrl}/auth/verify-email?token=${verificationToken}`,
+  let result;
+  let verificationToken;
+
+  // Log registration attempt with full request body
+  logger.info(`Registration attempt: ${email}, type: ${type}`);
+  logger.debug("Registration request body:", JSON.stringify(req.body, null, 2));
+
+  try {
+    // Handle different registration types
+    switch (type) {
+      case "organization":
+        // Register a new organization with admin user
+        result = await authService.registerOrganization({
+          email,
+          password,
+          firstName,
+          lastName,
+          organizationName,
+          organizationType,
+        });
+        verificationToken = result.verificationToken;
+        break;
+
+      case "organization_member":
+        // Register a new member using invitation code
+        result = await authService.registerWithInviteCode({
+          email,
+          password,
+          firstName,
+          lastName,
+          inviteCode,
+        });
+        verificationToken = result.verificationToken;
+        break;
+
+      case "customer":
+        // Register a new customer for an organization
+        result = await authService.registerCustomer({
+          email,
+          password,
+          firstName,
+          lastName,
+          orgId,
+        });
+        verificationToken = result.verificationToken;
+        break;
+
+      default:
+        // Regular user registration
+        result = await authService.registerUser({
+          email,
+          password,
+          firstName,
+          lastName,
+        });
+        verificationToken = result.verificationToken;
+    }
+
+    // Send verification email if required
+    if (requireEmailVerification && verificationToken) {
+      await emailService.sendVerificationEmail(email, {
+        name: firstName,
+        verificationUrl: `${authConfig.clientUrl}/auth/verify-email?token=${verificationToken}`,
+      });
+    }
+
+    // Generate tokens for auto-login
+    const deviceInfo = req.body.deviceInfo || {
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+      fingerprint: `server-${Math.random().toString(36).substring(2, 15)}`,
+    };
+
+    // Generate tokens for the newly registered user
+    const tokens = await tokenService.generateAuthTokens(result.user, {
+      rememberMe: true,
+      deviceInfo,
+      securityContext: {
+        device: deviceInfo,
+        registrationIp: req.ip,
+      },
     });
-  }
 
-  // Return success without logging in the user
-  res.status(201).json({
-    status: "success",
-    message: requireEmailVerification
-      ? "User registered successfully. Please verify your email."
-      : "User registered successfully.",
-    data: {
-      userId: user._id,
-      email: user.email,
-      emailVerified: user.security.emailVerified,
-    },
-  });
+    // Create a session for the user
+    const session = await sessionService.createSession({
+      userId: result.user._id,
+      userAgent: deviceInfo.userAgent || "unknown",
+      ipAddress: deviceInfo.ip || req.ip || "unknown",
+      deviceInfo: deviceInfo,
+      rememberMe: true,
+    });
+
+    // Set HTTP-only cookies with tokens
+    tokenService.setTokenCookies(res, tokens, {
+      sessionExpiry: session.expiresAt,
+      rememberMe: true,
+    });
+
+    // Return success with tokens and user data
+    return sendSuccess(
+      res,
+      {
+        userId: result.user._id,
+        email: result.user.email,
+        emailVerified: result.user.security.emailVerified,
+        type: type,
+        role: result.user.role,
+        session: {
+          id: session._id,
+          expiresAt: session.expiresAt,
+          deviceId: session.deviceId,
+        },
+        tokens, // Include tokens in the response
+        ...(type === "organization" && {
+          organizationId: result.organization._id,
+          orgId: result.organization.orgId,
+          organizationName: result.organization.name,
+          organizationType: result.organization.type,
+        }),
+        ...(type === "organization_member" && {
+          organizationId: result.organization._id,
+          organizationName: result.organization.name,
+          teamId: result.team?._id,
+          teamName: result.team?.name,
+          teamType: result.team?.type,
+        }),
+        ...(type === "customer" && {
+          organizationId: result.organization._id,
+          organizationName: result.organization.name,
+        }),
+      },
+      requireEmailVerification
+        ? "Registration successful. Please verify your email."
+        : "Registration successful.",
+      201
+    );
+  } catch (error) {
+    logger.error(`Registration error: ${error.message}`, { error });
+    throw error;
+  }
 });
 
 /**

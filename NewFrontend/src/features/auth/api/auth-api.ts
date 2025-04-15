@@ -275,6 +275,97 @@ export const authApi = {
     return apiInstance.post("/api/auth/logout");
   },
 
+  /**
+   * Register a new user
+   * @param registrationData Registration data
+   * @returns API response
+   */
+  register: async (registrationData) => {
+    try {
+      // Get device fingerprint or generate a fallback
+      let fingerprint;
+      try {
+        // Try to get fingerprint from security service if available
+        if (
+          window.securityService &&
+          typeof window.securityService.getDeviceFingerprint === "function"
+        ) {
+          fingerprint = await window.securityService.getDeviceFingerprint();
+        } else {
+          // Fallback to stored fingerprint or generate new one
+          fingerprint =
+            localStorage.getItem("device_fingerprint") ||
+            `${navigator.userAgent}|${
+              navigator.language
+            }|${new Date().getTimezoneOffset()}|${window.screen.width}x${
+              window.screen.height
+            }`;
+          localStorage.setItem("device_fingerprint", fingerprint);
+        }
+      } catch (error) {
+        console.warn("Error getting device fingerprint:", error);
+        fingerprint = null;
+      }
+
+      // Generate a device ID if not already stored
+      const deviceId =
+        localStorage.getItem("device_id") ||
+        `device_${Math.random().toString(36).substring(2, 15)}`;
+      localStorage.setItem("device_id", deviceId);
+
+      // Generate a tab ID if not already stored
+      const tabId =
+        sessionStorage.getItem("tab_id") ||
+        `tab_${Math.random().toString(36).substring(2, 15)}`;
+      sessionStorage.setItem("tab_id", tabId);
+
+      // Add device info to registration data
+      const requestData = {
+        ...registrationData,
+        deviceId: deviceId,
+        tabId: tabId,
+        deviceInfo: {
+          deviceId: deviceId,
+          tabId: tabId,
+          fingerprint,
+          userAgent: navigator.userAgent,
+          ip: window.location.hostname, // This is a fallback, actual IP will be determined by server
+        },
+      };
+
+      // Debug log the registration data
+      console.log(
+        "Registration request data:",
+        JSON.stringify(requestData, null, 2)
+      );
+      console.log(
+        "Organization name in request:",
+        requestData.organizationName
+      );
+
+      // Make registration request
+      const response = await apiInstance.post(
+        "/api/auth/register",
+        requestData,
+        {
+          withCredentials: true, // Important for receiving HTTP-only cookies
+        }
+      );
+
+      // Return response data
+      return response.data;
+    } catch (error) {
+      console.error("Registration API error:", error);
+
+      // Format error response
+      if (error.response && error.response.data) {
+        throw error.response.data;
+      }
+
+      throw error;
+    }
+  },
+
   // Update the refreshToken method to properly handle HTTP-only cookies
   refreshToken: async () => {
     try {

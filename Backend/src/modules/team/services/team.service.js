@@ -13,23 +13,33 @@ const { ApiError } = require("../../../utils/errors");
  * Create a new team
  * @param {Object} teamData - Team data
  * @param {string} userId - User ID creating the team
+ * @param {mongoose.ClientSession} [session] - MongoDB session for transactions
  * @returns {Promise<Team>} Created team
  */
-exports.createTeam = async (teamData, userId) => {
+exports.createTeam = async (teamData, userId, session = null) => {
   try {
-    // Check if team name already exists
-    const existingTeam = await Team.findOne({ name: teamData.name });
+    // Check if team name already exists within the same organization
+    const query = {
+      name: teamData.name,
+      organizationId: teamData.organizationId,
+    };
+
+    const existingTeam = await Team.findOne(query);
+
     if (existingTeam) {
-      throw new ApiError(400, "Team name already exists");
+      throw new ApiError(400, "Team name already exists in this organization");
     }
 
-    // Create team
-    const team = await Team.create({
+    // Create team with session if provided
+    const teamDoc = {
       name: teamData.name,
       description: teamData.description,
       teamType: teamData.teamType || "support", // Default to support if not specified
       createdBy: userId,
-    });
+      organizationId: teamData.organizationId, // Add organizationId
+    };
+
+    const team = await Team.create(teamDoc);
 
     logger.info(`Team created with type: ${team.teamType}`);
 

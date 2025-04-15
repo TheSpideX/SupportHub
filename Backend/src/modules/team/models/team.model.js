@@ -32,6 +32,12 @@ const TeamSchema = new Schema(
       required: true,
       index: true,
     },
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+      index: true,
+    },
     leadId: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -123,9 +129,13 @@ const TeamSchema = new Schema(
 );
 
 // Indexes for performance
-TeamSchema.index({ name: 1 }, { unique: true });
+TeamSchema.index({ name: 1, organizationId: 1 }, { unique: true }); // Make name unique within organization
 TeamSchema.index({ "members.userId": 1 });
 TeamSchema.index({ isActive: 1 });
+
+// Add compound index for tenant-based queries
+TeamSchema.index({ organizationId: 1, teamType: 1, isActive: 1 });
+TeamSchema.index({ organizationId: 1, leadId: 1 });
 
 /**
  * Check if a user is a member of this team

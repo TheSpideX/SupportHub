@@ -3,29 +3,34 @@
  * Handles different types of user registration
  */
 
+const mongoose = require("mongoose");
 const User = require("../models/user.model");
 const Organization = require("../../organization/models/organization.model");
 const Team = require("../../team/models/team.model");
+const InviteCode = require("../../organization/models/inviteCode.model");
 const { AuthError } = require("../../../utils/errors");
 const logger = require("../../../utils/logger");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const organizationService = require("../../organization/services/organization.service");
 const teamService = require("../../team/services/team.service");
+const inviteCodeService = require("../../organization/services/inviteCode.service");
+const { USER_ROLES } = require("../constants/roles.constant");
 
 /**
  * Register a new user (base function)
  * @param {Object} userData - User data
+ * @param {mongoose.ClientSession} [session] - MongoDB session for transactions
  * @returns {Promise<Object>} User and verification token
  */
-exports.registerUser = async (userData) => {
+exports.registerUser = async (userData, session = null) => {
   try {
     const {
       email,
       password,
       firstName,
       lastName,
-      role = "customer",
+      role = USER_ROLES.CUSTOMER,
     } = userData;
 
     // Check if user already exists
@@ -48,8 +53,8 @@ exports.registerUser = async (userData) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
-    const user = await User.create({
+    // Create user with session if provided
+    const userDoc = {
       email,
       profile: {
         firstName,
@@ -60,8 +65,12 @@ exports.registerUser = async (userData) => {
         emailVerified: false,
       },
       role,
-      organization: userData.organization || null,
-    });
+      organizationId: userData.organizationId || null,
+    };
+
+    const user = session
+      ? await User.create([userDoc], { session }).then((docs) => docs[0])
+      : await User.create(userDoc);
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
@@ -72,7 +81,12 @@ exports.registerUser = async (userData) => {
       Date.now() + 24 * 60 * 60 * 1000
     ); // 24 hours
 
-    await user.save();
+    // Save with session if provided
+    if (session) {
+      await user.save({ session });
+    } else {
+      await user.save();
+    }
 
     logger.info(`User registered: ${user.email}`);
 
@@ -105,6 +119,17 @@ exports.registerOrganization = async (data) => {
       throw new AuthError("Email already in use", "EMAIL_IN_USE");
     }
 
+    // Log organization data before creation
+    logger.debug("Organization registration data:", {
+      organizationName,
+      organizationType,
+    });
+
+    if (!organizationName) {
+      logger.error("Organization name is missing in registration data");
+      throw new AuthError("Organization name is required", "MISSING_ORG_NAME");
+    }
+
     // Create organization first
     const organization = await organizationService.createOrganization(
       {
@@ -114,64 +139,84 @@ exports.registerOrganization = async (data) => {
       null // We'll update this after creating the user
     );
 
-    // Register admin user
-    const { user, verificationToken } = await this.registerUser({
-      email,
-      password,
-      firstName,
-      lastName,
-      role: "admin",
-      organization: organization._id,
-    });
-
-    // Update organization with owner
-    logger.info(`Setting organization owner to user ID: ${user._id}`);
-    organization.owner = user._id;
     try {
+      // Register admin user
+      const { user, verificationToken } = await this.registerUser({
+        email,
+        password,
+        firstName,
+        lastName,
+        role: USER_ROLES.ADMIN,
+        organizationId: organization._id,
+      });
+
+      // Update organization with owner
+      logger.info(`Setting organization owner to user ID: ${user._id}`);
+      organization.owner = user._id;
       await organization.save();
       logger.info(`Successfully updated organization with owner: ${user._id}`);
-    } catch (saveError) {
+
+      try {
+        // Create default teams (technical and support) with organization ID
+        const technicalTeam = await teamService.createTeam(
+          {
+            name: "Technical Team",
+            description: "Default technical team",
+            teamType: "technical",
+            organizationId: organization._id,
+          },
+          user._id
+        );
+
+        const supportTeam = await teamService.createTeam(
+          {
+            name: "Support Team",
+            description: "Default support team",
+            teamType: "support",
+            organizationId: organization._id,
+          },
+          user._id
+        );
+
+        // Add teams to organization
+        await organizationService.addTeamToOrganization(
+          organization._id,
+          technicalTeam._id
+        );
+        await organizationService.addTeamToOrganization(
+          organization._id,
+          supportTeam._id
+        );
+
+        logger.info(
+          `Organization registered: ${organization.name} with admin: ${user.email}`
+        );
+
+        return { user, organization, verificationToken };
+      } catch (teamError) {
+        // If there's an error creating teams, clean up
+        logger.error(
+          "Error creating teams during organization registration:",
+          teamError
+        );
+
+        // Clean up the user
+        await User.findByIdAndDelete(user._id);
+
+        // Clean up the organization
+        await Organization.findByIdAndDelete(organization._id);
+
+        throw teamError;
+      }
+    } catch (userError) {
+      // If there's an error creating the user, clean up the organization
       logger.error(
-        `Error saving organization with owner: ${saveError.message}`,
-        saveError
+        "Error creating user during organization registration:",
+        userError
       );
-      throw saveError;
+      await Organization.findByIdAndDelete(organization._id);
+      throw userError;
     }
-
-    // Create default teams (technical and support)
-    const technicalTeam = await teamService.createTeam(
-      {
-        name: "Technical Team",
-        description: "Default technical team",
-        teamType: "technical",
-      },
-      user._id
-    );
-
-    const supportTeam = await teamService.createTeam(
-      {
-        name: "Support Team",
-        description: "Default support team",
-        teamType: "support",
-      },
-      user._id
-    );
-
-    // Add teams to organization
-    await organizationService.addTeamToOrganization(
-      organization._id,
-      technicalTeam._id
-    );
-    await organizationService.addTeamToOrganization(
-      organization._id,
-      supportTeam._id
-    );
-
-    logger.info(
-      `Organization registered: ${organization.name} with admin: ${user.email}`
-    );
-
-    return { user, organization, verificationToken };
   } catch (error) {
     logger.error("Error registering organization:", error);
     throw error;
@@ -181,46 +226,39 @@ exports.registerOrganization = async (data) => {
 /**
  * Register a new member using invitation code
  * @param {Object} data - Registration data
- * @returns {Promise<Object>} User and verification token
+ * @returns {Promise<Object>} User, team, and verification token
  */
 exports.registerWithInviteCode = async (data) => {
   try {
     const { email, password, firstName, lastName, inviteCode } = data;
 
     // Validate invitation code
-    const team = await Team.findOne({
-      "invitationCodes.code": inviteCode,
-      "invitationCodes.isUsed": false,
-      "invitationCodes.expiresAt": { $gt: new Date() },
-    });
+    const validation = await inviteCodeService.validateInviteCode(inviteCode);
 
-    if (!team) {
+    if (!validation.isValid) {
       throw new AuthError(
-        "Invalid or expired invitation code",
+        validation.message || "Invalid invitation code",
         "INVALID_INVITE_CODE"
       );
     }
 
-    // Get the specific invitation code
-    const invitationCode = team.invitationCodes.find(
-      (code) => code.code === inviteCode
-    );
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new AuthError("Email already in use", "EMAIL_IN_USE");
+    }
 
-    // Determine role based on invitation code
-    const userRole =
-      invitationCode.role === "lead"
-        ? "team_lead"
-        : team.teamType === "technical"
-        ? "technical"
-        : "support";
+    // Get organization and team from validation result
+    const { organization, team, inviteCode: inviteCodeData } = validation;
 
-    // Get organization ID from team creator
-    const teamCreator = await User.findById(team.createdBy);
-    if (!teamCreator || !teamCreator.organization) {
-      throw new AuthError(
-        "Team creator or organization not found",
-        "ORGANIZATION_NOT_FOUND"
-      );
+    // Determine role based on invitation code and team type
+    let role;
+    if (inviteCodeData.role === "team_lead") {
+      role = USER_ROLES.TEAM_LEAD;
+    } else if (team && team.type === "technical") {
+      role = USER_ROLES.TECHNICAL;
+    } else {
+      role = USER_ROLES.SUPPORT;
     }
 
     // Register user
@@ -229,28 +267,47 @@ exports.registerWithInviteCode = async (data) => {
       password,
       firstName,
       lastName,
-      role: userRole,
-      organization: teamCreator.organization,
+      role,
+      organizationId: organization.id,
     });
 
-    // Add user to team
-    await team.addMember({
-      userId: user._id,
-      role: invitationCode.role,
-      invitedBy: invitationCode.createdBy,
-    });
+    // Add user to team if team exists
+    if (team) {
+      const teamDoc = await Team.findById(team.id);
 
-    // Mark invitation code as used
-    invitationCode.isUsed = true;
-    invitationCode.usedBy = user._id;
-    invitationCode.usedAt = new Date();
-    await team.save();
+      // Add user to team members
+      if (!teamDoc.members.includes(user._id)) {
+        teamDoc.members.push(user._id);
+      }
+
+      // If user is a team lead, update team with the lead
+      if (role === "team_lead") {
+        teamDoc.teamLead = user._id;
+      }
+
+      await teamDoc.save();
+
+      // Update user with team ID
+      user.teamId = team.id;
+      await user.save();
+    }
+
+    // Mark invite code as used
+    await inviteCodeService.useInviteCode(inviteCode, user._id);
 
     logger.info(
-      `User registered with invitation code: ${user.email} for team: ${team.name}`
+      `User registered with invitation code: ${user.email} for organization: ${organization.name}`
     );
 
-    return { user, team, verificationToken };
+    return {
+      user,
+      team: team || null,
+      organization: {
+        _id: organization.id,
+        name: organization.name,
+      },
+      verificationToken,
+    };
   } catch (error) {
     logger.error("Error registering with invitation code:", error);
     throw error;
@@ -260,27 +317,29 @@ exports.registerWithInviteCode = async (data) => {
 /**
  * Register a new customer for an organization
  * @param {Object} data - Registration data
- * @returns {Promise<Object>} User and verification token
+ * @returns {Promise<Object>} User, organization, and verification token
  */
 exports.registerCustomer = async (data) => {
   try {
     const { email, password, firstName, lastName, orgId } = data;
 
     // Validate organization ID
-    const organization = await Organization.findOne({ orgId });
-    if (!organization) {
+    const validation = await organizationService.validateOrgId(orgId);
+
+    if (!validation.isValid) {
       throw new AuthError(
-        "Invalid organization ID. Please check the ID and try again.",
+        validation.message || "Invalid organization ID",
         "INVALID_ORGANIZATION_ID"
       );
     }
 
-    // Check if organization is active
-    if (organization.status !== "active") {
-      throw new AuthError(
-        "The organization is not active. Please contact the organization administrator.",
-        "ORGANIZATION_INACTIVE"
-      );
+    // Get organization
+    const organization = await Organization.findOne({ orgId });
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new AuthError("Email already in use", "EMAIL_IN_USE");
     }
 
     // Register customer
@@ -289,8 +348,8 @@ exports.registerCustomer = async (data) => {
       password,
       firstName,
       lastName,
-      role: "customer",
-      organization: organization._id,
+      role: USER_ROLES.CUSTOMER,
+      organizationId: organization._id,
     });
 
     // Add customer to organization

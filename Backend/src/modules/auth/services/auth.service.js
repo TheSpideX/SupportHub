@@ -10,6 +10,7 @@ const tokenService = require("./token.service");
 const sessionService = require("./session.service");
 const securityService = require("./security.service");
 const socketService = require("./socket.service");
+const registrationService = require("./registration.service");
 const config = require("../config");
 const {
   security: securityConfig,
@@ -695,6 +696,62 @@ class AuthService {
       return this.sanitizeUser(user);
     } catch (error) {
       logger.error("Get user by ID error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register a new user
+   * @param {Object} userData - User registration data
+   * @returns {Promise<Object>} Registered user and verification token
+   */
+  async registerUser(userData) {
+    try {
+      return await registrationService.registerUser(userData);
+    } catch (error) {
+      logger.error("User registration error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register a new organization with admin user
+   * @param {Object} data - Organization registration data
+   * @returns {Promise<Object>} Registered user, organization, and verification token
+   */
+  async registerOrganization(data) {
+    try {
+      return await registrationService.registerOrganization(data);
+    } catch (error) {
+      logger.error("Organization registration error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register a new member using invitation code
+   * @param {Object} data - Member registration data with invite code
+   * @returns {Promise<Object>} Registered user, team, and verification token
+   */
+  async registerWithInviteCode(data) {
+    try {
+      return await registrationService.registerWithInviteCode(data);
+    } catch (error) {
+      logger.error("Invite code registration error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register a new customer for an organization
+   * @param {Object} data - Customer registration data with organization ID
+   * @returns {Promise<Object>} Registered user, organization, and verification token
+   */
+  async registerCustomer(data) {
+    try {
+      return await registrationService.registerCustomer(data);
+    } catch (error) {
+      logger.error("Customer registration error:", error);
       throw error;
     }
   }

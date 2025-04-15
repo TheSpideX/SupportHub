@@ -1,16 +1,17 @@
-import authReducer from './authSlice';
-import sessionReducer from './sessionSlice';
-import securityReducer from './securitySlice';
+import authReducer from "./authSlice";
+import sessionReducer from "./sessionSlice";
+import securityReducer from "./securitySlice";
 
-export { 
+export {
   // Auth actions and selectors
-  setAuthState, 
-  setUser, 
-  setLoading, 
-  setError, 
+  setAuthState,
+  setUser,
+  setLoading,
+  setError,
   setInitialized,
   setInitialized as setAuthInitialized,
   updateUserData,
+  updateOrganizationContext,
   clearAuthState,
   setLastVerified,
   selectAuthState,
@@ -18,8 +19,8 @@ export {
   selectIsAuthenticated,
   selectIsLoading,
   selectAuthError,
-  selectIsInitialized
-} from './authSlice';
+  selectIsInitialized,
+} from "./authSlice";
 
 export {
   // Session actions and selectors
@@ -33,8 +34,8 @@ export {
   selectSessionState,
   selectSessionStatus,
   selectSessionData,
-  selectLastActivity
-} from './sessionSlice';
+  selectLastActivity,
+} from "./sessionSlice";
 
 export {
   // Security actions and selectors
@@ -54,14 +55,14 @@ export {
   selectSecurityEvents,
   selectThreatLevel,
   selectLockoutUntil,
-  selectFailedAttempts
-} from './securitySlice';
+  selectFailedAttempts,
+} from "./securitySlice";
 
 // Export reducers for store configuration
 export const authReducers = {
   auth: authReducer,
   session: sessionReducer,
-  security: securityReducer
+  security: securityReducer,
 };
 
 export default authReducers;

@@ -21,6 +21,13 @@ const InvitationSchema = new Schema(
       required: true,
       index: true,
     },
+    // Add organizationId for multi-tenancy
+    organizationId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+      index: true,
+    },
     email: {
       type: String,
       required: true,
@@ -67,6 +74,10 @@ const InvitationSchema = new Schema(
 InvitationSchema.index({ status: 1, expiresAt: 1 });
 InvitationSchema.index({ teamId: 1, email: 1 }, { unique: true });
 
+// Add compound index for tenant-based queries
+InvitationSchema.index({ organizationId: 1, teamId: 1, status: 1 });
+InvitationSchema.index({ organizationId: 1, email: 1, status: 1 });
+
 /**
  * Generate a unique invitation code
  * @returns {string} Unique invitation code
@@ -93,6 +104,7 @@ InvitationSchema.statics.createInvitation = async function (
   const existingInvitation = await this.findOne({
     teamId: invitationData.teamId,
     email: invitationData.email,
+    organizationId: invitationData.organizationId,
     status: "pending",
   });
 
@@ -104,19 +116,18 @@ InvitationSchema.statics.createInvitation = async function (
       Date.now() + expirationDays * 24 * 60 * 60 * 1000
     );
     existingInvitation.status = "pending";
-    
+
     return existingInvitation.save();
   }
 
   // Create new invitation
   const code = this.generateInvitationCode();
-  const expiresAt = new Date(
-    Date.now() + expirationDays * 24 * 60 * 60 * 1000
-  );
+  const expiresAt = new Date(Date.now() + expirationDays * 24 * 60 * 60 * 1000);
 
   return this.create({
     code,
     teamId: invitationData.teamId,
+    organizationId: invitationData.organizationId,
     email: invitationData.email,
     role: invitationData.role || "member",
     invitedBy: invitationData.invitedBy,

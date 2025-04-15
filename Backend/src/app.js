@@ -16,12 +16,14 @@ const authRoutes = require("./routes/authRoutes");
 const teamRoutes = require("./routes/teamRoutes");
 const userRoutes = require("./routes/userRoutes");
 const teamAnalyticsRoutes = require("./routes/teamAnalyticsRoutes");
+const inviteCodeRoutes = require("./modules/organization/routes/inviteCode.routes");
 
 // Use routes
 app.use("/api/auth", authRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api", userRoutes);
 app.use("/api", teamAnalyticsRoutes);
+app.use("/api/invite-codes", inviteCodeRoutes);
 
 // Connect to MongoDB
 mongoose

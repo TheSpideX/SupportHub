@@ -70,21 +70,8 @@ const UserSchema = new mongoose.Schema(
         required: true,
         select: false, // This makes it not returned by default
         minlength: [8, "Password must be at least 8 characters"],
-        validate: [
-          {
-            validator: function (password) {
-              // Only validate password if it's being modified (not during login)
-              if (this.isModified("security.password")) {
-                return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-                  password
-                );
-              }
-              return true;
-            },
-            message:
-              "Password must contain uppercase, lowercase, number, and special character",
-          },
-        ],
+        // Remove the validation here since we're validating the raw password in the registration service
+        // The hashed password won't match the format requirements
       },
       passwordChangedAt: Date,
       tokenVersion: {
@@ -126,6 +113,17 @@ const UserSchema = new mongoose.Schema(
         message: "{VALUE} is not a valid role",
       },
       default: "customer",
+    },
+    // Organization relationship
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
+    teamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Team",
+      index: true,
     },
     status: {
       isActive: {
@@ -599,6 +597,7 @@ UserSchema.index({ "status.lastActive": 1 });
 UserSchema.index({ "status.isActive": 1 });
 UserSchema.index({ "security.loginAttempts": 1 });
 UserSchema.index({ "security.trustedDevices.fingerprint": 1 });
+UserSchema.index({ organizationId: 1 }); // Index for tenant-based queries
 
 // Add a static method to help with debugging
 UserSchema.statics.findByIdWithLogging = async function (id) {

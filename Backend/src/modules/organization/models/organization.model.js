@@ -84,6 +84,10 @@ const OrganizationSchema = new Schema(
 OrganizationSchema.index({ name: 1 }, { unique: true });
 OrganizationSchema.index({ orgId: 1 }, { unique: true });
 OrganizationSchema.index({ status: 1 });
+OrganizationSchema.index({ type: 1, status: 1 });
+OrganizationSchema.index({ owner: 1 });
+OrganizationSchema.index({ teams: 1 });
+OrganizationSchema.index({ customers: 1 });
 
 /**
  * Generate a unique organization ID

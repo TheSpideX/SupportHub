@@ -4,19 +4,40 @@
  */
 
 const Organization = require("../models/organization.model");
-const { ApiError } = require("../../../utils/errors");
+const { ApiError, AuthError } = require("../../../utils/errors");
 const logger = require("../../../utils/logger");
+
+// Helper function to validate organization ID format
+const isValidOrgIdFormat = (orgId) => {
+  if (!orgId) return false;
+  return /^ORG-[A-Z0-9]{5}$/.test(orgId);
+};
 
 /**
  * Create a new organization
  * @param {Object} orgData - Organization data
  * @param {string} userId - User ID of the organization owner
+ * @param {mongoose.ClientSession} [session] - MongoDB session for transactions
  * @returns {Promise<Organization>} Created organization
  */
-exports.createOrganization = async (orgData, userId) => {
+exports.createOrganization = async (orgData, userId, session = null) => {
   try {
+    // Debug log the organization data
+    logger.debug(
+      "Creating organization with data:",
+      JSON.stringify(orgData, null, 2)
+    );
+
+    // Check if organization name exists in the data
+    if (!orgData.name) {
+      logger.error("Organization name is missing in the data");
+      throw new ApiError(400, "Organization name is required");
+    }
+
     // Check if organization name already exists
-    const existingOrg = await Organization.findOne({ name: orgData.name });
+    const query = { name: orgData.name };
+    const existingOrg = await Organization.findOne(query);
+
     if (existingOrg) {
       throw new ApiError(400, "Organization name already exists");
     }
@@ -47,7 +68,9 @@ exports.createOrganization = async (orgData, userId) => {
       `Creating organization with data: ${JSON.stringify(organizationData)}`
     );
     try {
+      // Create organization
       const organization = await Organization.create(organizationData);
+
       logger.info(
         `Organization created successfully with ID: ${organization._id}`
       );
@@ -81,15 +104,6 @@ exports.getOrganizationById = async (id) => {
     logger.error(`Error fetching organization with ID ${id}:`, error);
     throw error;
   }
-};
-
-/**
- * Validate organization ID format
- * @param {string} orgId - Organization ID to validate
- * @returns {boolean} True if valid format
- */
-const isValidOrgIdFormat = (orgId) => {
-  return /^ORG-[A-Z0-9]{5}$/.test(orgId);
 };
 
 /**
@@ -161,13 +175,23 @@ exports.updateOrganization = async (id, updateData) => {
  * @param {string} teamId - Team ID to add
  * @returns {Promise<Organization>} Updated organization
  */
-exports.addTeamToOrganization = async (orgId, teamId) => {
+/**
+ * Add team to organization
+ * @param {string} orgId - Organization ID
+ * @param {string} teamId - Team ID to add
+ * @param {mongoose.ClientSession} [session] - MongoDB session for transactions
+ * @returns {Promise<Organization>} Updated organization
+ */
+exports.addTeamToOrganization = async (orgId, teamId, session = null) => {
   try {
+    // Find organization
     const organization = await Organization.findById(orgId);
+
     if (!organization) {
       throw new ApiError(404, "Organization not found");
     }
 
+    // Add team to organization
     await organization.addTeam(teamId);
     logger.info(`Team ${teamId} added to organization ${organization.name}`);
 
@@ -191,7 +215,12 @@ exports.addCustomerToOrganization = async (orgId, customerId) => {
       throw new ApiError(404, "Organization not found");
     }
 
-    await organization.addCustomer(customerId);
+    // Add customer to organization's customers array if not already there
+    if (!organization.customers.includes(customerId)) {
+      organization.customers.push(customerId);
+      await organization.save();
+    }
+
     logger.info(
       `Customer ${customerId} added to organization ${organization.name}`
     );

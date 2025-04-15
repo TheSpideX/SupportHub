@@ -77,8 +77,11 @@ exports.refreshTokenRateLimit = () =>
 // Add registration rate limiter
 exports.registrationRateLimit = () =>
   createRateLimiter({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 5, // 5 registration attempts per hour
+    windowMs:
+      securityConfig.rateLimiting.registration?.windowMs || 60 * 60 * 1000, // 1 hour
+    max:
+      securityConfig.rateLimiting.registration?.max ||
+      (process.env.NODE_ENV === "development" ? 50 : 5), // Use config or fallback
     keyGenerator: (req) => {
       // Use IP address for registration rate limiting
       return `register:${req.ip}`;
@@ -86,10 +89,13 @@ exports.registrationRateLimit = () =>
     message: {
       status: "error",
       code: "REGISTRATION_ATTEMPTS_EXCEEDED",
-      message: "Too many registration attempts, please try again later.",
+      message:
+        securityConfig.rateLimiting.registration?.message ||
+        "Too many registration attempts, please try again later.",
     },
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: true, // Don't count successful registrations
   });
 
 // IMPROVEMENT: Add a more aggressive global rate limiter for auth endpoints

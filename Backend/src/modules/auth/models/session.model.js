@@ -8,6 +8,13 @@ const SessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Add organizationId for multi-tenancy
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      required: false, // Not required initially, but should be set when available
+      index: true,
+    },
     refreshToken: {
       type: String,
       select: false, // Don't return in queries by default
@@ -240,6 +247,9 @@ SessionSchema.index({ deviceId: 1, isActive: 1, lastActivity: -1 });
 
 // Add compound index for user's sessions across devices
 SessionSchema.index({ userId: 1, isActive: 1, lastActivity: -1 });
+
+// Add compound index for tenant-based queries
+SessionSchema.index({ organizationId: 1, userId: 1, isActive: 1 });
 
 // Add compound index for tab management
 SessionSchema.index({ "tabs.tabId": 1, isActive: 1 });

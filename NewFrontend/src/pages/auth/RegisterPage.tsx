@@ -1,53 +1,70 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FaUser, FaBuilding, FaUserTie, FaRocket, FaShieldAlt, FaUsersCog, FaChartLine } from 'react-icons/fa';
-import { AuthBackground } from '@/features/auth/components/AuthBackground/AuthBackground';
-import { RegistrationForm } from '@/features/auth/components/RegistrationForm/RegistrationForm';
-import { Link } from 'react-router-dom';
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  FaUser,
+  FaBuilding,
+  FaUserTie,
+  FaRocket,
+  FaShieldAlt,
+  FaUsersCog,
+  FaChartLine,
+} from "react-icons/fa";
+import { AuthBackground } from "@/features/auth/components/AuthBackground/AuthBackground";
+import { RegistrationForm } from "@/features/auth/components/RegistrationForm/RegistrationForm";
+import { Link } from "react-router-dom";
 
-type RegistrationType = 'customer' | 'company' | 'company_employee' | null;
+type RegistrationType =
+  | "customer"
+  | "organization"
+  | "organization_member"
+  | null;
 
 export const RegisterPage = () => {
-  const [registrationType, setRegistrationType] = useState<RegistrationType>(null);
+  const [registrationType, setRegistrationType] =
+    useState<RegistrationType>(null);
   const [activeFeature, setActiveFeature] = useState(0);
 
   const baseFeatures = [
     {
       icon: FaRocket,
-      title: 'Quick Setup',
-      description: 'Get your account ready in minutes',
-      gradient: 'from-blue-400 to-indigo-500',
+      title: "Quick Setup",
+      description: "Get your account ready in minutes",
+      gradient: "from-blue-400 to-indigo-500",
     },
     {
       icon: FaShieldAlt,
-      title: 'Secure Platform',
-      description: 'Enterprise-grade security protocols',
-      gradient: 'from-emerald-400 to-teal-500',
+      title: "Secure Platform",
+      description: "Enterprise-grade security protocols",
+      gradient: "from-emerald-400 to-teal-500",
     },
     {
       icon: FaUsersCog,
-      title: 'Team Management',
-      description: 'Efficient team collaboration tools',
-      gradient: 'from-orange-400 to-rose-500',
+      title: "Team Management",
+      description: "Efficient team collaboration tools",
+      gradient: "from-orange-400 to-rose-500",
     },
     {
       icon: FaChartLine,
-      title: 'Performance Insights',
-      description: 'Comprehensive analytics dashboard',
-      gradient: 'from-violet-400 to-purple-500',
+      title: "Performance Insights",
+      description: "Comprehensive analytics dashboard",
+      gradient: "from-violet-400 to-purple-500",
     },
   ];
 
   const enterpriseFeature = {
     icon: FaBuilding,
-    title: 'Enterprise Features',
-    description: 'Advanced tools for company-wide support management and team collaboration',
-    gradient: 'from-purple-400 to-pink-500',
+    title: "Enterprise Features",
+    description:
+      "Advanced tools for company-wide support management and team collaboration",
+    gradient: "from-purple-400 to-pink-500",
   };
 
   // Conditionally add enterprise feature for company registrations
   const features = useMemo(() => {
-    if (registrationType === 'company' || registrationType === 'company_employee') {
+    if (
+      registrationType === "company" ||
+      registrationType === "company_employee"
+    ) {
       return [...baseFeatures, enterpriseFeature];
     }
     return baseFeatures;
@@ -55,60 +72,60 @@ export const RegisterPage = () => {
 
   const registrationOptions = [
     {
-      type: 'customer',
+      type: "customer",
       icon: FaUser,
-      title: 'Customer',
-      description: 'Register as an individual customer',
-      gradient: 'from-blue-400 to-indigo-500',
+      title: "Customer",
+      description: "Register as an individual customer",
+      gradient: "from-blue-400 to-indigo-500",
     },
     {
-      type: 'company',
+      type: "organization",
       icon: FaBuilding,
-      title: 'Company',
-      description: 'Register your company',
-      gradient: 'from-emerald-400 to-teal-500',
+      title: "Organization",
+      description: "Register your organization",
+      gradient: "from-emerald-400 to-teal-500",
     },
     {
-      type: 'company_employee',
+      type: "organization_member",
       icon: FaUserTie,
-      title: 'Company Employee',
-      description: 'Join your company with an invite code',
-      gradient: 'from-orange-400 to-rose-500',
+      title: "Team Member",
+      description: "Join an organization with an invite code",
+      gradient: "from-orange-400 to-rose-500",
     },
   ];
 
   // Add animation variants for consistent animations
   const featureCardVariants = {
-    initial: { 
-      opacity: 0, 
+    initial: {
+      opacity: 0,
       x: -20,
       height: 0,
-      marginTop: 0
+      marginTop: 0,
     },
-    animate: { 
-      opacity: 1, 
+    animate: {
+      opacity: 1,
       x: 0,
-      height: 'auto',
+      height: "auto",
       marginTop: 16,
       transition: {
         duration: 0.3,
-        ease: "easeOut"
-      }
+        ease: "easeOut",
+      },
     },
-    exit: { 
-      opacity: 0, 
+    exit: {
+      opacity: 0,
       x: -20,
       height: 0,
       marginTop: 0,
       transition: {
         duration: 0.2,
-        ease: "easeIn"
-      }
-    }
+        ease: "easeIn",
+      },
+    },
   };
 
   return (
-    <motion.div 
+    <motion.div
       layout
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="min-h-screen relative flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950"
@@ -116,7 +133,7 @@ export const RegisterPage = () => {
       <AuthBackground />
 
       {/* Background elements */}
-      <motion.div 
+      <motion.div
         layout
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="absolute inset-0 overflow-hidden pointer-events-none"
@@ -125,7 +142,7 @@ export const RegisterPage = () => {
         <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-br from-secondary-600/20 to-transparent rounded-full blur-3xl animate-pulse delay-1000" />
       </motion.div>
 
-      <motion.div 
+      <motion.div
         className="w-full max-w-[1000px] relative z-10"
         layout
         transition={{ duration: 0.5, ease: "easeOut" }}
@@ -134,28 +151,30 @@ export const RegisterPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           layout
-          transition={{ 
-            duration: 0.5, ease: "easeOut" 
+          transition={{
+            duration: 0.5,
+            ease: "easeOut",
           }}
-          className="relative bg-gray-900/80 rounded-2xl border border-gray-700 
+          className="relative bg-gray-900/80 rounded-2xl border border-gray-700
                      shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] backdrop-blur-md overflow-hidden"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-primary-900/30 to-secondary-900/30" />
-          
-          <motion.div 
+
+          <motion.div
             className="grid lg:grid-cols-2 relative min-h-[600px]"
             layout
-            transition={{ 
-              duration: 0.5, ease: "easeOut" 
+            transition={{
+              duration: 0.5,
+              ease: "easeOut",
             }}
           >
             {/* Left Side - Features */}
-            <motion.div 
+            <motion.div
               layout
               transition={{ duration: 0.5, ease: "easeOut" }}
               className="p-8 lg:p-10 bg-gray-950/50"
             >
-              <motion.div 
+              <motion.div
                 layout
                 transition={{ duration: 0.5, ease: "easeOut" }}
                 className="w-full max-w-sm"
@@ -171,7 +190,9 @@ export const RegisterPage = () => {
                     <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
                       <span className="text-2xl font-bold text-white">SH</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-white">Support Hub</h1>
+                    <h1 className="text-3xl font-bold text-white">
+                      Support Hub
+                    </h1>
                   </div>
                   <p className="text-gray-200 text-lg leading-relaxed">
                     Join our platform and start managing your support needs
@@ -179,10 +200,7 @@ export const RegisterPage = () => {
                 </motion.div>
 
                 {/* Features Section */}
-                <motion.div 
-                  layout="position"
-                  className="space-y-4 relative"
-                >
+                <motion.div layout="position" className="space-y-4 relative">
                   <AnimatePresence initial={false} mode="sync">
                     {features.map((feature, index) => (
                       <motion.div
@@ -192,14 +210,18 @@ export const RegisterPage = () => {
                         animate="animate"
                         exit="exit"
                         layout
-                        className={`flex items-start space-x-4 p-4 rounded-xl 
+                        className={`flex items-start space-x-4 p-4 rounded-xl
                                   border border-gray-700 cursor-pointer
-                                  ${activeFeature === index ? 'bg-gray-800' : 'bg-gray-900/60'}
+                                  ${
+                                    activeFeature === index
+                                      ? "bg-gray-800"
+                                      : "bg-gray-900/60"
+                                  }
                                   hover:bg-gray-800 transition-colors duration-300`}
                         onClick={() => setActiveFeature(index)}
                       >
-                        <div 
-                          className={`p-3 bg-gradient-to-br ${feature.gradient} rounded-lg 
+                        <div
+                          className={`p-3 bg-gradient-to-br ${feature.gradient} rounded-lg
                                     shadow-lg transition-transform duration-200
                                     group-hover:scale-110`}
                         >
@@ -221,23 +243,25 @@ export const RegisterPage = () => {
             </motion.div>
 
             {/* Right Side - Registration Options/Form */}
-            <motion.div 
+            <motion.div
               className="lg:w-full p-8 lg:p-10 bg-gray-900/80 backdrop-blur-lg flex items-center justify-center"
               layout
-              transition={{ 
-                duration: 0.5, ease: "easeOut" 
+              transition={{
+                duration: 0.5,
+                ease: "easeOut",
               }}
             >
-              <motion.div 
+              <motion.div
                 className="w-full max-w-sm"
                 layout
-                transition={{ 
-                  duration: 0.5, ease: "easeOut" 
+                transition={{
+                  duration: 0.5,
+                  ease: "easeOut",
                 }}
               >
                 <AnimatePresence mode="wait">
                   <motion.div
-                    key={registrationType || 'options'}
+                    key={registrationType || "options"}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -257,27 +281,37 @@ export const RegisterPage = () => {
                               key={option.type}
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
-                              onClick={() => setRegistrationType(option.type as RegistrationType)}
-                              className="w-full p-4 bg-gray-900/60 border border-gray-700 rounded-xl 
+                              onClick={() =>
+                                setRegistrationType(
+                                  option.type as RegistrationType
+                                )
+                              }
+                              className="w-full p-4 bg-gray-900/60 border border-gray-700 rounded-xl
                                        hover:bg-gray-800 transition-all group"
                             >
                               <div className="flex items-center space-x-4">
-                                <div className={`p-2.5 bg-gradient-to-br ${option.gradient} rounded-lg`}>
+                                <div
+                                  className={`p-2.5 bg-gradient-to-br ${option.gradient} rounded-lg`}
+                                >
                                   <option.icon className="w-5 h-5 text-white" />
                                 </div>
                                 <div className="text-left">
-                                  <h3 className="text-white font-semibold mb-1">{option.title}</h3>
-                                  <p className="text-gray-300 text-sm">{option.description}</p>
+                                  <h3 className="text-white font-semibold mb-1">
+                                    {option.title}
+                                  </h3>
+                                  <p className="text-gray-300 text-sm">
+                                    {option.description}
+                                  </p>
                                 </div>
                               </div>
                             </motion.button>
                           ))}
                         </div>
-                        
+
                         {/* Sign In link */}
                         <div className="text-center pt-4 border-t border-gray-700">
                           <p className="text-gray-300">
-                            Already have an account?{' '}
+                            Already have an account?{" "}
                             <Link
                               to="/auth/login"
                               className="text-primary-400 hover:text-primary-300 font-medium transition-colors"

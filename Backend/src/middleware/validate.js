@@ -14,6 +14,11 @@ const validate = (schema) => {
 
     // Validate request body
     if (schema.body) {
+      // Ensure req.body exists
+      if (!req.body) {
+        req.body = {};
+      }
+
       const { error, value } = schema.body.validate(req.body, {
         abortEarly: false,
         stripUnknown: true,

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 /**
  * Tab Schema
@@ -10,80 +10,90 @@ const TabSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true
+      index: true,
     },
     sessionId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Session',
+      ref: "Session",
       required: true,
-      index: true
+      index: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
-      index: true
+      index: true,
+    },
+    // Add organizationId for multi-tenancy
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      required: false, // Not required initially, but should be set when available
+      index: true,
     },
     deviceId: {
       type: String,
       required: true,
-      index: true
+      index: true,
     },
     socketId: {
       type: String,
-      sparse: true
+      sparse: true,
     },
     isActive: {
       type: Boolean,
-      default: true
+      default: true,
     },
     isLeader: {
       type: Boolean,
-      default: false
+      default: false,
     },
     lastActivity: {
       type: Date,
-      default: Date.now
+      default: Date.now,
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
-      default: {}
+      default: {},
     },
     createdAt: {
       type: Date,
-      default: Date.now
-    }
+      default: Date.now,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
 // Create compound index for session and tab
 TabSchema.index({ sessionId: 1, tabId: 1 }, { unique: true });
 
+// Add compound index for tenant-based queries
+TabSchema.index({ organizationId: 1, userId: 1, isActive: 1 });
+
 // Methods
-TabSchema.methods.updateActivity = function() {
+TabSchema.methods.updateActivity = function () {
   this.lastActivity = new Date();
   return this.save();
 };
 
-TabSchema.methods.setActive = function(isActive) {
+TabSchema.methods.setActive = function (isActive) {
   this.isActive = isActive;
   this.lastActivity = new Date();
   return this.save();
 };
 
-TabSchema.methods.setLeader = function(isLeader) {
+TabSchema.methods.setLeader = function (isLeader) {
   this.isLeader = isLeader;
   return this.save();
 };
 
-TabSchema.methods.updateSocketId = function(socketId) {
+TabSchema.methods.updateSocketId = function (socketId) {
   this.socketId = socketId;
   return this.save();
 };
 
-const Tab = mongoose.model('Tab', TabSchema);
+const Tab = mongoose.model("Tab", TabSchema);
 
 module.exports = Tab;

@@ -9,24 +9,29 @@ module.exports = {
   rateLimiting: {
     login: {
       windowMs: 15 * 60 * 1000, // 15 minutes
-      max: isDevelopment ? 20 : 5, // 5 attempts per window in production
+      max: isDevelopment ? 50 : 5, // 5 attempts per window in production
       message: "Too many login attempts, please try again later",
     },
     passwordReset: {
       windowMs: 60 * 60 * 1000, // 1 hour
-      max: isDevelopment ? 10 : 3,
+      max: isDevelopment ? 20 : 3,
     },
     emailVerification: {
       windowMs: 24 * 60 * 60 * 1000, // 24 hours
-      max: isDevelopment ? 20 : 5,
+      max: isDevelopment ? 50 : 5,
+    },
+    registration: {
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: isDevelopment ? 50 : 5, // 50 in dev, 5 in prod
+      message: "Too many registration attempts, please try again later",
     },
     api: {
       windowMs: 60 * 1000, // 1 minute
-      max: isDevelopment ? 500 : 100,
+      max: isDevelopment ? 1000 : 100,
     },
     sessionValidation: {
       windowMs: 2000, // 2 seconds
-      max: 50, // 50 requests per 2 seconds for page reloads
+      max: isDevelopment ? 100 : 50, // 100 in dev, 50 in prod for page reloads
       message: "Too many session validation requests, please try again later",
     },
   },
