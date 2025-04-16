@@ -216,7 +216,18 @@ class AppPrimusClient {
       });
 
       // Handle different types of data
-      if (data && data.type) {
+      if (data && data.event) {
+        // Pass the event directly to listeners
+        this.primus.emit(data.event, data.data);
+
+        // Log the event
+        logger.debug(`Emitted event: ${data.event}`, {
+          component: "AppPrimusClient",
+          event: data.event,
+          data: data.data,
+        });
+      } else if (data && data.type) {
+        // Legacy handling for type-based messages
         switch (data.type) {
           case "notification":
             this.handleNotification(data.payload);
@@ -383,7 +394,14 @@ class AppPrimusClient {
           // store.dispatch(updateTeam(payload.data));
           break;
         case "ticket":
-          // store.dispatch(updateTicket(payload.data));
+          // Emit a ticket event for listeners
+          const ticketEvent = `ticket:${payload.action || "updated"}`;
+          this.primus.emit(ticketEvent, payload.data);
+          break;
+        case "query":
+          // Emit a query event for listeners
+          const queryEvent = `query:${payload.action || "updated"}`;
+          this.primus.emit(queryEvent, payload.data);
           break;
         default:
           logger.debug("Unknown entity type:", {

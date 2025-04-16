@@ -6,18 +6,14 @@
 const express = require("express");
 const router = express.Router();
 const slaController = require("../controllers/sla.controller");
-const { protect } = require("../../auth/middleware/auth.middleware");
+const { authenticate } = require("../../auth/middleware/auth.middleware");
 const { srs } = require("../../auth/middleware/role.middleware");
 
 // Protect all routes
-router.use(protect);
+router.use(authenticate);
 
 // Create a new SLA policy
-router.post(
-  "/policies",
-  srs(["admin"]),
-  slaController.createSLAPolicy
-);
+router.post("/policies", srs(["admin"]), slaController.createSLAPolicy);
 
 // Get SLA policies for organization
 router.get(
@@ -34,18 +30,10 @@ router.get(
 );
 
 // Update SLA policy
-router.put(
-  "/policies/:id",
-  srs(["admin"]),
-  slaController.updateSLAPolicy
-);
+router.put("/policies/:id", srs(["admin"]), slaController.updateSLAPolicy);
 
 // Delete SLA policy
-router.delete(
-  "/policies/:id",
-  srs(["admin"]),
-  slaController.deleteSLAPolicy
-);
+router.delete("/policies/:id", srs(["admin"]), slaController.deleteSLAPolicy);
 
 // Apply SLA policy to ticket
 router.post(
@@ -69,10 +57,6 @@ router.post(
 );
 
 // Check SLA breaches for all active tickets
-router.post(
-  "/check-breaches",
-  srs(["admin"]),
-  slaController.checkSLABreaches
-);
+router.post("/check-breaches", srs(["admin"]), slaController.checkSLABreaches);
 
 module.exports = router;

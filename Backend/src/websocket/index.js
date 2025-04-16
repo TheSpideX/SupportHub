@@ -6,7 +6,7 @@
 const Primus = require("primus");
 const PrimusRooms = require("primus-rooms");
 const jwt = require("jsonwebtoken");
-const config = require("../config/config");
+const config = require("../config");
 const logger = require("../utils/logger");
 const User = require("../modules/auth/models/user.model");
 

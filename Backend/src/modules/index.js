@@ -11,6 +11,7 @@ const admin = require("./admin");
 const user = require("./user");
 const customer = require("./customer");
 const system = require("./system");
+const ticket = require("./ticket");
 const logger = require("../utils/logger");
 
 /**
@@ -37,6 +38,9 @@ const initializeModules = async (app, io, config = {}) => {
 
     // Initialize customer module
     customer.initialize(app);
+
+    // Initialize ticket module with Primus for WebSocket support
+    ticket.initialize(app, io);
 
     // Initialize system module
     app.use("/api/system", system.routes);
@@ -75,6 +79,7 @@ module.exports = {
   user,
   customer,
   system,
+  ticket,
   // Add other modules here as they are created
 
   // Module lifecycle functions

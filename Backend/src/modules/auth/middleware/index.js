@@ -48,6 +48,14 @@ const {
 // Import validation schemas directly
 const validationSchemas = require("../validations/schemas");
 
+// Import role middleware
+const {
+  srs,
+  requirePermissions,
+  isResourceOwner,
+  isTeamLead,
+} = require("./role.middleware");
+
 // Export all middleware
 module.exports = {
   // Token authentication
@@ -81,4 +89,10 @@ module.exports = {
 
   // Validation schemas
   validationSchemas,
+
+  // Role-based access control
+  srs,
+  requirePermissions,
+  isResourceOwner,
+  isTeamLead,
 };

@@ -358,12 +358,27 @@ exports.resetUserPassword = async (id, newPassword) => {
       throw new ApiError(404, "User not found");
     }
 
-    // Hash the new password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    // Validate password against the requirements
+    const passwordRegex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      throw new ApiError(
+        400,
+        "Password must contain uppercase, lowercase, number, and special character"
+      );
+    }
 
-    user.security.password = hashedPassword;
+    // Set the new password directly - the pre-save middleware will hash it
+    user.security.password = newPassword;
+
+    // Increment token version to invalidate existing tokens
+    user.security.tokenVersion = (user.security.tokenVersion || 0) + 1;
+    user.security.passwordChangedAt = new Date();
+
+    // Save the user to trigger the pre-save middleware
     await user.save();
+
+    logger.info(`Password reset successful for user: ${id}`);
   } catch (error) {
     logger.error(`Error resetting user password: ${error.message}`, error);
     throw error;

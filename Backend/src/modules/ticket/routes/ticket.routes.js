@@ -6,11 +6,11 @@
 const express = require("express");
 const router = express.Router();
 const ticketController = require("../controllers/ticket.controller");
-const { protect } = require("../../auth/middleware/auth.middleware");
+const { authenticate } = require("../../auth/middleware/auth.middleware");
 const { srs } = require("../../auth/middleware/role.middleware");
 
 // Protect all routes
-router.use(protect);
+router.use(authenticate);
 
 // Create a new ticket
 router.post(

@@ -882,25 +882,33 @@ exports.getTicketStatistics = async (organizationId) => {
   try {
     // Get counts by status
     const statusCounts = await Ticket.aggregate([
-      { $match: { organizationId: mongoose.Types.ObjectId(organizationId) } },
+      {
+        $match: { organizationId: new mongoose.Types.ObjectId(organizationId) },
+      },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
 
     // Get counts by priority
     const priorityCounts = await Ticket.aggregate([
-      { $match: { organizationId: mongoose.Types.ObjectId(organizationId) } },
+      {
+        $match: { organizationId: new mongoose.Types.ObjectId(organizationId) },
+      },
       { $group: { _id: "$priority", count: { $sum: 1 } } },
     ]);
 
     // Get counts by team
     const teamCounts = await Ticket.aggregate([
-      { $match: { organizationId: mongoose.Types.ObjectId(organizationId) } },
+      {
+        $match: { organizationId: new mongoose.Types.ObjectId(organizationId) },
+      },
       { $group: { _id: "$primaryTeam.teamId", count: { $sum: 1 } } },
     ]);
 
     // Get SLA breach statistics
     const slaStats = await Ticket.aggregate([
-      { $match: { organizationId: mongoose.Types.ObjectId(organizationId) } },
+      {
+        $match: { organizationId: new mongoose.Types.ObjectId(organizationId) },
+      },
       {
         $group: {
           _id: null,
