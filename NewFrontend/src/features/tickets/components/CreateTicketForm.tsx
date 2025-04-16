@@ -8,10 +8,12 @@ import {
   FaTags,
   FaArrowLeft,
   FaPlusCircle,
+  FaClock,
 } from "react-icons/fa";
 import { useCreateTicketMutation } from "../api/ticketApi";
 import { useGetTeamsQuery, useGetTeamMembersQuery } from "@/api/teamApiRTK";
 import { useGetUsersQuery } from "@/api/userApiRTK";
+import { useGetSLAPoliciesQuery } from "@/services/slaApi";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 
@@ -35,6 +37,7 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     priority: "medium",
     primaryTeam: "",
     assignedTo: "",
+    slaPolicy: "",
     customer: {
       userId: "",
       email: "",
@@ -47,6 +50,7 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     useCreateTicketMutation();
   const { data: teamsData } = useGetTeamsQuery();
   const { data: usersData } = useGetUsersQuery();
+  const { data: slaPoliciesData } = useGetSLAPoliciesQuery();
 
   // Fetch team members when a team is selected
   const { data: teamMembersData, isFetching: isLoadingTeamMembers } =
@@ -150,6 +154,11 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
       ticketData.assignedTo = formData.assignedTo;
     }
 
+    // Add SLA policy if selected
+    if (formData.slaPolicy) {
+      ticketData.slaPolicy = formData.slaPolicy;
+    }
+
     // Add customer information if provided
     if (formData.customer.email || formData.customer.name) {
       ticketData.customer = {};
@@ -170,43 +179,8 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     );
 
     try {
-      // Use XMLHttpRequest for a more direct approach
-      const result = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "http://localhost:4290/api/tickets", true);
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.withCredentials = true;
-
-        // Get CSRF token from cookies
-        const csrfToken = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("csrf_token="))
-          ?.split("=")[1];
-
-        if (csrfToken) {
-          xhr.setRequestHeader("X-CSRF-Token", csrfToken);
-        }
-
-        xhr.onload = function () {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const result = JSON.parse(xhr.responseText);
-            console.log("Ticket created successfully:", result);
-            resolve(result);
-          } else {
-            console.error("Error creating ticket:", xhr.responseText);
-            reject(new Error("Failed to create ticket"));
-          }
-        };
-
-        xhr.onerror = function () {
-          console.error("Network error occurred");
-          reject(new Error("Network error occurred"));
-        };
-
-        const jsonData = JSON.stringify(ticketData);
-        console.log("Sending JSON data:", jsonData);
-        xhr.send(jsonData);
-      });
+      // Use the RTK Query mutation to create the ticket
+      const result = await createTicket(ticketData).unwrap();
 
       console.log("Ticket created successfully:", result);
       toast.success("Ticket created successfully");
@@ -680,6 +654,45 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
                 </p>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* SLA Policy Selection */}
+        <div className="border border-gray-700/50 rounded-lg p-4 bg-gray-800/30 mb-4">
+          <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center">
+            <FaClock className="mr-2 text-blue-400" /> SLA Policy
+          </h3>
+          <div>
+            <label
+              htmlFor="slaPolicy"
+              className="block text-sm font-medium text-gray-300 mb-1"
+            >
+              Select SLA Policy
+            </label>
+            <div className="relative">
+              <select
+                id="slaPolicy"
+                name="slaPolicy"
+                value={formData.slaPolicy}
+                onChange={handleChange}
+                className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none"
+              >
+                <option value="">Auto-select based on priority</option>
+                {slaPoliciesData?.data?.map((policy) => (
+                  <option key={policy._id} value={policy._id}>
+                    {policy.name} - Response:{" "}
+                    {policy.responseTime?.[formData.priority] || "N/A"} min,
+                    Resolution:{" "}
+                    {policy.resolutionTime?.[formData.priority] || "N/A"} min
+                  </option>
+                ))}
+              </select>
+              <FaClock className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            </div>
+            <p className="mt-1 text-xs text-gray-400">
+              If no policy is selected, a default policy will be applied based
+              on ticket priority
+            </p>
           </div>
         </div>
 

@@ -69,6 +69,7 @@ import {
   SLAPolicy,
 } from "@/api/slaApiRTK";
 import { ticketSocket } from "@/features/tickets/api/ticketSocket";
+import SLAPolicySelector from "@/components/SLAPolicySelector";
 import { toast } from "react-hot-toast";
 import { MoreHorizontal, Edit, Eye, UserPlus, RefreshCw } from "lucide-react";
 
@@ -810,6 +811,7 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+  const [isSLAPolicySelectorOpen, setIsSLAPolicySelectorOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
@@ -896,37 +898,7 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
   // Fetch ticket statistics
   const { data: statisticsData } = useGetTicketStatisticsQuery();
 
-  // Set up WebSocket listeners for real-time updates
-  useEffect(() => {
-    // Subscribe to ticket events
-    const unsubscribeCreated = ticketSocket.onTicketEvent(
-      "ticket:created",
-      (data) => {
-        toast.success(`New ticket created: ${data.title}`);
-      }
-    );
-
-    const unsubscribeUpdated = ticketSocket.onTicketEvent(
-      "ticket:updated",
-      (data) => {
-        toast.success(`Ticket updated: ${data.title}`);
-      }
-    );
-
-    const unsubscribeCommentAdded = ticketSocket.onTicketEvent(
-      "ticket:comment_added",
-      (data) => {
-        toast.success(`New comment on ticket ${data.ticketId}`);
-      }
-    );
-
-    // Clean up listeners on unmount
-    return () => {
-      unsubscribeCreated();
-      unsubscribeUpdated();
-      unsubscribeCommentAdded();
-    };
-  }, []);
+  // We already have WebSocket listeners set up above, no need for duplicates
 
   // Add this function to handle opening the analytics modal
   const openAnalyticsModal = () => {
@@ -1122,7 +1094,13 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                     </h3>
                   </div>
                   <div className="p-6">
-                    <CreateTicketForm onSuccess={() => setCurrentView("all")} />
+                    <CreateTicketForm
+                      onSuccess={() => {
+                        setCurrentView("all");
+                        // Force a refetch of the tickets list
+                        refetch();
+                      }}
+                    />
                   </div>
                 </motion.div>
               ) : (
@@ -1585,6 +1563,7 @@ const TicketDetailModal = ({
   const [showSLAForm, setShowSLAForm] = useState(false);
   const [pauseReason, setPauseReason] = useState<string>("");
   const [showPauseForm, setShowPauseForm] = useState(false);
+  const [isSLAPolicySelectorOpen, setIsSLAPolicySelectorOpen] = useState(false);
 
   // Import the mutations and queries
   const [addComment] = useAddCommentMutation();
@@ -4142,7 +4121,7 @@ const TicketDetailModal = ({
                               </p>
                               <button
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors inline-flex items-center"
-                                onClick={() => setActiveTab("actions")}
+                                onClick={() => setIsSLAPolicySelectorOpen(true)}
                               >
                                 <FaPlus className="mr-2" /> Apply SLA Policy
                               </button>
@@ -4165,6 +4144,19 @@ const TicketDetailModal = ({
           isOpen={analyticsModalOpen}
           closeModal={() => setAnalyticsModalOpen(false)}
           ticket={ticket}
+        />
+      )}
+
+      {/* Add the SLA Policy Selector modal */}
+      {ticket && (
+        <SLAPolicySelector
+          isOpen={isSLAPolicySelectorOpen}
+          closeModal={() => setIsSLAPolicySelectorOpen(false)}
+          ticketId={ticket.id}
+          onSuccess={() => {
+            refetch();
+            toast.success("SLA policy applied successfully");
+          }}
         />
       )}
     </>
