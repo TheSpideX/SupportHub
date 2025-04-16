@@ -342,13 +342,30 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
                   </div>
                 </div>
               </div>
-              <Button
-                onClick={onAddMember}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <FaUserPlus className="mr-2 h-4 w-4" />
-                Add Member
-              </Button>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={onAddMember}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <FaUserPlus className="mr-2 h-4 w-4" />
+                  Invite New Member
+                </Button>
+                <Button
+                  onClick={() => {
+                    onClose();
+                    // Small delay to ensure this modal is closed before opening the next one
+                    setTimeout(() => {
+                      if (typeof onAddMember === "function") {
+                        onAddMember();
+                      }
+                    }, 50);
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <FaUserPlus className="mr-2 h-4 w-4" />
+                  Add Existing Member
+                </Button>
+              </div>
             </div>
 
             <div
@@ -380,13 +397,30 @@ const TeamMembersModal: React.FC<TeamMembersModalProps> = ({
                     Start building your team by adding members or generating
                     invitation codes.
                   </p>
-                  <Button
-                    onClick={onAddMember}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <FaUserPlus className="mr-2 h-4 w-4" />
-                    Add First Member
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      onClick={onAddMember}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <FaUserPlus className="mr-2 h-4 w-4" />
+                      Invite New Member
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        onClose();
+                        // Small delay to ensure this modal is closed before opening the next one
+                        setTimeout(() => {
+                          if (typeof onAddMember === "function") {
+                            onAddMember();
+                          }
+                        }, 50);
+                      }}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <FaUserPlus className="mr-2 h-4 w-4" />
+                      Add Existing Member
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="bg-gray-800/30">

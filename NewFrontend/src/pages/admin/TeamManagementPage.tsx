@@ -37,6 +37,7 @@ import TeamAnalytics from "@/features/team/components/TeamAnalytics";
 
 import TeamMembersModal from "@/features/team/components/TeamMembersModal";
 import AddTeamMemberModal from "@/features/team/components/AddTeamMemberModal";
+import AddExistingMemberModal from "@/features/team/components/AddExistingMemberModal";
 import TopNavbar from "@/components/dashboard/TopNavbar";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Footer from "@/components/dashboard/Footer";
@@ -505,6 +506,8 @@ const TeamManagementPage: React.FC = () => {
   const [deleteTeamModalOpen, setDeleteTeamModalOpen] = useState(false);
   const [viewMembersModalOpen, setViewMembersModalOpen] = useState(false);
   const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
+  const [addExistingMemberModalOpen, setAddExistingMemberModalOpen] =
+    useState(false);
   const [bulkMemberAssignModalOpen, setBulkMemberAssignModalOpen] =
     useState(false);
 
@@ -532,6 +535,12 @@ const TeamManagementPage: React.FC = () => {
     setSelectedTeamId(teamId);
     setSelectedTeamName(teamName);
     setAddMemberModalOpen(true);
+  };
+
+  const handleAddExistingMember = (teamId: string, teamName: string) => {
+    setSelectedTeamId(teamId);
+    setSelectedTeamName(teamName);
+    setAddExistingMemberModalOpen(true);
   };
 
   const handleViewMembers = (teamId: string, teamName: string) => {
@@ -1269,7 +1278,21 @@ const TeamManagementPage: React.FC = () => {
                                               aria-label={`Add member to ${team.name}`}
                                             >
                                               <FaUserPlus className="h-4 w-4 mr-2 text-green-400" />
-                                              Add Member
+                                              Invite New Member
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onClick={() =>
+                                                handleAddExistingMember(
+                                                  team.id,
+                                                  team.name
+                                                )
+                                              }
+                                              className="hover:bg-gray-700 focus:bg-gray-700"
+                                              role="menuitem"
+                                              aria-label={`Add existing member to ${team.name}`}
+                                            >
+                                              <FaUserPlus className="h-4 w-4 mr-2 text-blue-400" />
+                                              Add Existing Member
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                               onClick={() =>
@@ -1647,6 +1670,27 @@ const TeamManagementPage: React.FC = () => {
           onSuccess={() => {
             // If we were viewing members before, go back to that view
             setAddMemberModalOpen(false);
+
+            if (viewMembersModalOpen) {
+              // Use a small delay to ensure the first modal is fully closed
+              setTimeout(() => {
+                setViewMembersModalOpen(true);
+              }, 50);
+            } else {
+              // Just refresh the data
+              handleTeamOperationSuccess();
+            }
+          }}
+        />
+
+        <AddExistingMemberModal
+          isOpen={addExistingMemberModalOpen}
+          onClose={() => setAddExistingMemberModalOpen(false)}
+          teamId={selectedTeamId}
+          teamName={selectedTeamName}
+          onSuccess={() => {
+            // If we were viewing members before, go back to that view
+            setAddExistingMemberModalOpen(false);
 
             if (viewMembersModalOpen) {
               // Use a small delay to ensure the first modal is fully closed

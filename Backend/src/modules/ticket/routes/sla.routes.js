@@ -18,7 +18,7 @@ router.post("/policies", srs(["admin"]), slaController.createSLAPolicy);
 // Get SLA policies for organization
 router.get(
   "/policies",
-  srs(["admin", "team_lead"]),
+  srs(["admin", "team_lead", "support", "technical"]),
   slaController.getSLAPolicies
 );
 

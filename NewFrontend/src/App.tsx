@@ -13,6 +13,9 @@ import RegisterWithCodePage from "@/pages/auth/RegisterWithCodePage";
 // import { ProfilePage } from "@/pages/profile/ProfilePage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import EnhancedAdminDashboard from "@/pages/dashboard/EnhancedAdminDashboard";
+import EnhancedSupportDashboard from "@/pages/dashboard/EnhancedSupportDashboard";
+import TeamLeadSupportDashboard from "@/pages/dashboard/TeamLeadSupportDashboard";
+import TeamLeadTechnicalDashboard from "@/pages/dashboard/TeamLeadTechnicalDashboard";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
 // Admin Pages
 import UserManagementPage from "@/pages/admin/UserManagementPage";
@@ -57,6 +60,7 @@ import {
 } from "@mui/material/styles";
 import TicketsPage from "./pages/tickets/TicketsPage";
 import ProfilePage from "./pages/profile/ProfilePage";
+import QueriesPage from "./pages/queries/QueriesPage";
 
 // Component name for logging
 const COMPONENT = "App";
@@ -121,6 +125,30 @@ const routes = [
         ),
       },
       {
+        path: "support-dashboard",
+        element: (
+          <AuthGuard>
+            <EnhancedSupportDashboard />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "team-lead-support-dashboard",
+        element: (
+          <AuthGuard>
+            <TeamLeadSupportDashboard />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "team-lead-technical-dashboard",
+        element: (
+          <AuthGuard>
+            <TeamLeadTechnicalDashboard />
+          </AuthGuard>
+        ),
+      },
+      {
         path: "tickets",
         element: (
           <AuthGuard>
@@ -157,6 +185,38 @@ const routes = [
         element: (
           <AuthGuard>
             <ProfilePage />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "queries",
+        element: (
+          <AuthGuard>
+            <QueriesPage view="my-queries" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "queries/create",
+        element: (
+          <AuthGuard>
+            <QueriesPage view="create" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "queries/team",
+        element: (
+          <AuthGuard>
+            <QueriesPage view="team" />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "queries/:id",
+        element: (
+          <AuthGuard>
+            <QueriesPage view="detail" />
           </AuthGuard>
         ),
       },

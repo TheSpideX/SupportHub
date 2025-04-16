@@ -22,7 +22,7 @@ const NotificationSchema = new Schema(
     },
     type: {
       type: String,
-      enum: ["sla", "ticket", "system", "security"],
+      enum: ["sla", "ticket", "system", "security", "query"],
       required: true,
     },
     severity: {
@@ -41,7 +41,7 @@ const NotificationSchema = new Schema(
     relatedTo: {
       model: {
         type: String,
-        enum: ["Ticket", "User", "Team", "Organization", "System"],
+        enum: ["Ticket", "User", "Team", "Organization", "System", "Query"],
       },
       id: {
         type: Schema.Types.ObjectId,

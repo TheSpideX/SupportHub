@@ -1084,6 +1084,11 @@ export class TokenService {
       // Add CSRF token to headers with correct header name
       init.headers["X-CSRF-Token"] = token;
 
+      // Ensure credentials are included for cross-origin requests
+      if (!init.credentials) {
+        init.credentials = "include";
+      }
+
       return originalFetch(input, init);
     };
   }

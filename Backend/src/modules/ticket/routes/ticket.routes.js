@@ -34,6 +34,13 @@ router.get(
   ticketController.getTicketStatistics
 );
 
+// Get tickets created by the current user
+router.get(
+  "/created-by-me",
+  srs(["support"]),
+  ticketController.getTicketsCreatedByMe
+);
+
 // Get ticket by ID
 router.get(
   "/:id",
@@ -75,5 +82,8 @@ router.post(
   srs(["admin", "team_lead"]),
   ticketController.assignTicketToTeam
 );
+
+// Get tickets for the team lead's team
+router.get("/my-team", srs(["team_lead"]), ticketController.getMyTeamTickets);
 
 module.exports = router;

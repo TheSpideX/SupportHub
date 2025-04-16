@@ -371,6 +371,68 @@ const ticketApi = api.injectEndpoints({
       }),
       providesTags: ["TicketStats"],
     }),
+
+    // Get tickets created by the current user
+    getMyCreatedTickets: builder.query<
+      PaginatedResponse<Ticket>,
+      { page?: number; limit?: number }
+    >({
+      query: ({ page = 1, limit = 20 }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", limit.toString());
+        queryParams.append("createdByMe", "true");
+
+        return {
+          url: `/api/tickets/created-by-me?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ _id }) => ({
+                type: "Tickets" as const,
+                id: _id,
+              })),
+              { type: "Tickets" as const, id: "CREATED_BY_ME" },
+            ]
+          : [{ type: "Tickets" as const, id: "CREATED_BY_ME" }],
+    }),
+
+    // Get tickets for my team (for team leads)
+    getMyTeamTickets: builder.query<
+      PaginatedResponse<Ticket>,
+      { page?: number; limit?: number; filters?: TicketFilters }
+    >({
+      query: ({ page = 1, limit = 20, filters = {} }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", limit.toString());
+
+        // Add any filters
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) {
+            queryParams.append(key, value);
+          }
+        });
+
+        return {
+          url: `/api/tickets/my-team?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ _id }) => ({
+                type: "Tickets" as const,
+                id: _id,
+              })),
+              { type: "Tickets" as const, id: "MY_TEAM" },
+            ]
+          : [{ type: "Tickets" as const, id: "MY_TEAM" }],
+    }),
   }),
 });
 
@@ -384,6 +446,8 @@ export const {
   useAssignTicketMutation,
   useAssignTicketToTeamMutation,
   useGetTicketStatisticsQuery,
+  useGetMyCreatedTicketsQuery,
+  useGetMyTeamTicketsQuery,
 } = ticketApi;
 
 export { ticketApi };

@@ -66,6 +66,11 @@ export interface CreateQueryRequest {
   subject: string;
   description: string;
   category: "general" | "technical" | "billing" | "feature_request" | "other";
+  customer?: {
+    userId?: string;
+    email?: string;
+    name?: string;
+  };
 }
 
 export interface UpdateQueryRequest {
@@ -176,6 +181,67 @@ const queryApi = api.injectEndpoints({
           : [{ type: "Queries" as const, id: "MY_LIST" }],
     }),
 
+    // Get queries assigned to me (for support team members)
+    getMyAssignedQueries: builder.query<
+      PaginatedResponse<Query>,
+      { page?: number; limit?: number }
+    >({
+      query: ({ page = 1, limit = 20 }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", limit.toString());
+
+        return {
+          url: `/api/queries/assigned-to-me?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ _id }) => ({
+                type: "Queries" as const,
+                id: _id,
+              })),
+              { type: "Queries" as const, id: "ASSIGNED_TO_ME" },
+            ]
+          : [{ type: "Queries" as const, id: "ASSIGNED_TO_ME" }],
+    }),
+
+    // Get team queries (for team leads)
+    getTeamQueries: builder.query<
+      PaginatedResponse<Query>,
+      { page?: number; limit?: number; filters?: QueryFilters }
+    >({
+      query: ({ page = 1, limit = 20, filters = {} }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append("page", page.toString());
+        queryParams.append("limit", limit.toString());
+
+        // Add any filters
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) {
+            queryParams.append(key, value);
+          }
+        });
+
+        return {
+          url: `/api/queries/team?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ _id }) => ({
+                type: "Queries" as const,
+                id: _id,
+              })),
+              { type: "Queries" as const, id: "TEAM_QUERIES" },
+            ]
+          : [{ type: "Queries" as const, id: "TEAM_QUERIES" }],
+    }),
+
     // Get query by ID
     getQueryById: builder.query<Query, string>({
       query: (id) => ({
@@ -187,15 +253,31 @@ const queryApi = api.injectEndpoints({
 
     // Create query
     createQuery: builder.mutation<Query, CreateQueryRequest>({
-      query: (data) => ({
-        url: "/api/queries",
-        method: "POST",
-        body: data,
-      }),
+      query: (data) => {
+        console.log("API layer sending query data:", JSON.stringify(data));
+        return {
+          url: "/api/queries",
+          method: "POST",
+          body: data,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        };
+      },
       invalidatesTags: [
         { type: "Queries", id: "LIST" },
         { type: "Queries", id: "MY_LIST" },
       ],
+      // Add transformResponse to log the response
+      transformResponse: (response) => {
+        console.log("Query creation response:", response);
+        return response;
+      },
+      // Add transformErrorResponse to log the error
+      transformErrorResponse: (response) => {
+        console.error("Query creation error:", response);
+        return response;
+      },
     }),
 
     // Update query
@@ -267,6 +349,8 @@ const queryApi = api.injectEndpoints({
 export const {
   useGetQueriesQuery,
   useGetMyQueriesQuery,
+  useGetMyAssignedQueriesQuery,
+  useGetTeamQueriesQuery,
   useGetQueryByIdQuery,
   useCreateQueryMutation,
   useUpdateQueryMutation,

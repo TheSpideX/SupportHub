@@ -25,6 +25,8 @@ import {
   FaHistory,
   FaFilter,
   FaEllipsisH,
+  FaQuestion,
+  FaPlus,
   FaList,
 } from "react-icons/fa";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -70,27 +72,45 @@ const Sidebar: React.FC<SidebarProps> = ({ open, setOpen }) => {
     // Common items for all users
     const commonItems: NavItemType[] = [
       { name: "Dashboard", icon: FaHome, href: "/dashboard" },
-      {
-        name: "Enhanced Dashboard",
-        icon: FaChartBar,
-        href: "/admin-dashboard",
-        badge: "NEW",
-      },
-      {
-        name: "Tickets",
-        icon: FaTicketAlt,
-        href: "/tickets",
-        badge: "12",
-        children: [
-          { name: "All Tickets", icon: FaTicketAlt, href: "/tickets/all" },
-          {
-            name: "My Tickets",
-            icon: FaTicketAlt,
-            href: "/tickets/my-tickets",
-          },
-          { name: "Create Ticket", icon: FaTicketAlt, href: "/tickets/create" },
-        ],
-      },
+      // Only show Enhanced Dashboard for support role
+      ...(userRole === "support"
+        ? [
+            {
+              name: "Enhanced Dashboard",
+              icon: FaChartBar,
+              href: "/support-dashboard",
+              badge: "NEW",
+            },
+          ]
+        : []),
+      // Only show Tickets for non-customer roles
+      ...(userRole !== "customer"
+        ? [
+            {
+              name: "Tickets",
+              icon: FaTicketAlt,
+              href: "/tickets",
+              badge: "12",
+              children: [
+                {
+                  name: "All Tickets",
+                  icon: FaTicketAlt,
+                  href: "/tickets/all",
+                },
+                {
+                  name: "My Tickets",
+                  icon: FaTicketAlt,
+                  href: "/tickets/my-tickets",
+                },
+                {
+                  name: "Create Ticket",
+                  icon: FaTicketAlt,
+                  href: "/tickets/create",
+                },
+              ],
+            },
+          ]
+        : []),
       {
         name: "Profile",
         icon: FaUser,
@@ -109,10 +129,29 @@ const Sidebar: React.FC<SidebarProps> = ({ open, setOpen }) => {
 
     // Role-specific items
     const roleItems: Record<string, NavItemType[]> = {
-      customer: [],
+      customer: [
+        {
+          name: "Queries",
+          icon: FaQuestion,
+          href: "/queries",
+          children: [
+            { name: "My Queries", icon: FaQuestion, href: "/queries" },
+            { name: "Create Query", icon: FaPlus, href: "/queries/create" },
+          ],
+        },
+      ],
       support: [
-        { name: "Reports", icon: FaChartBar, href: "/reports" },
-        { name: "Customers", icon: FaUsers, href: "/customers" },
+        {
+          name: "My Assigned Queries",
+          icon: FaQuestion,
+          href: "/queries",
+          badge: "5",
+        },
+        {
+          name: "My Created Tickets",
+          icon: FaTicketAlt,
+          href: "/tickets/my-tickets",
+        },
       ],
       technical: [
         { name: "Reports", icon: FaChartBar, href: "/reports" },
@@ -132,6 +171,45 @@ const Sidebar: React.FC<SidebarProps> = ({ open, setOpen }) => {
           href: "/approvals",
           badge: "3",
         },
+        // Support team lead specific items
+        ...(user?.teamType === "support"
+          ? [
+              {
+                name: "Queries",
+                icon: FaQuestion,
+                href: "/queries",
+                children: [
+                  { name: "All Queries", icon: FaQuestion, href: "/queries" },
+                  {
+                    name: "Team Queries",
+                    icon: FaUsers,
+                    href: "/queries/team",
+                  },
+                  {
+                    name: "Create Query",
+                    icon: FaPlus,
+                    href: "/queries/create",
+                  },
+                ],
+                badge: "5",
+              },
+            ]
+          : []),
+        // Technical team lead specific items
+        ...(user?.teamType === "technical"
+          ? [
+              {
+                name: "Technical Tools",
+                icon: FaTools,
+                href: "/technical-tools",
+              },
+              {
+                name: "System Diagnostics",
+                icon: FaServer,
+                href: "/system-diagnostics",
+              },
+            ]
+          : []),
       ],
       admin: [
         {

@@ -474,21 +474,164 @@ exports.assignTicketToTeam = async (req, res, next) => {
 };
 
 /**
+ * Get tickets for the team lead's team
+ * @route GET /api/tickets/my-team
+ */
+exports.getMyTeamTickets = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const organizationId = req.user.organizationId;
+    const { page = 1, limit = 20 } = req.query;
+
+    // Get the team ID for the team lead
+    const teamService = require("../../team/services/team.service");
+    const userTeams = await teamService.getUserTeams(userId);
+
+    // Filter for teams where the user is a lead
+    const leadTeams = userTeams.filter((team) =>
+      team.members.some(
+        (member) =>
+          member.userId.toString() === userId.toString() &&
+          member.role === "lead"
+      )
+    );
+
+    if (leadTeams.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: {
+          total: 0,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: 0,
+        },
+      });
+    }
+
+    // Get team IDs
+    const teamIds = leadTeams.map((team) => team._id);
+
+    // Extract filters from query params
+    const filters = {
+      status: req.query.status,
+      priority: req.query.priority,
+      category: req.query.category,
+      search: req.query.search,
+      // Add filter for primary team or supporting team
+      $or: [
+        { "primaryTeam.teamId": { $in: teamIds } },
+        { "supportingTeams.teamId": { $in: teamIds } },
+      ],
+    };
+
+    const result = await ticketService.getTickets(
+      filters,
+      organizationId,
+      page,
+      limit
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    logger.error("Error getting team tickets:", error);
+    return next(error);
+  }
+};
+
+/**
  * Get ticket statistics
  * @route GET /api/tickets/statistics
  */
 exports.getTicketStatistics = async (req, res, next) => {
   try {
     const organizationId = req.user.organizationId;
+    const userId = req.user._id;
+    const userRole = req.user.role;
 
-    const statistics = await ticketService.getTicketStatistics(organizationId);
+    // For customer users, get customer-specific statistics
+    if (userRole === "customer") {
+      // Get customer query statistics
+      const Query = require("../models/query.model");
+
+      // Count open queries
+      const openQueries = await Query.countDocuments({
+        customerId: userId,
+        organizationId,
+        status: { $nin: ["resolved", "closed", "converted"] },
+      });
+
+      // Count resolved queries
+      const resolvedQueries = await Query.countDocuments({
+        customerId: userId,
+        organizationId,
+        status: { $in: ["resolved", "closed"] },
+      });
+
+      // Return customer-specific statistics
+      return res.status(200).json({
+        success: true,
+        data: {
+          customerStats: {
+            openQueries: openQueries.toString(),
+            openQueriesChange: "No change", // We could calculate this in the future
+            resolvedQueries: resolvedQueries.toString(),
+            resolvedQueriesChange: "No change", // We could calculate this in the future
+            avgResponseTime: "24h", // Placeholder
+            satisfactionRate: "95%", // Placeholder
+          },
+        },
+      });
+    } else {
+      // For admin, team_lead, and team_member users, get organization-wide statistics
+      const statistics = await ticketService.getTicketStatistics(
+        organizationId
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: statistics,
+      });
+    }
+  } catch (error) {
+    logger.error("Error getting ticket statistics:", error);
+    return next(error);
+  }
+};
+
+/**
+ * Get tickets created by the current user (support agent)
+ * @route GET /api/tickets/created-by-me
+ */
+exports.getTicketsCreatedByMe = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const organizationId = req.user.organizationId;
+    const { page = 1, limit = 20 } = req.query;
+
+    // Create a filter to get tickets created by the current user
+    const filters = {
+      createdBy: userId,
+    };
+
+    const result = await ticketService.getTickets(
+      filters,
+      organizationId,
+      page,
+      limit
+    );
 
     return res.status(200).json({
       success: true,
-      data: statistics,
+      data: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
-    logger.error("Error getting ticket statistics:", error);
+    logger.error("Error getting tickets created by user:", error);
     return next(error);
   }
 };

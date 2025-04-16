@@ -42,18 +42,23 @@ exports.getAllTeams = async (req, res, next) => {
     const { page = 1, limit = 10, ...filters } = req.query;
     const userId = req.user._id;
 
-    // Check if user is admin, if not, only return teams they are a member of
-    const isAdmin = req.user.role === "admin";
+    // Check user role
+    const userRole = req.user.role;
 
     let result;
-    if (isAdmin) {
+    // Admin, support, and technical users can see all teams
+    if (
+      userRole === "admin" ||
+      userRole === "support" ||
+      userRole === "technical"
+    ) {
       result = await teamService.getAllTeams(
         filters,
         parseInt(page),
         parseInt(limit)
       );
     } else {
-      // For non-admins, only return teams they are a member of
+      // For other users, only return teams they are a member of
       const userTeams = await teamService.getUserTeams(userId);
       result = {
         teams: userTeams,

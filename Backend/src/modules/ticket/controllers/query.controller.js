@@ -15,15 +15,24 @@ exports.createQuery = async (req, res, next) => {
   try {
     const customerId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
+    // Log request body for debugging
+    logger.debug("Query creation request body:", req.body);
+
     // Add organization ID to query data
     const queryData = {
       ...req.body,
       organizationId,
     };
-    
+
+    // If customer info is provided in the request body, use it for reference
+    // but still use the authenticated user's ID as the actual customer
+    if (req.body.customer) {
+      logger.debug("Customer info provided in request:", req.body.customer);
+    }
+
     const query = await queryService.createQuery(queryData, customerId);
-    
+
     return res.status(201).json({
       success: true,
       data: query,
@@ -42,9 +51,9 @@ exports.getQueryById = async (req, res, next) => {
   try {
     const queryId = req.params.id;
     const organizationId = req.user.organizationId;
-    
+
     const query = await queryService.getQueryById(queryId, organizationId);
-    
+
     return res.status(200).json({
       success: true,
       data: query,
@@ -63,7 +72,7 @@ exports.getQueries = async (req, res, next) => {
   try {
     const organizationId = req.user.organizationId;
     const { page = 1, limit = 20 } = req.query;
-    
+
     // Extract filters from query params
     const filters = {
       status: req.query.status,
@@ -72,14 +81,14 @@ exports.getQueries = async (req, res, next) => {
       assignedTo: req.query.assignedTo,
       search: req.query.search,
     };
-    
+
     const result = await queryService.getQueries(
       filters,
       organizationId,
       page,
       limit
     );
-    
+
     return res.status(200).json({
       success: true,
       data: result.data,
@@ -100,14 +109,14 @@ exports.updateQuery = async (req, res, next) => {
     const queryId = req.params.id;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     const query = await queryService.updateQuery(
       queryId,
       req.body,
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: query,
@@ -127,14 +136,14 @@ exports.addComment = async (req, res, next) => {
     const queryId = req.params.id;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     const query = await queryService.addComment(
       queryId,
       req.body,
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: query,
@@ -155,18 +164,18 @@ exports.assignQuery = async (req, res, next) => {
     const { assigneeId } = req.body;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     if (!assigneeId) {
       return next(new ApiError(400, "Assignee ID is required"));
     }
-    
+
     const query = await queryService.assignQuery(
       queryId,
       assigneeId,
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: query,
@@ -186,20 +195,20 @@ exports.convertToTicket = async (req, res, next) => {
     const queryId = req.params.id;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     // Add organization ID to ticket data
     const ticketData = {
       ...req.body,
       organizationId,
     };
-    
+
     const result = await queryService.convertToTicket(
       queryId,
       ticketData,
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: {
@@ -222,14 +231,14 @@ exports.getMyQueries = async (req, res, next) => {
     const customerId = req.user._id;
     const organizationId = req.user.organizationId;
     const { page = 1, limit = 20 } = req.query;
-    
+
     const result = await queryService.getCustomerQueries(
       customerId,
       organizationId,
       page,
       limit
     );
-    
+
     return res.status(200).json({
       success: true,
       data: result.data,
@@ -237,6 +246,117 @@ exports.getMyQueries = async (req, res, next) => {
     });
   } catch (error) {
     logger.error("Error getting customer queries:", error);
+    return next(error);
+  }
+};
+
+/**
+ * Get queries assigned to the logged-in support team member
+ * @route GET /api/queries/assigned-to-me
+ */
+exports.getAssignedQueries = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const organizationId = req.user.organizationId;
+    const { page = 1, limit = 20 } = req.query;
+
+    // Use the existing getQueries service with a filter for assignedTo
+    const filters = {
+      assignedTo: userId,
+    };
+
+    const result = await queryService.getQueries(
+      filters,
+      organizationId,
+      page,
+      limit
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    logger.error("Error getting assigned queries:", error);
+    return next(error);
+  }
+};
+
+/**
+ * Get queries for the team lead's team
+ * @route GET /api/queries/team
+ */
+exports.getTeamQueries = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const organizationId = req.user.organizationId;
+    const { page = 1, limit = 20 } = req.query;
+
+    // Get the team ID for the team lead
+    const teamService = require("../../team/services/team.service");
+    const userTeams = await teamService.getUserTeams(userId);
+
+    // Filter for support teams where the user is a lead
+    const supportTeams = userTeams.filter(
+      (team) =>
+        team.teamType === "support" &&
+        team.members.some(
+          (member) =>
+            member.userId.toString() === userId.toString() &&
+            member.role === "lead"
+        )
+    );
+
+    if (supportTeams.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        pagination: {
+          total: 0,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: 0,
+        },
+      });
+    }
+
+    // Get team members IDs
+    const teamMemberIds = [];
+    supportTeams.forEach((team) => {
+      team.members.forEach((member) => {
+        const memberId =
+          typeof member.userId === "object"
+            ? member.userId.toString()
+            : member.userId;
+        teamMemberIds.push(memberId);
+      });
+    });
+
+    // Use the existing getQueries service with a filter for team members
+    const filters = {
+      assignedTo: { $in: teamMemberIds },
+    };
+
+    // Add any additional filters from the request
+    if (req.query.status) filters.status = req.query.status;
+    if (req.query.category) filters.category = req.query.category;
+    if (req.query.search) filters.search = req.query.search;
+
+    const result = await queryService.getQueries(
+      filters,
+      organizationId,
+      page,
+      limit
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    logger.error("Error getting team queries:", error);
     return next(error);
   }
 };

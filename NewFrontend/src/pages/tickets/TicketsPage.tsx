@@ -59,6 +59,7 @@ import {
   useUpdateTicketMutation,
   useAssignTicketMutation,
   useAssignTicketToTeamMutation,
+  useGetMyCreatedTicketsQuery,
   GroupedActivityResponse,
 } from "@/features/tickets/api/ticketApi";
 import {
@@ -823,22 +824,28 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
   const [limit, setLimit] = useState(20);
 
   const { user } = useAuth();
+  const isSupport = user?.role === "support";
 
-  // Fetch tickets from API
+  // Fetch tickets from API - use different endpoint for support agents
   const {
     data: ticketsData,
     isLoading,
     error,
     refetch,
-  } = useGetTicketsQuery({
-    filters: {
-      status: selectedStatus !== "all" ? selectedStatus : undefined,
-      priority: selectedPriority !== "all" ? selectedPriority : undefined,
-      search: searchQuery || undefined,
-    },
-    page,
-    limit,
-  });
+  } = isSupport
+    ? useGetMyCreatedTicketsQuery({
+        page,
+        limit,
+      })
+    : useGetTicketsQuery({
+        filters: {
+          status: selectedStatus !== "all" ? selectedStatus : undefined,
+          priority: selectedPriority !== "all" ? selectedPriority : undefined,
+          search: searchQuery || undefined,
+        },
+        page,
+        limit,
+      });
 
   // Set up Primus event listeners for real-time updates
   useEffect(() => {

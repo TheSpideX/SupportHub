@@ -1,5 +1,5 @@
 import React, { useState, Fragment, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   FaTicketAlt,
@@ -15,6 +15,7 @@ import {
   FaQuestion,
   FaArrowRight,
   FaPlus,
+  FaSync,
 } from "react-icons/fa";
 import TopNavbar from "@/components/dashboard/TopNavbar";
 import Sidebar from "@/components/dashboard/Sidebar";
@@ -34,6 +35,8 @@ import {
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import {
   useGetQueriesQuery,
+  useGetMyQueriesQuery,
+  useGetMyAssignedQueriesQuery,
   useGetQueryByIdQuery,
 } from "@/features/tickets/api/queryApi";
 import { querySocket } from "@/features/tickets/api/querySocket";
@@ -247,6 +250,7 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
   view: initialView = "all",
 }) => {
   const { id: queryId } = useParams<{ id: string }>();
+  const location = useLocation();
   const [currentView, setCurrentView] = useState<string>(initialView);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -258,25 +262,52 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
   const [activeTab, setActiveTab] = useState<"details" | "convert">("details");
 
   const { user } = useAuth();
+  const isCustomer = user?.role === "customer";
+  const isSupport = user?.role === "support";
 
   // Pagination state
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  // Fetch queries from API
+  // Check if user is a team lead for a support team
+  const isTeamLeadSupport =
+    user?.role === "team_lead" && user?.teamType === "support";
+
+  // Fetch queries from API - use different endpoint based on user role
   const {
     data: queriesData,
     isLoading: isLoadingQueries,
     error: queriesError,
-  } = useGetQueriesQuery({
-    filters: {
-      status: selectedStatus !== "all" ? selectedStatus : undefined,
-      priority: selectedPriority !== "all" ? selectedPriority : undefined,
-      search: searchQuery || undefined,
-    },
-    page,
-    limit,
-  });
+    refetch: refetchQueries,
+  } = isCustomer
+    ? useGetMyQueriesQuery({
+        page,
+        limit,
+      })
+    : isSupport
+    ? useGetMyAssignedQueriesQuery({
+        page,
+        limit,
+      })
+    : currentView === "team" && isTeamLeadSupport
+    ? useGetTeamQueriesQuery({
+        filters: {
+          status: selectedStatus !== "all" ? selectedStatus : undefined,
+          priority: selectedPriority !== "all" ? selectedPriority : undefined,
+          search: searchQuery || undefined,
+        },
+        page,
+        limit,
+      })
+    : useGetQueriesQuery({
+        filters: {
+          status: selectedStatus !== "all" ? selectedStatus : undefined,
+          priority: selectedPriority !== "all" ? selectedPriority : undefined,
+          search: searchQuery || undefined,
+        },
+        page,
+        limit,
+      });
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
@@ -302,6 +333,16 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
     }
   }, [queryId, currentView]);
 
+  // Check for refresh flag in location state
+  useEffect(() => {
+    // If we have a refresh flag in the location state, refetch queries
+    if (location.state && location.state.refresh) {
+      refetchQueries();
+      // Clear the state to prevent repeated refreshes
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, refetchQueries]);
+
   // Map API data to UI format
   const getQueries = () => {
     if (!queriesData || !queriesData.data) {
@@ -317,6 +358,10 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
   // Open query detail modal
   const openQueryModal = (query: Query) => {
     setSelectedQuery(query);
+    // Always set activeTab to details for customers
+    if (isCustomer) {
+      setActiveTab("details");
+    }
     setIsModalOpen(true);
   };
 
@@ -339,6 +384,13 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
   // Render queries list
   const renderQueriesList = () => {
     const queries = getQueries();
+
+    // Customize title based on user role
+    const listTitle = isCustomer
+      ? "My Queries"
+      : currentView === "all"
+      ? "All Queries"
+      : "My Assigned Queries";
 
     if (isLoadingQueries) {
       return (
@@ -397,9 +449,11 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
               <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Priority
               </th>
-              <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Customer
-              </th>
+              {!isCustomer && (
+                <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Customer
+                </th>
+              )}
               <th className="py-3 px-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                 Created
               </th>
@@ -439,22 +493,24 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                   <td className="py-4 px-4">
                     {getPriorityBadge(query.priority)}
                   </td>
-                  <td className="py-4 px-4">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-8 w-8 bg-gray-700 rounded-full flex items-center justify-center">
-                        <FaUser className="text-gray-400" />
-                      </div>
-                      <div className="ml-3">
-                        <div className="text-sm font-medium text-white">
-                          {query.customer?.userId?.profile?.firstName}{" "}
-                          {query.customer?.userId?.profile?.lastName}
+                  {!isCustomer && (
+                    <td className="py-4 px-4">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-8 w-8 bg-gray-700 rounded-full flex items-center justify-center">
+                          <FaUser className="text-gray-400" />
                         </div>
-                        <div className="text-sm text-gray-400">
-                          {query.customer?.userId?.email}
+                        <div className="ml-3">
+                          <div className="text-sm font-medium text-white">
+                            {query.customer?.userId?.profile?.firstName}{" "}
+                            {query.customer?.userId?.profile?.lastName}
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            {query.customer?.userId?.email}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
+                  )}
                   <td className="py-4 px-4 whitespace-nowrap text-sm text-gray-300">
                     {formatDate(query.createdAt)}
                   </td>
@@ -492,7 +548,7 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                 </tr>
                 {expandedQueryId === query.id && (
                   <tr className="bg-gray-800/20">
-                    <td colSpan={8} className="py-4 px-6">
+                    <td colSpan={isCustomer ? 7 : 8} className="py-4 px-6">
                       <div className="text-gray-300 mb-3">
                         <span className="font-medium">Description:</span>{" "}
                         {query.description}
@@ -507,7 +563,7 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                         >
                           <FaEdit className="mr-1.5" /> View Details
                         </button>
-                        {query.status !== "converted" && (
+                        {query.status !== "converted" && !isCustomer && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -580,7 +636,7 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
       <TopNavbar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar sidebarOpen={sidebarOpen} />
+        <Sidebar open={sidebarOpen} setOpen={setSidebarOpen} />
 
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 p-4">
           <div className="container mx-auto">
@@ -588,17 +644,34 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-white">
-                  {currentView === "all" && "All Queries"}
+                  {currentView === "all" &&
+                    (isCustomer ? "My Queries" : "All Queries")}
                   {currentView === "my-queries" && "My Queries"}
+                  {currentView === "team" && "Team Queries"}
                   {currentView === "create" && "Create Query"}
                   {currentView === "detail" && "Query Details"}
                 </h1>
                 <p className="mt-1 text-gray-400">
                   {currentView === "all" &&
+                    isCustomer &&
+                    "View and manage your support queries"}
+                  {currentView === "all" &&
+                    !isCustomer &&
                     "View and manage all customer queries"}
                   {currentView === "my-queries" &&
+                    isCustomer &&
+                    "View and manage your support queries"}
+                  {currentView === "my-queries" &&
+                    !isCustomer &&
                     "View and manage queries assigned to you"}
-                  {currentView === "create" && "Create a new customer query"}
+                  {currentView === "team" &&
+                    "View and manage queries assigned to your team members"}
+                  {currentView === "create" &&
+                    isCustomer &&
+                    "Submit a new support query"}
+                  {currentView === "create" &&
+                    !isCustomer &&
+                    "Create a new customer query"}
                   {currentView === "detail" && "View and manage query details"}
                 </p>
               </div>
@@ -606,6 +679,18 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
               <div className="mt-4 md:mt-0 flex flex-col sm:flex-row gap-3">
                 {(currentView === "all" || currentView === "my-queries") && (
                   <>
+                    <button
+                      onClick={() => refetchQueries()}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center"
+                      disabled={isLoadingQueries}
+                    >
+                      <FaSync
+                        className={`mr-2 ${
+                          isLoadingQueries ? "animate-spin" : ""
+                        }`}
+                      />{" "}
+                      Refresh
+                    </button>
                     <button
                       onClick={() => setCurrentView("create")}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center justify-center"
@@ -630,56 +715,94 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
             {(currentView === "all" || currentView === "my-queries") && (
               <div className="bg-gray-800/50 rounded-lg p-4 mb-6">
                 <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Search queries..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                    </div>
-                  </div>
+                  {!isCustomer ? (
+                    <>
+                      <div className="flex-1">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Search queries..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                          />
+                          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        </div>
+                      </div>
 
-                  <div className="flex gap-4">
-                    <div className="w-40">
-                      <div className="relative">
-                        <select
-                          value={selectedStatus}
-                          onChange={(e) => setSelectedStatus(e.target.value)}
-                          className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      <div className="flex gap-4">
+                        <div className="w-40">
+                          <div className="relative">
+                            <select
+                              value={selectedStatus}
+                              onChange={(e) =>
+                                setSelectedStatus(e.target.value)
+                              }
+                              className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            >
+                              <option value="all">All Status</option>
+                              <option value="new">New</option>
+                              <option value="assigned">Assigned</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                              <option value="converted">Converted</option>
+                            </select>
+                            <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          </div>
+                        </div>
+
+                        <div className="w-40">
+                          <div className="relative">
+                            <select
+                              value={selectedPriority}
+                              onChange={(e) =>
+                                setSelectedPriority(e.target.value)
+                              }
+                              className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            >
+                              <option value="all">All Priority</option>
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                              <option value="critical">Critical</option>
+                            </select>
+                            <FaSort className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between w-full">
+                      <div className="flex-1">
+                        <div className="relative">
+                          <select
+                            value={selectedStatus}
+                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                          >
+                            <option value="all">All Status</option>
+                            <option value="new">New</option>
+                            <option value="under_review">Under Review</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="closed">Closed</option>
+                            <option value="converted">
+                              Converted to Ticket
+                            </option>
+                          </select>
+                          <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                        </div>
+                      </div>
+                      <div className="flex-1 flex justify-end">
+                        <button
+                          onClick={() => setCurrentView("create")}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
                         >
-                          <option value="all">All Status</option>
-                          <option value="new">New</option>
-                          <option value="assigned">Assigned</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="resolved">Resolved</option>
-                          <option value="closed">Closed</option>
-                          <option value="converted">Converted</option>
-                        </select>
-                        <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          <FaPlus className="mr-2" /> Submit New Query
+                        </button>
                       </div>
                     </div>
-
-                    <div className="w-40">
-                      <div className="relative">
-                        <select
-                          value={selectedPriority}
-                          onChange={(e) => setSelectedPriority(e.target.value)}
-                          className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 pl-10 pr-4 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                        >
-                          <option value="all">All Priority</option>
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                          <option value="critical">Critical</option>
-                        </select>
-                        <FaSort className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
@@ -710,7 +833,13 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                     </h3>
                   </div>
                   <div className="p-6">
-                    <CreateQueryForm onSuccess={() => setCurrentView("all")} />
+                    <CreateQueryForm
+                      onSuccess={() => {
+                        setCurrentView("all");
+                        // Force a refetch of the queries list
+                        refetchQueries();
+                      }}
+                    />
                   </div>
                 </div>
               )}
@@ -795,23 +924,24 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                           >
                             Details
                           </button>
-                          {selectedQuery.status !== "converted" && (
-                            <button
-                              onClick={() => setActiveTab("convert")}
-                              className={`${
-                                activeTab === "convert"
-                                  ? "border-blue-500 text-blue-400"
-                                  : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300"
-                              } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
-                            >
-                              Convert to Ticket
-                            </button>
-                          )}
+                          {selectedQuery.status !== "converted" &&
+                            !isCustomer && (
+                              <button
+                                onClick={() => setActiveTab("convert")}
+                                className={`${
+                                  activeTab === "convert"
+                                    ? "border-blue-500 text-blue-400"
+                                    : "border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300"
+                                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
+                              >
+                                Convert to Ticket
+                              </button>
+                            )}
                         </nav>
                       </div>
 
                       {/* Query Edit Form */}
-                      {activeTab === "details" ? (
+                      {activeTab === "details" || isCustomer ? (
                         <EditQueryForm
                           query={selectedQuery}
                           onSuccess={closeModal}

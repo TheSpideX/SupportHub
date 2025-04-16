@@ -5,9 +5,12 @@ import {
   FaExclamationCircle,
   FaUser,
   FaTags,
+  FaPaperPlane,
 } from "react-icons/fa";
 import { useCreateQueryMutation } from "../api/queryApi";
+import { createQueryDirectFetch } from "../utils/directQueryApi";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 interface CreateQueryFormProps {
   onSuccess?: () => void;
@@ -15,14 +18,17 @@ interface CreateQueryFormProps {
 
 const CreateQueryForm: React.FC<CreateQueryFormProps> = ({ onSuccess }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isCustomer = user?.role === "customer";
+
   const [formData, setFormData] = useState({
     subject: "",
     description: "",
     category: "general",
     customer: {
       userId: "",
-      email: "",
-      name: "",
+      email: user?.email || "",
+      name: user?.name || "",
     },
   });
 
@@ -56,16 +62,32 @@ const CreateQueryForm: React.FC<CreateQueryFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      await createQuery(formData).unwrap();
+      // Log the data being sent
+      console.log("Sending query data:", formData);
+
+      // Create the query using direct fetch
+      const result = await createQueryDirectFetch(formData);
+      console.log("Query created successfully:", result);
+
       toast.success("Query created successfully");
       if (onSuccess) {
         onSuccess();
       } else {
-        navigate("/queries");
+        // Navigate to the queries page and set a flag to refresh
+        navigate("/queries", { state: { refresh: true } });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create query:", err);
-      toast.error("Failed to create query. Please try again.");
+
+      // Show more detailed error message if available
+      if (err.data && err.data.errors) {
+        const errorFields = Object.keys(err.data.errors).join(", ");
+        toast.error(
+          `Validation failed for: ${errorFields}. Please check your input.`
+        );
+      } else {
+        toast.error("Failed to create query. Please try again.");
+      }
     }
   };
 
@@ -191,50 +213,52 @@ const CreateQueryForm: React.FC<CreateQueryFormProps> = ({ onSuccess }) => {
           )}
         </div>
 
-        {/* Customer Information */}
-        <div className="border border-gray-700/50 rounded-lg p-4 bg-gray-800/30">
-          <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center">
-            <FaUser className="mr-2 text-blue-400" /> Customer Information
-          </h3>
+        {/* Customer Information - Only show for non-customers */}
+        {!isCustomer && (
+          <div className="border border-gray-700/50 rounded-lg p-4 bg-gray-800/30">
+            <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center">
+              <FaUser className="mr-2 text-blue-400" /> Customer Information
+            </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="customer.email"
-                className="block text-sm font-medium text-gray-300 mb-1"
-              >
-                Customer Email
-              </label>
-              <input
-                type="email"
-                id="customer.email"
-                name="customer.email"
-                value={formData.customer.email}
-                onChange={handleChange}
-                className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                placeholder="customer@example.com"
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="customer.email"
+                  className="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Customer Email
+                </label>
+                <input
+                  type="email"
+                  id="customer.email"
+                  name="customer.email"
+                  value={formData.customer.email}
+                  onChange={handleChange}
+                  className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="customer@example.com"
+                />
+              </div>
 
-            <div>
-              <label
-                htmlFor="customer.name"
-                className="block text-sm font-medium text-gray-300 mb-1"
-              >
-                Customer Name
-              </label>
-              <input
-                type="text"
-                id="customer.name"
-                name="customer.name"
-                value={formData.customer.name}
-                onChange={handleChange}
-                className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                placeholder="John Doe"
-              />
+              <div>
+                <label
+                  htmlFor="customer.name"
+                  className="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Customer Name
+                </label>
+                <input
+                  type="text"
+                  id="customer.name"
+                  name="customer.name"
+                  value={formData.customer.name}
+                  onChange={handleChange}
+                  className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="John Doe"
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Form Actions */}
@@ -278,7 +302,15 @@ const CreateQueryForm: React.FC<CreateQueryFormProps> = ({ onSuccess }) => {
             </>
           ) : (
             <>
-              <FaQuestion className="mr-2" /> Create Query
+              {isCustomer ? (
+                <>
+                  <FaPaperPlane className="mr-2" /> Submit Query
+                </>
+              ) : (
+                <>
+                  <FaQuestion className="mr-2" /> Create Query
+                </>
+              )}
             </>
           )}
         </button>

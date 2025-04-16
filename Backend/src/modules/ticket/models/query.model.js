@@ -11,9 +11,9 @@ const QuerySchema = new Schema(
     // Basic Information
     queryNumber: {
       type: String,
-      required: true,
       unique: true,
       index: true,
+      // Not required on input - will be auto-generated
     },
     subject: {
       type: String,
@@ -116,50 +116,63 @@ QuerySchema.index({ organizationId: 1, createdAt: -1 });
 
 // Generate query number
 QuerySchema.pre("save", async function (next) {
-  if (this.isNew) {
+  if (this.isNew && !this.queryNumber) {
     try {
       // Get the organization code or use 'QRY' as default
       let orgPrefix = "QRY";
-      
+
       if (this.organizationId) {
-        const Organization = mongoose.model("Organization");
-        const org = await Organization.findById(this.organizationId);
-        if (org && org.code) {
-          orgPrefix = org.code;
+        try {
+          const Organization = mongoose.model("Organization");
+          const org = await Organization.findById(this.organizationId);
+          if (org && org.code) {
+            orgPrefix = org.code;
+          }
+        } catch (orgError) {
+          console.error("Error fetching organization:", orgError);
+          // Continue with default prefix
         }
       }
-      
+
       // Get the current year
       const currentYear = new Date().getFullYear().toString().substr(-2);
-      
+
       // Find the highest query number for this organization and year
+      let queryFilter = {
+        queryNumber: new RegExp(`^${orgPrefix}-Q${currentYear}-`),
+      };
+
+      // Add organizationId to filter if available
+      if (this.organizationId) {
+        queryFilter.organizationId = this.organizationId;
+      }
+
       const highestQuery = await this.constructor.findOne(
-        { 
-          queryNumber: new RegExp(`^${orgPrefix}-Q${currentYear}-`),
-          organizationId: this.organizationId
-        },
+        queryFilter,
         { queryNumber: 1 },
         { sort: { queryNumber: -1 } }
       );
-      
+
       let nextNumber = 1;
-      
+
       if (highestQuery && highestQuery.queryNumber) {
         // Extract the number part
-        const parts = highestQuery.queryNumber.split('-');
+        const parts = highestQuery.queryNumber.split("-");
         if (parts.length === 3) {
           nextNumber = parseInt(parts[2]) + 1;
         }
       }
-      
+
       // Format with leading zeros (5 digits)
-      const formattedNumber = nextNumber.toString().padStart(5, '0');
-      
+      const formattedNumber = nextNumber.toString().padStart(5, "0");
+
       // Set the query number
       this.queryNumber = `${orgPrefix}-Q${currentYear}-${formattedNumber}`;
-      
+
+      console.log(`Generated query number: ${this.queryNumber}`);
       next();
     } catch (error) {
+      console.error("Error generating query number:", error);
       next(error);
     }
   } else {
@@ -185,10 +198,10 @@ QuerySchema.methods.convertToTicket = async function (ticketData, userId) {
   if (this.convertedToTicket) {
     throw new Error("Query already converted to ticket");
   }
-  
+
   // Create ticket
   const Ticket = mongoose.model("Ticket");
-  
+
   const ticket = new Ticket({
     title: ticketData.title || this.subject,
     description: ticketData.description || this.description,
@@ -206,7 +219,7 @@ QuerySchema.methods.convertToTicket = async function (ticketData, userId) {
     createdBy: userId,
     attachments: this.attachments,
   });
-  
+
   // Assign to team if specified
   if (ticketData.primaryTeam) {
     ticket.primaryTeam = {
@@ -215,23 +228,23 @@ QuerySchema.methods.convertToTicket = async function (ticketData, userId) {
       assignedBy: userId,
     };
   }
-  
+
   // Assign to user if specified
   if (ticketData.assignedTo) {
     ticket.assignedTo = ticketData.assignedTo;
   }
-  
+
   // Save the ticket
   await ticket.save();
-  
+
   // Update query
   this.status = "converted";
   this.convertedToTicket = ticket._id;
   this.convertedBy = userId;
   this.convertedAt = new Date();
-  
+
   await this.save();
-  
+
   return ticket;
 };
 

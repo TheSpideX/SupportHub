@@ -19,18 +19,33 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
       page = 1,
       limit = 10,
       search,
-      role,
       status,
       sortBy,
       sortOrder,
     } = req.query;
+
+    // Extract role separately so we can modify it
+    let role = req.query.role;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
 
-    // Check if user is admin
-    const isAdmin = req.user.role === "admin";
-    if (!isAdmin) {
-      throw new ApiError(403, "Access denied. Admin privileges required.");
+    // Check if user has appropriate permissions
+    const userRole = req.user.role;
+    const allowedRoles = ["admin", "team_lead", "support", "technical"];
+
+    if (!allowedRoles.includes(userRole)) {
+      throw new ApiError(403, "Access denied. Insufficient permissions.");
+    }
+
+    // For non-admin users, add role filter to only show relevant users
+    if (userRole !== "admin") {
+      // Support and technical users should only see users with their role or customer role
+      if (userRole === "support" || userRole === "technical") {
+        // If no role filter is provided, add one
+        if (!role) {
+          role = "support,technical,customer";
+        }
+      }
     }
 
     const result = await userService.getAllUsers(
@@ -66,10 +81,11 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
 exports.getUserById = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const isAdmin = req.user.role === "admin";
+    const userRole = req.user.role;
+    const allowedRoles = ["admin", "team_lead", "support", "technical"];
 
-    if (!isAdmin) {
-      throw new ApiError(403, "Access denied. Admin privileges required.");
+    if (!allowedRoles.includes(userRole)) {
+      throw new ApiError(403, "Access denied. Insufficient permissions.");
     }
 
     const user = await userService.getUserById(id);
@@ -200,10 +216,11 @@ exports.deleteUser = asyncHandler(async (req, res) => {
 exports.getUsersByIds = asyncHandler(async (req, res) => {
   try {
     const { userIds } = req.body;
-    const isAdmin = req.user.role === "admin";
+    const userRole = req.user.role;
+    const allowedRoles = ["admin", "team_lead", "support", "technical"];
 
-    if (!isAdmin) {
-      throw new ApiError(403, "Access denied. Admin privileges required.");
+    if (!allowedRoles.includes(userRole)) {
+      throw new ApiError(403, "Access denied. Insufficient permissions.");
     }
 
     const users = await userService.getUsersByIds(userIds);

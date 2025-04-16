@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "../../features/auth/hooks/useAuth";
+import { Navigate } from "react-router-dom";
 import CustomerDashboard from "@/pages/dashboard/CustomerDashboard";
+import EnhancedCustomerDashboard from "@/pages/dashboard/EnhancedCustomerDashboard";
 import SupportDashboard from "@/pages/dashboard/SupportDashboard";
+import EnhancedSupportDashboard from "@/pages/dashboard/EnhancedSupportDashboard";
 import TechnicalDashboard from "@/pages/dashboard/TechnicalDashboard";
 import TeamLeadDashboard from "@/pages/dashboard/TeamLeadDashboard";
 import AdminDashboard from "@/pages/dashboard/AdminDashboard";
@@ -70,14 +73,21 @@ const DashboardPage: React.FC = () => {
       case "admin":
         return <AdminDashboard />;
       case "team_lead":
+        // Redirect based on team type
+        if (user.teamType === "support") {
+          return <Navigate to="/team-lead-support-dashboard" replace />;
+        } else if (user.teamType === "technical") {
+          return <Navigate to="/team-lead-technical-dashboard" replace />;
+        }
+        // Fallback to generic team lead dashboard if team type is not specified
         return <TeamLeadDashboard />;
       case "technical":
         return <TechnicalDashboard />;
       case "support":
-        return <SupportDashboard />;
+        return <Navigate to="/support-dashboard" replace />;
       case "customer":
       default:
-        return <CustomerDashboard />;
+        return <EnhancedCustomerDashboard />;
     }
   };
 
