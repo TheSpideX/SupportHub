@@ -1,0 +1,71 @@
+/**
+ * Ticket Routes
+ * Defines API routes for ticket operations
+ */
+
+const express = require("express");
+const router = express.Router();
+const ticketController = require("../controllers/ticket.controller");
+const { protect } = require("../../auth/middleware/auth.middleware");
+const { srs } = require("../../auth/middleware/role.middleware");
+
+// Protect all routes
+router.use(protect);
+
+// Create a new ticket
+router.post(
+  "/",
+  srs(["admin", "team_lead", "support_member"]),
+  ticketController.createTicket
+);
+
+// Get tickets with filters
+router.get(
+  "/",
+  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  ticketController.getTickets
+);
+
+// Get ticket statistics
+router.get(
+  "/statistics",
+  srs(["admin", "team_lead"]),
+  ticketController.getTicketStatistics
+);
+
+// Get ticket by ID
+router.get(
+  "/:id",
+  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  ticketController.getTicketById
+);
+
+// Update ticket
+router.put(
+  "/:id",
+  srs(["admin", "team_lead", "team_member", "support_member"]),
+  ticketController.updateTicket
+);
+
+// Add comment to ticket
+router.post(
+  "/:id/comments",
+  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  ticketController.addComment
+);
+
+// Assign ticket to user
+router.post(
+  "/:id/assign",
+  srs(["admin", "team_lead"]),
+  ticketController.assignTicket
+);
+
+// Assign ticket to team
+router.post(
+  "/:id/assign-team",
+  srs(["admin", "team_lead"]),
+  ticketController.assignTicketToTeam
+);
+
+module.exports = router;

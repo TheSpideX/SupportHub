@@ -18,10 +18,22 @@ const { ApiError } = require("../../../utils/errors");
  */
 exports.createTeam = async (teamData, userId, session = null) => {
   try {
+    // Get user to retrieve organizationId
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    // Ensure organizationId is set
+    const organizationId = teamData.organizationId || user.organizationId;
+    if (!organizationId) {
+      throw new ApiError(400, "Organization ID is required");
+    }
+
     // Check if team name already exists within the same organization
     const query = {
       name: teamData.name,
-      organizationId: teamData.organizationId,
+      organizationId: organizationId,
     };
 
     const existingTeam = await Team.findOne(query);
@@ -36,7 +48,7 @@ exports.createTeam = async (teamData, userId, session = null) => {
       description: teamData.description,
       teamType: teamData.teamType || "support", // Default to support if not specified
       createdBy: userId,
-      organizationId: teamData.organizationId, // Add organizationId
+      organizationId: organizationId, // Add organizationId
     };
 
     const team = await Team.create(teamDoc);
@@ -178,6 +190,11 @@ exports.getTeamById = async (teamId) => {
  */
 exports.updateTeam = async (teamId, updateData, userId) => {
   try {
+    // Check if teamId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(teamId)) {
+      throw new ApiError(400, "Invalid team ID format");
+    }
+
     const team = await Team.findById(teamId);
 
     if (!team) {
@@ -195,9 +212,15 @@ exports.updateTeam = async (teamId, updateData, userId) => {
 
     // Check if name is being updated and if it already exists
     if (updateData.name && updateData.name !== team.name) {
-      const existingTeam = await Team.findOne({ name: updateData.name });
+      const existingTeam = await Team.findOne({
+        name: updateData.name,
+        organizationId: team.organizationId,
+      });
       if (existingTeam) {
-        throw new ApiError(400, "Team name already exists");
+        throw new ApiError(
+          400,
+          "Team name already exists in this organization"
+        );
       }
     }
 
@@ -227,6 +250,14 @@ exports.updateTeam = async (teamId, updateData, userId) => {
  */
 exports.deleteTeam = async (teamId, userId) => {
   try {
+    // Check if teamId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(teamId)) {
+      // For invalid IDs, just return success without attempting to delete
+      // This handles temporary IDs from the frontend
+      logger.warn(`Invalid team ID format: ${teamId}, skipping deletion`);
+      return { success: true, message: "Team deleted successfully" };
+    }
+
     const team = await Team.findById(teamId);
 
     if (!team) {

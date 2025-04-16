@@ -1,0 +1,685 @@
+Comprehensive Plan for Multi-Team Ticket System with Organization-Specific Implementation
+After carefully reviewing the SRS requirements and our previous discussions, I'll present a finalized comprehensive plan for the ticket system that incorporates all key aspects, including multi-team collaboration and organization-specific implementation.
+
+1. Core System Architecture
+Organization-Centric Design
+Multi-Tenancy: All data is organization-specific with strict isolation
+Organization ID: Required field in all models to ensure data segregation
+Role-Based Access: Permissions scoped to organization context
+Customization: Organization-specific configurations for workflows, fields, and templates
+Multi-Team Collaboration
+Team Assignment: Tickets can be assigned to multiple teams simultaneously
+Primary Team: Designated lead team with overall responsibility
+Supporting Teams: Additional teams providing specialized assistance
+Collaboration Tools: Shared workspace for cross-team communication
+Handoff Workflows: Structured processes for transferring responsibility between teams
+2. Data Model Design
+Organization Model (Existing)
+Central entity for multi-tenant implementation
+Contains organization-wide settings and configurations
+Defines SLA policies, workflow rules, and notification preferences
+Ticket Model
+
+const TicketSchema = new Schema({
+  // Basic Information
+  ticketNumber: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  
+  // Organization Context (Mandatory)
+  organizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true
+  },
+  
+  // Source Information
+  source: {
+    type: String,
+    enum: ['customer_query', 'direct_creation', 'system_generated', 'email'],
+    required: true
+  },
+  originalQuery: {
+    type: Schema.Types.ObjectId,
+    ref: 'Query'
+  },
+  
+  // Classification
+  category: {
+    type: String,
+    required: true
+  },
+  subcategory: String,
+  type: {
+    type: String,
+    enum: ['incident', 'problem', 'change_request', 'service_request'],
+    default: 'incident'
+  },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high', 'critical'],
+    default: 'medium'
+  },
+  impact: {
+    type: String,
+    enum: ['individual', 'department', 'organization', 'customers'],
+    default: 'individual'
+  },
+  
+  // Status and Workflow
+  status: {
+    type: String,
+    enum: ['new', 'assigned', 'in_progress', 'on_hold', 'pending_customer', 'resolved', 'closed'],
+    default: 'new'
+  },
+  statusHistory: [{
+    status: String,
+    changedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    reason: String
+  }],
+  
+  // Team Assignment (Multi-Team Support)
+  primaryTeam: {
+    teamId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Team'
+    },
+    assignedAt: Date,
+    assignedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  },
+  supportingTeams: [{
+    teamId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Team'
+    },
+    role: String, // Specific role this team plays
+    assignedAt: Date,
+    assignedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    status: {
+      type: String,
+      enum: ['assigned', 'in_progress', 'completed', 'rejected'],
+      default: 'assigned'
+    }
+  }],
+  
+  // Individual Assignment
+  assignedTo: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  
+  // Customer Information
+  customer: {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    email: String,
+    name: String,
+    contactNumber: String
+  },
+  
+  // Timestamps
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: Date,
+  resolvedAt: Date,
+  closedAt: Date,
+  
+  // Creation Information
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  
+  // SLA Information
+  sla: {
+    policyId: {
+      type: Schema.Types.ObjectId,
+      ref: 'SLAPolicy'
+    },
+    responseDeadline: Date,
+    resolutionDeadline: Date,
+    pausedAt: Date,
+    pauseReason: String,
+    totalPausedTime: {
+      type: Number,
+      default: 0
+    }, // In minutes
+    breached: {
+      response: {
+        type: Boolean,
+        default: false
+      },
+      resolution: {
+        type: Boolean,
+        default: false
+      }
+    }
+  },
+  
+  // Communication
+  comments: [{
+    author: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    text: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    isInternal: {
+      type: Boolean,
+      default: false
+    },
+    visibleToTeams: [{
+      type: Schema.Types.ObjectId,
+      ref: 'Team'
+    }],
+    attachments: [{
+      filename: String,
+      path: String,
+      mimetype: String,
+      size: Number,
+      uploadedAt: Date
+    }]
+  }],
+  
+  // Attachments
+  attachments: [{
+    filename: String,
+    path: String,
+    mimetype: String,
+    size: Number,
+    uploadedAt: Date,
+    uploadedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  }],
+  
+  // Related Tickets
+  parentTicket: {
+    type: Schema.Types.ObjectId,
+    ref: 'Ticket'
+  },
+  childTickets: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Ticket'
+  }],
+  relatedTickets: [{
+    ticketId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Ticket'
+    },
+    relationship: {
+      type: String,
+      enum: ['related_to', 'duplicates', 'blocks', 'is_blocked_by']
+    }
+  }],
+  
+  // Audit and Tracking
+  auditLog: [{
+    action: String,
+    performedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    },
+    details: Schema.Types.Mixed
+  }],
+  
+  // Additional Data
+  tags: [String],
+  customFields: {
+    type: Map,
+    of: Schema.Types.Mixed
+  }
+}, {
+  timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }
+});
+
+// Compound indexes for efficient querying
+TicketSchema.index({ organizationId: 1, status: 1 });
+TicketSchema.index({ organizationId: 1, 'primaryTeam.teamId': 1 });
+TicketSchema.index({ organizationId: 1, 'supportingTeams.teamId': 1 });
+TicketSchema.index({ organizationId: 1, assignedTo: 1 });
+TicketSchema.index({ organizationId: 1, 'customer.userId': 1 });
+TicketSchema.index({ organizationId: 1, createdAt: -1 });
+
+Query Model
+
+const QuerySchema = new Schema({
+  // Basic Information
+  queryNumber: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  subject: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  
+  // Organization Context (Mandatory)
+  organizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true
+  },
+  
+  // Customer Information
+  customerId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  
+  // Classification
+  category: {
+    type: String,
+    enum: ['general', 'technical', 'billing', 'feature_request', 'other'],
+    default: 'general'
+  },
+  
+  // Status
+  status: {
+    type: String,
+    enum: ['new', 'under_review', 'converted', 'resolved', 'closed'],
+    default: 'new'
+  },
+  
+  // Attachments
+  attachments: [{
+    filename: String,
+    path: String,
+    mimetype: String,
+    size: Number,
+    uploadedAt: Date
+  }],
+  
+  // Assignment
+  assignedTo: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  
+  // Ticket Conversion
+  convertedToTicket: {
+    type: Schema.Types.ObjectId,
+    ref: 'Ticket'
+  },
+  convertedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  convertedAt: Date,
+  
+  // Communication
+  comments: [{
+    author: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    text: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    isInternal: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  
+  // Timestamps
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: Date
+}, {
+  timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }
+});
+
+// Compound indexes for efficient querying
+QuerySchema.index({ organizationId: 1, status: 1 });
+QuerySchema.index({ organizationId: 1, customerId: 1 });
+QuerySchema.index({ organizationId: 1, assignedTo: 1 });
+QuerySchema.index({ organizationId: 1, createdAt: -1 });
+
+SLA Policy Model
+
+const SLAPolicySchema = new Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  description: String,
+  
+  // Organization Context (Mandatory)
+  organizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true
+  },
+  
+  // Response Time Targets
+  responseTime: {
+    low: Number, // minutes
+    medium: Number,
+    high: Number,
+    critical: Number
+  },
+  
+  // Resolution Time Targets
+  resolutionTime: {
+    low: Number, // minutes
+    medium: Number,
+    high: Number,
+    critical: Number
+  },
+  
+  // Business Hours
+  businessHours: {
+    monday: { start: String, end: String },
+    tuesday: { start: String, end: String },
+    wednesday: { start: String, end: String },
+    thursday: { start: String, end: String },
+    friday: { start: String, end: String },
+    saturday: { start: String, end: String },
+    sunday: { start: String, end: String }
+  },
+  
+  // Holidays
+  holidays: [{
+    date: Date,
+    name: String
+  }],
+  
+  // Escalation Rules
+  escalationRules: [{
+    condition: {
+      type: String,
+      enum: ['response_approaching', 'response_breached', 'resolution_approaching', 'resolution_breached']
+    },
+    threshold: Number, // percentage of time elapsed
+    actions: [{
+      type: String,
+      enum: ['notify_assignee', 'notify_team_lead', 'notify_manager', 'reassign', 'increase_priority'],
+      details: Schema.Types.Mixed
+    }]
+  }],
+  
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: Date
+}, {
+  timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' }
+});
+
+// Compound indexes
+SLAPolicySchema.index({ organizationId: 1, isActive: 1 });
+
+Notification Model
+
+const NotificationSchema = new Schema({
+  // Basic Information
+  title: {
+    type: String,
+    required: true
+  },
+  message: String,
+  
+  // Organization Context (Mandatory)
+  organizationId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Organization',
+    required: true,
+    index: true
+  },
+  
+  // Recipient
+  recipient: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  
+  // Classification
+  type: {
+    type: String,
+    enum: ['query', 'ticket', 'comment', 'assignment', 'status', 'sla', 'system'],
+    required: true
+  },
+  severity: {
+    type: String,
+    enum: ['info', 'success', 'warning', 'error', 'critical'],
+    default: 'info'
+  },
+  
+  // Related Entity
+  relatedTo: {
+    model: {
+      type: String,
+      enum: ['Query', 'Ticket', 'User', 'Team', 'Comment']
+    },
+    id: Schema.Types.ObjectId
+  },
+  
+  // Display Options
+  displayType: {
+    type: String,
+    enum: ['corner', 'modal'],
+    default: 'corner'
+  },
+  
+  // Actions
+  actions: [{
+    label: String,
+    url: String,
+    apiCall: {
+      method: String,
+      endpoint: String,
+      data: Schema.Types.Mixed
+    }
+  }],
+  
+  // Status
+  isRead: {
+    type: Boolean,
+    default: false
+  },
+  readAt: Date,
+  
+  // Expiration
+  expiresAt: Date,
+  
+  // Timestamps
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// Compound indexes
+NotificationSchema.index({ organizationId: 1, recipient: 1, isRead: 1 });
+NotificationSchema.index({ organizationId: 1, recipient: 1, createdAt: -1 });
+NotificationSchema.index({ 'relatedTo.model': 1, 'relatedTo.id': 1 });
+
+3. User Roles and Workflows
+Customer
+Submit queries through organization-specific customer portal
+View status of submitted queries within their organization
+Receive organization-branded notifications
+Access organization-specific knowledge base
+Support Team Member
+Review and respond to customer queries within their organization
+Convert queries to tickets with appropriate team assignments
+Create tickets directly for identified issues
+Collaborate with technical teams on complex issues
+Technical Team Member
+Work on tickets assigned to their team
+Collaborate with other teams on multi-team tickets
+Document technical solutions
+Update ticket status and add technical notes
+Team Lead
+Manage team workload and assignments
+Create and assign tickets
+Monitor team performance metrics
+Handle escalations within their domain
+Admin
+Configure organization-specific settings
+Manage users and teams within the organization
+Define SLA policies and workflows
+Access organization-wide analytics
+4. Multi-Team Collaboration Workflows
+Primary Team Assignment
+When a ticket is created, a primary team is designated
+Primary team has overall responsibility for ticket resolution
+Primary team lead receives notification of new assignment
+Primary team can request assistance from supporting teams
+Supporting Team Assignment
+Primary team identifies need for specialized assistance
+Primary team requests specific supporting team involvement
+Supporting team receives notification with context and requirements
+Supporting team can accept or reject the assignment
+Supporting team works on their specific aspect of the ticket
+Collaborative Problem Solving
+All assigned teams have access to shared ticket workspace
+Teams can add internal notes visible to all technical teams
+Teams can add team-specific notes visible only to their team
+Real-time updates notify all teams of changes
+Teams can tag specific team members for input
+Handoff Process
+Supporting team completes their portion of work
+Supporting team documents their solution
+Supporting team changes their status to "completed"
+Primary team receives notification of completion
+Primary team reviews supporting team's work
+Primary team continues with resolution process
+Escalation Path
+If supporting team cannot resolve their portion
+Supporting team can escalate to their team lead
+Team leads can collaborate on complex issues
+If needed, escalation to management level
+All escalations are tracked in ticket history
+5. Organization-Specific Implementation
+Data Isolation
+All queries, tickets, and related data include organizationId
+Database queries always filter by organizationId
+API endpoints enforce organization context
+WebSocket connections scoped to organization
+Customization Options
+Organization-specific SLA policies
+Custom ticket fields per organization
+Organization-branded notification templates
+Custom workflows and approval processes
+Organization Settings
+Business hours definition
+Holiday calendar
+Escalation rules and contacts
+Default team assignments by category
+Multi-Organization Support
+System administrators can manage multiple organizations
+Organization admins can only manage their organization
+Clear visual indicators of current organization context
+Strict data segregation between organizations
+6. Custom Notification System
+Notification Types
+Corner Notifications: Non-intrusive updates
+New query/ticket assignments
+Status changes
+New comments
+SLA reminders
+Modal Notifications: Require immediate attention
+Critical SLA breaches
+Urgent escalations
+Required approvals
+System alerts
+Organization-Specific Notifications
+Branded with organization logo and colors
+Follow organization communication guidelines
+Respect organization business hours
+Support organization-specific notification preferences
+Team-Based Notifications
+Team-wide notifications for new assignments
+Team lead notifications for escalations
+Team performance alerts
+Cross-team collaboration updates
+7. Implementation Phases
+Phase 1: Core Ticket System (3 weeks)
+Organization-specific data models
+Basic query and ticket CRUD operations
+Simple team assignment
+Basic notification system
+Phase 2: Multi-Team Collaboration (3 weeks)
+Primary and supporting team workflows
+Collaborative workspace
+Team-specific views and filters
+Enhanced notification system
+Phase 3: Advanced Features (3 weeks)
+SLA implementation
+Escalation workflows
+Knowledge base integration
+Advanced reporting
+Phase 4: Optimization & Refinement (2 weeks)
+Performance optimization
+User experience improvements
+Advanced notification features
+System monitoring

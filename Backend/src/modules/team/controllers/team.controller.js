@@ -16,9 +16,10 @@ exports.createTeam = async (req, res, next) => {
   try {
     const { name, description, teamType } = req.body;
     const userId = req.user._id;
+    const organizationId = req.user.organizationId;
 
     const team = await teamService.createTeam(
-      { name, description, teamType },
+      { name, description, teamType, organizationId },
       userId
     );
 
