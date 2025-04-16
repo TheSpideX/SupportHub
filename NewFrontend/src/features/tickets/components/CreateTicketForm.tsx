@@ -121,20 +121,57 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     if (!formData.priority) newErrors.priority = "Priority is required";
 
     if (Object.keys(newErrors).length > 0) {
+      console.error("Form validation failed:", newErrors);
       setErrors(newErrors);
       return;
     }
 
-    // Prepare data for submission - use a minimal approach with only required fields
-    const ticketData = {
-      title: formData.title.trim(),
-      description: formData.description.trim(),
-      category: formData.useCustomCategory
-        ? formData.customCategory.trim()
-        : formData.category,
-      priority: formData.priority,
+    // Double-check required fields before submission
+    const title = formData.title.trim();
+    const description = formData.description.trim();
+    const category = formData.useCustomCategory
+      ? formData.customCategory.trim()
+      : formData.category;
+
+    if (!title || !description || !category) {
+      console.error("Required fields missing before submission:", {
+        title: !!title,
+        description: !!description,
+        category: !!category,
+      });
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // Prepare data for submission with all required fields
+    const ticketData: any = {
+      title: title, // Using the validated variables from above
+      description: description,
+      category: category,
+      priority: formData.priority || "medium", // Default to medium if not set
       source: "direct_creation",
     };
+
+    // Log the data being prepared
+    console.log("Preparing ticket data:", {
+      title: ticketData.title,
+      description: ticketData.description,
+      category: ticketData.category,
+      priority: ticketData.priority,
+      titleLength: ticketData.title?.length,
+      descriptionLength: ticketData.description?.length,
+      categoryLength: ticketData.category?.length,
+    });
+
+    // Final validation check
+    if (!ticketData.title || !ticketData.description || !ticketData.category) {
+      console.error(
+        "Final validation failed - missing required fields:",
+        ticketData
+      );
+      toast.error("Cannot create ticket: missing required fields");
+      return;
+    }
 
     // Only add subcategory if it's not empty
     const subcategory = formData.useCustomCategory
@@ -180,7 +217,34 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
 
     try {
       // Use the RTK Query mutation to create the ticket
-      const result = await createTicket(ticketData).unwrap();
+      console.log(
+        "Submitting ticket data to API:",
+        JSON.stringify(ticketData, null, 2)
+      );
+
+      // Create a clean ticket object with only the required fields
+      const cleanTicketData = {
+        title: ticketData.title,
+        description: ticketData.description,
+        category: ticketData.category,
+        priority: ticketData.priority,
+        source: "direct_creation",
+      };
+
+      // Add optional fields if they exist
+      if (ticketData.subcategory)
+        cleanTicketData.subcategory = ticketData.subcategory;
+      if (ticketData.primaryTeam)
+        cleanTicketData.primaryTeam = ticketData.primaryTeam;
+      if (ticketData.assignedTo)
+        cleanTicketData.assignedTo = ticketData.assignedTo;
+
+      console.log(
+        "Clean ticket data prepared:",
+        JSON.stringify(cleanTicketData, null, 2)
+      );
+
+      const result = await createTicket(cleanTicketData).unwrap();
 
       console.log("Ticket created successfully:", result);
       toast.success("Ticket created successfully");
@@ -191,9 +255,27 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
         // Navigate to the specific ticket page
         navigate(`/tickets/${result.data._id}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create ticket:", err);
-      toast.error("Failed to create ticket. Please try again.");
+
+      // Extract validation errors if available
+      let errorMessage = "Failed to create ticket. Please try again.";
+      if (err.data?.errors) {
+        const validationErrors = err.data.errors;
+        const errorFields = Object.keys(validationErrors).join(", ");
+        errorMessage = `Validation failed for fields: ${errorFields}. Please check your input.`;
+
+        // Update form errors
+        const newErrors: Record<string, string> = {};
+        Object.entries(validationErrors).forEach(
+          ([field, error]: [string, any]) => {
+            newErrors[field] = error.message || "Invalid value";
+          }
+        );
+        setErrors(newErrors);
+      }
+
+      toast.error(errorMessage);
     }
   };
 
@@ -691,7 +773,7 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
             </div>
             <p className="mt-1 text-xs text-gray-400">
               If no policy is selected, a default policy will be applied based
-              on ticket priority
+              on ticket priority (Low, Medium, High, or Critical Priority SLA)
             </p>
           </div>
         </div>

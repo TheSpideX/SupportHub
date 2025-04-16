@@ -10,6 +10,7 @@ const logger = require("../../utils/logger");
 const ticketRoutes = require("./routes/ticket.routes");
 const queryRoutes = require("./routes/query.routes");
 const slaRoutes = require("./routes/sla.routes");
+const reportRoutes = require("./routes/report.routes");
 
 // Import models
 const Ticket = require("./models/ticket.model");
@@ -20,6 +21,7 @@ const SLAPolicy = require("./models/sla-policy.model");
 const ticketController = require("./controllers/ticket.controller");
 const queryController = require("./controllers/query.controller");
 const slaController = require("./controllers/sla.controller");
+const reportController = require("./controllers/report.controller");
 
 // Import services
 const ticketService = require("./services/ticket.service");
@@ -36,6 +38,7 @@ module.exports = {
     ticket: ticketRoutes,
     query: queryRoutes,
     sla: slaRoutes,
+    report: reportRoutes,
   },
 
   // Models
@@ -50,6 +53,7 @@ module.exports = {
     ticketController,
     queryController,
     slaController,
+    reportController,
   },
 
   // Services
@@ -72,6 +76,7 @@ module.exports = {
     app.use("/api/tickets", ticketRoutes);
     app.use("/api/queries", queryRoutes);
     app.use("/api/sla", slaRoutes);
+    app.use("/api/reports", reportRoutes);
 
     // Initialize WebSocket handlers if Primus is available
     if (primus) {

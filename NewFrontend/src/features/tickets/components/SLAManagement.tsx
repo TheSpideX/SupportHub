@@ -128,6 +128,37 @@ const SLAManagement: React.FC<SLAManagementProps> = ({
     }
   };
 
+  // Format relative time (e.g., "in 2 hours" or "3 days ago")
+  const formatRelativeTime = (dateString?: string) => {
+    if (!dateString) return "";
+
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+    const diffSecs = Math.floor(Math.abs(diffMs) / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMs >= 0) {
+      // Future date
+      if (diffDays > 0) return `in ${diffDays} day${diffDays > 1 ? "s" : ""}`;
+      if (diffHours > 0)
+        return `in ${diffHours} hour${diffHours > 1 ? "s" : ""}`;
+      if (diffMins > 0)
+        return `in ${diffMins} minute${diffMins > 1 ? "s" : ""}`;
+      return "just now";
+    } else {
+      // Past date
+      if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+      if (diffHours > 0)
+        return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+      if (diffMins > 0)
+        return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+      return "just now";
+    }
+  };
+
   // Get status color based on time remaining
   const getStatusColor = (deadline?: string, breached?: boolean) => {
     if (breached) return "text-red-500";
@@ -158,6 +189,27 @@ const SLAManagement: React.FC<SLAManagementProps> = ({
 
         {currentSLA?.policyId ? (
           <div className="space-y-4">
+            {/* Policy Info */}
+            <div className="bg-gray-800/50 rounded-lg p-4 mb-4">
+              <h4 className="text-sm text-gray-400 mb-1">Applied SLA Policy</h4>
+              <div className="flex items-center justify-between">
+                <div className="text-lg font-medium text-blue-400">
+                  {policies?.data?.find((p) => p._id === currentSLA.policyId)
+                    ?.name || "Custom SLA Policy"}
+                </div>
+                <div className="bg-blue-500/20 text-blue-400 text-xs px-2.5 py-0.5 rounded-full">
+                  {ticketPriority.charAt(0).toUpperCase() +
+                    ticketPriority.slice(1)}{" "}
+                  Priority
+                </div>
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                This policy was applied{" "}
+                {currentSLA.policyId ? "manually" : "automatically"} based on
+                ticket priority
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <h4 className="text-sm text-gray-400 mb-1">
@@ -183,6 +235,17 @@ const SLAManagement: React.FC<SLAManagementProps> = ({
                     />
                   )}
                 </div>
+                {currentSLA.responseDeadline && (
+                  <div className="text-xs text-gray-400 mt-2">
+                    {currentSLA.breached?.response
+                      ? "Response deadline has been breached"
+                      : `Response deadline ${
+                          new Date(currentSLA.responseDeadline) < new Date()
+                            ? "was"
+                            : "is"
+                        } ${formatRelativeTime(currentSLA.responseDeadline)}`}
+                  </div>
+                )}
               </div>
 
               <div className="bg-gray-800/50 rounded-lg p-4">
@@ -209,6 +272,17 @@ const SLAManagement: React.FC<SLAManagementProps> = ({
                     />
                   )}
                 </div>
+                {currentSLA.resolutionDeadline && (
+                  <div className="text-xs text-gray-400 mt-2">
+                    {currentSLA.breached?.resolution
+                      ? "Resolution deadline has been breached"
+                      : `Resolution deadline ${
+                          new Date(currentSLA.resolutionDeadline) < new Date()
+                            ? "was"
+                            : "is"
+                        } ${formatRelativeTime(currentSLA.resolutionDeadline)}`}
+                  </div>
+                )}
               </div>
             </div>
 

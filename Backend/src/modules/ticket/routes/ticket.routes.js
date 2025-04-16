@@ -15,14 +15,14 @@ router.use(authenticate);
 // Create a new ticket
 router.post(
   "/",
-  srs(["admin", "team_lead", "support_member"]),
+  srs(["admin", "team_lead", "support", "customer"]),
   ticketController.createTicket
 );
 
 // Get tickets with filters
 router.get(
   "/",
-  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  srs(["admin", "team_lead", "technical", "support", "customer"]),
   ticketController.getTickets
 );
 
@@ -36,28 +36,28 @@ router.get(
 // Get ticket by ID
 router.get(
   "/:id",
-  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  srs(["admin", "team_lead", "technical", "support", "customer"]),
   ticketController.getTicketById
 );
 
 // Get ticket audit log
 router.get(
   "/:id/audit-log",
-  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  srs(["admin", "team_lead", "technical", "support", "customer"]),
   ticketController.getTicketAuditLog
 );
 
 // Update ticket
 router.put(
   "/:id",
-  srs(["admin", "team_lead", "team_member", "support_member"]),
+  srs(["admin", "team_lead", "technical", "support"]),
   ticketController.updateTicket
 );
 
 // Add comment to ticket
 router.post(
   "/:id/comments",
-  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  srs(["admin", "team_lead", "technical", "support", "customer"]),
   ticketController.addComment
 );
 

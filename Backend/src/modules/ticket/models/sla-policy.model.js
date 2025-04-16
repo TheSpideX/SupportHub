@@ -105,8 +105,12 @@ const SLAPolicySchema = new Schema(
 SLAPolicySchema.index({ organizationId: 1, isActive: 1 });
 
 // Method to calculate SLA deadlines for a ticket
-SLAPolicySchema.methods.calculateDeadlines = function (priority, createdAt) {
-  const now = createdAt || new Date();
+SLAPolicySchema.methods.calculateDeadlines = function (
+  priority,
+  baseDate,
+  isPriorityChange = false
+) {
+  const now = baseDate || new Date();
 
   // Get response time in minutes for the given priority
   const responseMinutes =
@@ -132,6 +136,16 @@ SLAPolicySchema.methods.calculateDeadlines = function (priority, createdAt) {
     responseDeadline = new Date(now.getTime() + responseMinutes * 60000);
     resolutionDeadline = new Date(now.getTime() + resolutionMinutes * 60000);
   }
+
+  // Log the calculation for debugging
+  console.log(`SLA deadline calculation for priority ${priority}:`, {
+    baseDate: now,
+    responseMinutes,
+    resolutionMinutes,
+    responseDeadline,
+    resolutionDeadline,
+    isPriorityChange,
+  });
 
   return {
     responseDeadline,

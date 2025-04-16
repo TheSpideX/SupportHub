@@ -249,12 +249,51 @@ const ticketApi = api.injectEndpoints({
 
     // Create ticket
     createTicket: builder.mutation<Ticket, CreateTicketRequest>({
-      query: (data) => ({
-        url: "/api/tickets",
-        method: "POST",
-        body: data,
-      }),
+      query: (data) => {
+        // Create a simple, clean object with just the required fields
+        const cleanTicketData = {
+          title: data.title,
+          description: data.description,
+          category: data.category,
+          priority: data.priority || "medium",
+          source: data.source || "direct_creation",
+        };
+
+        // Add optional fields if they exist
+        if (data.subcategory) cleanTicketData.subcategory = data.subcategory;
+        if (data.primaryTeam) cleanTicketData.primaryTeam = data.primaryTeam;
+        if (data.assignedTo) cleanTicketData.assignedTo = data.assignedTo;
+        if (data.slaPolicy) cleanTicketData.slaPolicy = data.slaPolicy;
+        if (data.customer) cleanTicketData.customer = data.customer;
+
+        console.log(
+          "Creating ticket with clean data:",
+          JSON.stringify(cleanTicketData, null, 2)
+        );
+
+        // Use a direct fetch approach instead of relying on RTK Query's default
+        return {
+          url: "/api/tickets",
+          method: "POST",
+          body: JSON.stringify(cleanTicketData),
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        };
+      },
       invalidatesTags: [{ type: "Tickets", id: "LIST" }],
+      // Add transformResponse to log the response
+      transformResponse: (response) => {
+        console.log("Ticket creation response:", response);
+        return response;
+      },
+      // Add transformErrorResponse to log the error
+      transformErrorResponse: (response) => {
+        console.error("Ticket creation error:", response);
+        return response;
+      },
     }),
 
     // Update ticket

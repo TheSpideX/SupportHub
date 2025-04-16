@@ -332,26 +332,32 @@ TicketSchema.pre("save", async function (next) {
       // Format with leading zeros (5 digits)
       const formattedNumber = nextNumber.toString().padStart(5, "0");
 
-      // Set the ticket number
-      this.ticketNumber = `${orgPrefix}-${currentYear}-${formattedNumber}`;
+      // Set the ticket number with a random suffix to ensure uniqueness
+      const randomSuffix = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, "0");
+      const timestamp = Math.floor(Date.now() / 1000)
+        .toString()
+        .substr(-5);
+      this.ticketNumber = `${orgPrefix}-${currentYear}-${formattedNumber}-${timestamp}${randomSuffix}`;
 
       // Add initial status to history
+      const creationTime = new Date();
       this.statusHistory = [
         {
           status: this.status,
           changedBy: this.createdBy,
-          timestamp: new Date(),
+          timestamp: creationTime,
           reason: "Ticket created",
         },
       ];
 
       // Add creation entry to audit log
-      const timestamp = new Date();
       this.auditLog = [
         {
           action: "created",
           performedBy: this.createdBy,
-          timestamp: timestamp,
+          timestamp: creationTime,
           details: {
             title: this.title,
             source: this.source,
@@ -364,7 +370,7 @@ TicketSchema.pre("save", async function (next) {
         this.auditLog.push({
           action: "assigned",
           performedBy: this.createdBy,
-          timestamp: timestamp,
+          timestamp: creationTime,
           details: {
             previousAssignee: null,
             newAssignee: this.assignedTo,
@@ -378,7 +384,7 @@ TicketSchema.pre("save", async function (next) {
         this.auditLog.push({
           action: "team_assigned_primary",
           performedBy: this.createdBy,
-          timestamp: timestamp,
+          timestamp: creationTime,
           details: {
             previousTeam: null,
             newTeam: this.primaryTeam.teamId,

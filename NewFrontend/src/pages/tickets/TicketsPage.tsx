@@ -421,16 +421,23 @@ const getStatusColor = (status: string) => {
 
 // Helper function to calculate elapsed percentage for SLA
 const calculateElapsedPercentage = (startDate: string, endDate: string) => {
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
-  const now = new Date().getTime();
+  try {
+    if (!startDate || !endDate) return 0;
 
-  if (now >= end) return 100;
-  if (now <= start) return 0;
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+    const now = new Date().getTime();
 
-  const total = end - start;
-  const elapsed = now - start;
-  return Math.round((elapsed / total) * 100);
+    if (now >= end) return 100;
+    if (now <= start) return 0;
+
+    const total = end - start;
+    const elapsed = now - start;
+    return Math.round((elapsed / total) * 100);
+  } catch (error) {
+    console.error("Error calculating elapsed percentage:", error);
+    return 0;
+  }
 };
 
 // Format date to readable format
@@ -1099,6 +1106,7 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                         setCurrentView("all");
                         // Force a refetch of the tickets list
                         refetch();
+                        toast.success("Ticket created successfully");
                       }}
                     />
                   </div>
@@ -1884,20 +1892,25 @@ const TicketDetailModal = ({
 
   // Calculate SLA percentage complete
   const calculateSLAPercentage = (ticket: Ticket) => {
-    if (!ticket.sla || !ticket.sla.resolutionDeadline) return 0;
+    try {
+      if (!ticket?.sla?.resolutionDeadline) return 0;
 
-    const now = new Date();
-    const created = new Date(ticket.createdAt);
-    const deadline = new Date(ticket.sla.resolutionDeadline);
+      const now = new Date();
+      const created = new Date(ticket.createdAt);
+      const deadline = new Date(ticket.sla.resolutionDeadline);
 
-    // If deadline has passed, return 100%
-    if (now > deadline) return 100;
+      // If deadline has passed, return 100%
+      if (now > deadline) return 100;
 
-    // Calculate percentage based on time elapsed
-    const totalTime = deadline.getTime() - created.getTime();
-    const elapsedTime = now.getTime() - created.getTime();
+      // Calculate percentage based on time elapsed
+      const totalTime = deadline.getTime() - created.getTime();
+      const elapsedTime = now.getTime() - created.getTime();
 
-    return Math.min(Math.round((elapsedTime / totalTime) * 100), 100);
+      return Math.min(Math.round((elapsedTime / totalTime) * 100), 100);
+    } catch (error) {
+      console.error("Error calculating SLA percentage:", error);
+      return 0;
+    }
   };
 
   // Subscribe to ticket updates when the modal is opened
@@ -1961,7 +1974,14 @@ const TicketDetailModal = ({
   }, [isOpen, ticket]);
 
   // Early return if ticket is null
-  if (!ticket) return null;
+  if (!ticket) {
+    console.log("Ticket is null in TicketDetailModal");
+    return null;
+  }
+
+  // Ensure ticket has required properties
+  const ticketId = ticket._id || ticket.id || "";
+  const ticketPriority = ticket.priority || "medium";
 
   // Generate activity data from ticket history
   const generateActivityData = (ticket: Ticket) => {
@@ -2312,7 +2332,10 @@ const TicketDetailModal = ({
     }
   };
 
-  // Use the ticket object to get activity events
+  // Use the existing audit log data from above
+  // No need to fetch it again
+
+  // Use the ticket object to get activity events as a fallback
   let activityEvents = [];
   try {
     activityEvents = getTicketActivityEvents(ticket);
@@ -3830,7 +3853,12 @@ const TicketDetailModal = ({
                             SLA Performance
                           </h3>
 
-                          {ticket.sla && ticket.sla.policyId ? (
+                          {/* Add loading state and error handling */}
+                          {isLoadingSLAPolicies ? (
+                            <div className="flex justify-center items-center py-8">
+                              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                            </div>
+                          ) : ticket.sla && ticket.sla.policyId ? (
                             <>
                               {/* SLA metrics visualization */}
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

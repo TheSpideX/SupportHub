@@ -45,14 +45,14 @@ router.post(
 // Pause SLA for a ticket
 router.post(
   "/pause/:ticketId",
-  srs(["admin", "team_lead", "team_member", "support_member"]),
+  srs(["admin", "team_lead", "technical", "support"]),
   slaController.pauseSLA
 );
 
 // Resume SLA for a ticket
 router.post(
   "/resume/:ticketId",
-  srs(["admin", "team_lead", "team_member", "support_member"]),
+  srs(["admin", "team_lead", "technical", "support"]),
   slaController.resumeSLA
 );
 

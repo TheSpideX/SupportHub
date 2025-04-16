@@ -6,6 +6,7 @@
 const ticketService = require("../services/ticket.service");
 const { ApiError } = require("../../../utils/errors");
 const logger = require("../../../utils/logger");
+const Ticket = require("../models/ticket.model");
 
 /**
  * Create a new ticket
@@ -16,20 +17,125 @@ exports.createTicket = async (req, res, next) => {
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
 
-    // Add organization ID to ticket data
-    const ticketData = {
-      ...req.body,
+    // Log the request details for debugging
+    logger.info("Creating ticket with data:", {
+      body: req.body,
+      bodyType: typeof req.body,
+      bodyKeys: Object.keys(req.body),
+      headers: req.headers,
+      contentType: req.headers["content-type"],
+      userId,
       organizationId,
-    };
+    });
 
-    const ticket = await ticketService.createTicket(ticketData, userId);
+    // Handle potential string parsing issues
+    let ticketData = req.body;
+    if (typeof req.body === "string") {
+      try {
+        ticketData = JSON.parse(req.body);
+        logger.info("Parsed string body to JSON", { parsedData: ticketData });
+      } catch (parseError) {
+        logger.error("Failed to parse request body as JSON", {
+          error: parseError,
+        });
+      }
+    }
+
+    // Direct approach - create a new ticket object with explicit fields
+    const newTicket = new Ticket({
+      title: ticketData.title,
+      description: ticketData.description,
+      category: ticketData.category,
+      priority: ticketData.priority || "medium",
+      organizationId,
+      source: ticketData.source || "direct_creation",
+      createdBy: userId,
+      status: "new", // Changed from 'open' to 'new' to match valid enum values
+      auditLog: [
+        {
+          action: "created",
+          timestamp: new Date(),
+          performedBy: userId,
+        },
+      ],
+    });
+
+    // Add optional fields if they exist
+    if (ticketData.subcategory) {
+      newTicket.subcategory = ticketData.subcategory;
+    }
+
+    if (ticketData.primaryTeam) {
+      newTicket.primaryTeam = {
+        teamId: ticketData.primaryTeam,
+        assignedAt: new Date(),
+        assignedBy: userId,
+      };
+    }
+
+    if (ticketData.assignedTo) {
+      newTicket.assignedTo = ticketData.assignedTo;
+
+      // Update status if it's new
+      if (newTicket.status === "new") {
+        newTicket.status = "assigned";
+      }
+    }
+
+    // Validate the ticket manually
+    try {
+      await newTicket.validate();
+    } catch (validationError) {
+      logger.error("Ticket validation failed:", validationError);
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors: validationError.errors,
+      });
+    }
+
+    // Save the ticket directly
+    await newTicket.save();
+
+    // Apply SLA policy
+    await ticketService.applySLAToTicket(newTicket);
+
+    // Save again with SLA info
+    await newTicket.save();
+
+    logger.info("Ticket created successfully:", { ticketId: newTicket._id });
+
+    // Populate necessary fields for response
+    await newTicket.populate(
+      "createdBy",
+      "profile.firstName profile.lastName email"
+    );
+    if (newTicket.assignedTo) {
+      await newTicket.populate(
+        "assignedTo",
+        "profile.firstName profile.lastName email"
+      );
+    }
+    if (newTicket.primaryTeam && newTicket.primaryTeam.teamId) {
+      await newTicket.populate("primaryTeam.teamId", "name teamType");
+    }
 
     return res.status(201).json({
       success: true,
-      data: ticket,
+      data: newTicket,
     });
   } catch (error) {
     logger.error("Error creating ticket:", error);
+
+    // Handle validation errors from Mongoose
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+        errors: error.errors,
+      });
+    }
+
     return next(error);
   }
 };

@@ -8,7 +8,7 @@ const Ticket = require("../models/ticket.model");
 const { ApiError } = require("../../../utils/errors");
 const logger = require("../../../utils/logger");
 const mongoose = require("mongoose");
-const notificationService = require("../../notification/services/notification.service");
+const notificationController = require("../../notification/controllers/notification.controller");
 
 /**
  * Create a new SLA policy
@@ -139,10 +139,7 @@ exports.deleteSLAPolicy = async (policyId, organizationId) => {
     });
 
     if (ticketsUsingPolicy > 0) {
-      throw new ApiError(
-        400,
-        "Cannot delete policy that is in use by tickets"
-      );
+      throw new ApiError(400, "Cannot delete policy that is in use by tickets");
     }
 
     const result = await SLAPolicy.deleteOne({
@@ -189,7 +186,10 @@ exports.applyPolicyToTicket = async (ticketId, policyId, organizationId) => {
     }
 
     // Calculate deadlines
-    const deadlines = policy.calculateDeadlines(ticket.priority, ticket.createdAt);
+    const deadlines = policy.calculateDeadlines(
+      ticket.priority,
+      ticket.createdAt
+    );
 
     // Update ticket SLA
     ticket.sla = {
@@ -275,6 +275,9 @@ exports.checkSLABreaches = async (organizationId = null) => {
 
         // Send notification
         await sendSLANotification(ticket, "response_breached");
+
+        // Apply escalation rules
+        await applyEscalationRules(ticket, "response_breached");
       }
 
       // Check resolution SLA
@@ -298,6 +301,9 @@ exports.checkSLABreaches = async (organizationId = null) => {
 
         // Send notification
         await sendSLANotification(ticket, "resolution_breached");
+
+        // Apply escalation rules
+        await applyEscalationRules(ticket, "resolution_breached");
       }
 
       // Check approaching deadlines (80% of time elapsed)
@@ -329,6 +335,9 @@ exports.checkSLABreaches = async (organizationId = null) => {
 
           // Send notification
           await sendSLANotification(ticket, "response_approaching");
+
+          // Apply escalation rules
+          await applyEscalationRules(ticket, "response_approaching");
         }
       }
 
@@ -362,6 +371,9 @@ exports.checkSLABreaches = async (organizationId = null) => {
 
           // Send notification
           await sendSLANotification(ticket, "resolution_approaching");
+
+          // Apply escalation rules
+          await applyEscalationRules(ticket, "resolution_approaching");
         }
       }
 
@@ -495,6 +507,126 @@ exports.resumeSLA = async (ticketId, organizationId) => {
 };
 
 /**
+ * Apply SLA escalation rules based on the event type
+ * @param {Ticket} ticket - Ticket object
+ * @param {string} eventType - SLA event type
+ * @returns {Promise<void>}
+ */
+const applyEscalationRules = async (ticket, eventType) => {
+  try {
+    // Get the SLA policy
+    const slaPolicy = await SLAPolicy.findById(ticket.sla.policyId);
+    if (
+      !slaPolicy ||
+      !slaPolicy.escalationRules ||
+      slaPolicy.escalationRules.length === 0
+    ) {
+      return; // No escalation rules defined
+    }
+
+    // Find applicable escalation rules
+    const applicableRules = slaPolicy.escalationRules.filter((rule) => {
+      return rule.condition === eventType;
+    });
+
+    if (applicableRules.length === 0) {
+      return; // No applicable rules
+    }
+
+    // Apply each rule
+    for (const rule of applicableRules) {
+      // Apply actions
+      for (const action of rule.actions) {
+        switch (action) {
+          case "notify_assignee":
+            // Already handled by sendSLANotification
+            break;
+
+          case "notify_team_lead":
+            // Already handled by sendSLANotification
+            break;
+
+          case "notify_manager":
+            // Notify organization admin - this is handled by the notification controller
+            // We'll pass the entire rule to the controller so it can determine who to notify
+            await notificationController.createEscalationNotification(
+              ticket,
+              rule
+            );
+            break;
+
+          case "increase_priority":
+            // Increase ticket priority if not already at highest
+            const priorityLevels = ["low", "medium", "high", "critical"];
+            const currentPriorityIndex = priorityLevels.indexOf(
+              ticket.priority
+            );
+
+            if (currentPriorityIndex < priorityLevels.length - 1) {
+              const newPriority = priorityLevels[currentPriorityIndex + 1];
+              ticket.priority = newPriority;
+
+              // Add to audit log
+              ticket.auditLog.push({
+                action: "priority_escalated",
+                timestamp: new Date(),
+                details: {
+                  oldPriority: priorityLevels[currentPriorityIndex],
+                  newPriority,
+                  reason: `Automatic escalation due to ${eventType}`,
+                },
+              });
+
+              // Recalculate SLA deadlines based on new priority
+              if (slaPolicy) {
+                const deadlines = slaPolicy.calculateDeadlines(
+                  newPriority,
+                  ticket.createdAt
+                );
+                ticket.sla.responseDeadline = deadlines.responseDeadline;
+                ticket.sla.resolutionDeadline = deadlines.resolutionDeadline;
+
+                // Add to audit log
+                ticket.auditLog.push({
+                  action: "sla_recalculated",
+                  timestamp: new Date(),
+                  details: {
+                    reason: "Priority escalation",
+                    oldResponseDeadline: ticket.sla.responseDeadline,
+                    newResponseDeadline: deadlines.responseDeadline,
+                    oldResolutionDeadline: ticket.sla.resolutionDeadline,
+                    newResolutionDeadline: deadlines.resolutionDeadline,
+                  },
+                });
+              }
+            }
+            break;
+
+          case "reassign_ticket":
+            // This would require additional logic to determine who to reassign to
+            // For now, we'll just log that this action was triggered
+            logger.info(
+              `SLA escalation action 'reassign_ticket' triggered for ticket ${ticket._id}`
+            );
+            break;
+
+          default:
+            logger.warn(`Unknown SLA escalation action: ${action}`);
+        }
+      }
+    }
+
+    // Save the ticket if modified
+    if (ticket.isModified()) {
+      await ticket.save();
+    }
+  } catch (error) {
+    logger.error("Error applying SLA escalation rules:", error);
+    // Don't throw, just log the error
+  }
+};
+
+/**
  * Send SLA notifications
  * @param {Ticket} ticket - Ticket object
  * @param {string} eventType - SLA event type
@@ -502,99 +634,28 @@ exports.resumeSLA = async (ticketId, organizationId) => {
  */
 const sendSLANotification = async (ticket, eventType) => {
   try {
-    const recipients = new Set();
-    const organizationId = ticket.organizationId;
-    
-    // Add assignee if exists
-    if (ticket.assignedTo) {
-      recipients.add(ticket.assignedTo.toString());
-    }
-    
-    // Add team members
-    if (ticket.primaryTeam && ticket.primaryTeam.teamId) {
-      const Team = mongoose.model("Team");
-      const team = await Team.findById(ticket.primaryTeam.teamId).populate("members.userId");
-      
-      if (team && team.members) {
-        team.members.forEach(member => {
-          recipients.add(member.userId._id.toString());
-        });
-      }
-    }
-    
-    // Add team leads for critical notifications
-    if (eventType.includes("breached")) {
-      const User = mongoose.model("User");
-      const teamLeads = await User.find({
-        organizationId,
-        "teams.role": "lead",
-      });
-      
-      teamLeads.forEach(lead => {
-        recipients.add(lead._id.toString());
-      });
-    }
-    
-    // Determine notification details based on event type
-    let title, message, severity, displayType;
-    
-    switch (eventType) {
-      case "response_approaching":
-        title = "SLA Response Deadline Approaching";
-        message = `Response deadline for ticket #${ticket.ticketNumber} is approaching`;
-        severity = "warning";
-        displayType = "corner";
-        break;
-        
-      case "resolution_approaching":
-        title = "SLA Resolution Deadline Approaching";
-        message = `Resolution deadline for ticket #${ticket.ticketNumber} is approaching`;
-        severity = "warning";
-        displayType = "corner";
-        break;
-        
-      case "response_breached":
-        title = "SLA Response Deadline Breached";
-        message = `Response deadline for ticket #${ticket.ticketNumber} has been breached`;
-        severity = "error";
-        displayType = "modal";
-        break;
-        
-      case "resolution_breached":
-        title = "SLA Resolution Deadline Breached";
-        message = `Resolution deadline for ticket #${ticket.ticketNumber} has been breached`;
-        severity = "error";
-        displayType = "modal";
-        break;
-        
-      default:
-        title = "SLA Notification";
-        message = `SLA notification for ticket #${ticket.ticketNumber}`;
-        severity = "info";
-        displayType = "corner";
-    }
-    
-    // Send notifications to all recipients
-    for (const recipientId of recipients) {
-      await notificationService.createNotification({
-        recipient: recipientId,
-        organizationId,
-        type: "sla",
-        severity,
-        title,
-        message,
-        relatedTo: {
-          model: "Ticket",
-          id: ticket._id,
-        },
-        displayType,
-        actions: [
-          {
-            label: "View Ticket",
-            url: `/tickets/${ticket._id}`,
-          },
-        ],
-      });
+    // Determine the type of notification and call the appropriate controller method
+    if (
+      eventType === "response_approaching" ||
+      eventType === "resolution_approaching"
+    ) {
+      const type =
+        eventType === "response_approaching" ? "response" : "resolution";
+      const threshold = 80; // Default threshold for approaching notifications
+      await notificationController.createSLAApproachingNotification(
+        ticket,
+        type,
+        threshold
+      );
+    } else if (
+      eventType === "response_breached" ||
+      eventType === "resolution_breached"
+    ) {
+      const type =
+        eventType === "response_breached" ? "response" : "resolution";
+      await notificationController.createSLABreachedNotification(ticket, type);
+    } else {
+      logger.warn(`Unknown SLA event type: ${eventType}`);
     }
   } catch (error) {
     logger.error("Error sending SLA notification:", error);

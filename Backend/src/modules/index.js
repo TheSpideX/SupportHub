@@ -12,6 +12,7 @@ const user = require("./user");
 const customer = require("./customer");
 const system = require("./system");
 const ticket = require("./ticket");
+const notification = require("./notification");
 const logger = require("../utils/logger");
 
 /**
@@ -44,6 +45,9 @@ const initializeModules = async (app, io, config = {}) => {
 
     // Initialize system module
     app.use("/api/system", system.routes);
+
+    // Initialize notification module
+    notification.initialize(app);
 
     logger.info("All modules initialized successfully");
   } catch (error) {
@@ -80,6 +84,7 @@ module.exports = {
   customer,
   system,
   ticket,
+  notification,
   // Add other modules here as they are created
 
   // Module lifecycle functions
