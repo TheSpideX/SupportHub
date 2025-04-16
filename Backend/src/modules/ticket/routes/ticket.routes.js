@@ -40,6 +40,13 @@ router.get(
   ticketController.getTicketById
 );
 
+// Get ticket audit log
+router.get(
+  "/:id/audit-log",
+  srs(["admin", "team_lead", "team_member", "support_member", "customer"]),
+  ticketController.getTicketAuditLog
+);
+
 // Update ticket
 router.put(
   "/:id",

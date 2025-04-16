@@ -342,21 +342,41 @@ exports.getTeamMembers = async (req, res, next) => {
       // Check if this user is the team creator
       const isCreator = team.createdBy.toString() === member._id.toString();
 
-      // For display purposes, prioritize user role for admins
-      const displayRole =
-        member.role === "admin"
-          ? "admin"
-          : teamMember
-          ? teamMember.role
-          : "member";
+      // Get the team role (lead or member)
+      const teamRole = teamMember ? teamMember.role : "member";
+
+      // Get the user's system role (admin, team_lead, etc.)
+      const userRole = member.role;
+
+      // For display purposes, we need to handle three roles:
+      // 1. Admin - highest priority, always shown as admin
+      // 2. Team Lead - shown for team leads who aren't admins
+      // 3. Member - shown for regular members
+      let displayRole = "member";
+
+      if (userRole === "admin") {
+        // Admin users always show as admin, regardless of team role
+        displayRole = "admin";
+      } else if (teamRole === "lead") {
+        // Team leads who aren't admins show as lead
+        displayRole = "lead";
+      }
+
+      logger.debug(`User role mapping for ${member.email}:`, {
+        userId: member._id,
+        teamRole,
+        userRole,
+        displayRole,
+        isCreator,
+      });
 
       return {
         _id: member._id,
         profile: member.profile,
         email: member.email,
-        role: displayRole,
-        teamRole: teamMember ? teamMember.role : null,
-        userRole: member.role,
+        role: displayRole, // The role to display in the UI
+        teamRole: teamRole, // The user's role in this team
+        userRole: userRole, // The user's system-wide role
         isCreator: isCreator,
         joinedAt: teamMember ? teamMember.joinedAt : null,
       };

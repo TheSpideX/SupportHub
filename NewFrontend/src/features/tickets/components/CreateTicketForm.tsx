@@ -121,30 +121,101 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
       return;
     }
 
+    // Prepare data for submission - use a minimal approach with only required fields
+    const ticketData = {
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      category: formData.useCustomCategory
+        ? formData.customCategory.trim()
+        : formData.category,
+      priority: formData.priority,
+      source: "direct_creation",
+    };
+
+    // Only add subcategory if it's not empty
+    const subcategory = formData.useCustomCategory
+      ? formData.customSubcategory.trim()
+      : formData.subcategory;
+
+    if (subcategory) {
+      ticketData.subcategory = subcategory;
+    }
+
+    // Add team and assignee if selected
+    if (formData.primaryTeam) {
+      ticketData.primaryTeam = formData.primaryTeam;
+    }
+
+    if (formData.assignedTo) {
+      ticketData.assignedTo = formData.assignedTo;
+    }
+
+    // Add customer information if provided
+    if (formData.customer.email || formData.customer.name) {
+      ticketData.customer = {};
+
+      if (formData.customer.email) {
+        ticketData.customer.email = formData.customer.email.trim();
+      }
+
+      if (formData.customer.name) {
+        ticketData.customer.name = formData.customer.name.trim();
+      }
+    }
+
+    // Log the data being sent
+    console.log(
+      "Sending ticket data to backend:",
+      JSON.stringify(ticketData, null, 2)
+    );
+
     try {
-      // Prepare data for submission
-      const ticketData = {
-        ...formData,
-        // Use custom category/subcategory if enabled
-        category: formData.useCustomCategory
-          ? formData.customCategory
-          : formData.category,
-        subcategory: formData.useCustomCategory
-          ? formData.customSubcategory
-          : formData.subcategory,
-      };
+      // Use XMLHttpRequest for a more direct approach
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "http://localhost:4290/api/tickets", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.withCredentials = true;
 
-      // Remove custom fields before submission
-      delete ticketData.customCategory;
-      delete ticketData.customSubcategory;
-      delete ticketData.useCustomCategory;
+        // Get CSRF token from cookies
+        const csrfToken = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("csrf_token="))
+          ?.split("=")[1];
 
-      await createTicket(ticketData).unwrap();
+        if (csrfToken) {
+          xhr.setRequestHeader("X-CSRF-Token", csrfToken);
+        }
+
+        xhr.onload = function () {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const result = JSON.parse(xhr.responseText);
+            console.log("Ticket created successfully:", result);
+            resolve(result);
+          } else {
+            console.error("Error creating ticket:", xhr.responseText);
+            reject(new Error("Failed to create ticket"));
+          }
+        };
+
+        xhr.onerror = function () {
+          console.error("Network error occurred");
+          reject(new Error("Network error occurred"));
+        };
+
+        const jsonData = JSON.stringify(ticketData);
+        console.log("Sending JSON data:", jsonData);
+        xhr.send(jsonData);
+      });
+
+      console.log("Ticket created successfully:", result);
       toast.success("Ticket created successfully");
+
       if (onSuccess) {
         onSuccess();
       } else {
-        navigate("/tickets");
+        // Navigate to the specific ticket page
+        navigate(`/tickets/${result.data._id}`);
       }
     } catch (err) {
       console.error("Failed to create ticket:", err);
@@ -593,7 +664,7 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
                       )
                       {user.role === "admin"
                         ? " - Admin"
-                        : user.role === "lead"
+                        : user.role === "lead" || user.teamRole === "lead"
                         ? " - Team Lead"
                         : ""}
                     </option>

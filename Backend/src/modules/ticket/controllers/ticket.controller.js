@@ -15,15 +15,15 @@ exports.createTicket = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     // Add organization ID to ticket data
     const ticketData = {
       ...req.body,
       organizationId,
     };
-    
+
     const ticket = await ticketService.createTicket(ticketData, userId);
-    
+
     return res.status(201).json({
       success: true,
       data: ticket,
@@ -42,15 +42,77 @@ exports.getTicketById = async (req, res, next) => {
   try {
     const ticketId = req.params.id;
     const organizationId = req.user.organizationId;
-    
+
     const ticket = await ticketService.getTicketById(ticketId, organizationId);
-    
+
+    // Process comments to ensure they have proper user information and text
+    if (ticket.comments && Array.isArray(ticket.comments)) {
+      console.log(
+        "Processing comments in getTicketById, count:",
+        ticket.comments.length
+      );
+      console.log("Original comments:", JSON.stringify(ticket.comments));
+
+      ticket.comments = ticket.comments.map((comment) => {
+        console.log("Processing comment:", comment);
+
+        // Ensure comment has text
+        if (!comment.text || comment.text.trim() === "") {
+          console.log("Comment has empty text, setting default");
+          comment.text = "[No comment text provided]";
+        }
+
+        // Force text to be a string
+        if (typeof comment.text !== "string") {
+          console.log("Comment text is not a string, converting");
+          comment.text = String(comment.text || "[No comment text provided]");
+        }
+
+        // Format user information if it's an object
+        if (comment.author && typeof comment.author === "object") {
+          comment.author.fullName =
+            comment.author.profile?.firstName &&
+            comment.author.profile?.lastName
+              ? `${comment.author.profile.firstName} ${comment.author.profile.lastName}`
+              : comment.author.email || "Unknown";
+          console.log("Set author fullName:", comment.author.fullName);
+        }
+        return comment;
+      });
+
+      console.log("Processed comments:", JSON.stringify(ticket.comments));
+    }
+
     return res.status(200).json({
       success: true,
       data: ticket,
     });
   } catch (error) {
     logger.error("Error getting ticket:", error);
+    return next(error);
+  }
+};
+
+/**
+ * Get ticket audit log
+ * @route GET /api/tickets/:id/audit-log
+ */
+exports.getTicketAuditLog = async (req, res, next) => {
+  try {
+    const ticketId = req.params.id;
+    const organizationId = req.user.organizationId;
+
+    const auditLog = await ticketService.getTicketAuditLog(
+      ticketId,
+      organizationId
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: auditLog,
+    });
+  } catch (error) {
+    logger.error("Error getting ticket audit log:", error);
     return next(error);
   }
 };
@@ -63,7 +125,7 @@ exports.getTickets = async (req, res, next) => {
   try {
     const organizationId = req.user.organizationId;
     const { page = 1, limit = 20 } = req.query;
-    
+
     // Extract filters from query params
     const filters = {
       status: req.query.status,
@@ -75,14 +137,14 @@ exports.getTickets = async (req, res, next) => {
       customer: req.query.customer,
       search: req.query.search,
     };
-    
+
     const result = await ticketService.getTickets(
       filters,
       organizationId,
       page,
       limit
     );
-    
+
     return res.status(200).json({
       success: true,
       data: result.data,
@@ -103,14 +165,14 @@ exports.updateTicket = async (req, res, next) => {
     const ticketId = req.params.id;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     const ticket = await ticketService.updateTicket(
       ticketId,
       req.body,
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -130,14 +192,92 @@ exports.addComment = async (req, res, next) => {
     const ticketId = req.params.id;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
+    logger.info("Adding comment to ticket - controller", {
+      ticketId,
+      userId,
+      body: req.body,
+      bodyText: req.body.text,
+      bodyTextType: typeof req.body.text,
+      bodyTextLength: req.body.text ? req.body.text.length : 0,
+    });
+
+    // Log the raw request body for debugging
+    console.log("Raw request body:", req.body);
+    console.log("Request headers:", req.headers);
+
+    // Handle potential JSON parsing issues
+    let commentText;
+    try {
+      // If req.body is a string (which might happen with some middleware configurations)
+      if (typeof req.body === "string") {
+        try {
+          const parsedBody = JSON.parse(req.body);
+          commentText = parsedBody.text;
+          console.log("Parsed body from string:", parsedBody);
+        } catch (parseError) {
+          console.error("Error parsing request body string:", parseError);
+          commentText = req.body;
+        }
+      } else {
+        // Normal object body
+        commentText = req.body.text;
+      }
+
+      console.log("Extracted comment text:", commentText);
+    } catch (error) {
+      console.error("Error extracting comment text:", error);
+      commentText = null;
+    }
+
+    // Validate comment text exists
+    if (!commentText) {
+      logger.warn("Empty comment text received in controller");
+      return res.status(400).json({
+        success: false,
+        message: "Comment text cannot be empty",
+      });
+    }
+
+    // Validate comment text is a string
+    if (typeof commentText !== "string") {
+      logger.warn("Invalid comment text type received in controller", {
+        textType: typeof commentText,
+      });
+      return res.status(400).json({
+        success: false,
+        message: "Comment text must be a string",
+      });
+    }
+
+    // Validate comment text is not just whitespace
+    if (commentText.trim() === "") {
+      logger.warn("Whitespace-only comment text received in controller");
+      return res.status(400).json({
+        success: false,
+        message: "Comment text cannot be empty",
+      });
+    }
+
+    // Update req.body with the validated text
+    req.body.text = commentText.trim();
+
     const ticket = await ticketService.addComment(
       ticketId,
       req.body,
       userId,
       organizationId
     );
-    
+
+    // Check if the comment was added successfully
+    const addedComment = ticket.comments[ticket.comments.length - 1];
+    logger.info("Comment added successfully", {
+      addedComment,
+      commentText: addedComment.text,
+      commentTextType: typeof addedComment.text,
+      commentTextLength: addedComment.text ? addedComment.text.length : 0,
+    });
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -158,18 +298,18 @@ exports.assignTicket = async (req, res, next) => {
     const { assigneeId } = req.body;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     if (!assigneeId) {
       return next(new ApiError(400, "Assignee ID is required"));
     }
-    
+
     const ticket = await ticketService.assignTicket(
       ticketId,
       assigneeId,
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -190,11 +330,11 @@ exports.assignTicketToTeam = async (req, res, next) => {
     const { teamId, isPrimary = true } = req.body;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     if (!teamId) {
       return next(new ApiError(400, "Team ID is required"));
     }
-    
+
     const ticket = await ticketService.assignTicketToTeam(
       ticketId,
       teamId,
@@ -202,7 +342,7 @@ exports.assignTicketToTeam = async (req, res, next) => {
       userId,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -220,9 +360,9 @@ exports.assignTicketToTeam = async (req, res, next) => {
 exports.getTicketStatistics = async (req, res, next) => {
   try {
     const organizationId = req.user.organizationId;
-    
+
     const statistics = await ticketService.getTicketStatistics(organizationId);
-    
+
     return res.status(200).json({
       success: true,
       data: statistics,

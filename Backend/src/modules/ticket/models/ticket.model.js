@@ -185,7 +185,11 @@ const TicketSchema = new Schema(
           ref: "User",
           required: true,
         },
-        text: String,
+        text: {
+          type: String,
+          default: "[No comment text provided]",
+          trim: true,
+        },
         createdAt: {
           type: Date,
           default: Date.now,
@@ -341,6 +345,47 @@ TicketSchema.pre("save", async function (next) {
         },
       ];
 
+      // Add creation entry to audit log
+      const timestamp = new Date();
+      this.auditLog = [
+        {
+          action: "created",
+          performedBy: this.createdBy,
+          timestamp: timestamp,
+          details: {
+            title: this.title,
+            source: this.source,
+          },
+        },
+      ];
+
+      // If ticket is assigned on creation, add assignment entry
+      if (this.assignedTo) {
+        this.auditLog.push({
+          action: "assigned",
+          performedBy: this.createdBy,
+          timestamp: timestamp,
+          details: {
+            previousAssignee: null,
+            newAssignee: this.assignedTo,
+            assigneeName: null, // Will be populated later
+          },
+        });
+      }
+
+      // If ticket has a primary team on creation, add team assignment entry
+      if (this.primaryTeam && this.primaryTeam.teamId) {
+        this.auditLog.push({
+          action: "team_assigned_primary",
+          performedBy: this.createdBy,
+          timestamp: timestamp,
+          details: {
+            previousTeam: null,
+            newTeam: this.primaryTeam.teamId,
+          },
+        });
+      }
+
       next();
     } catch (error) {
       next(error);
@@ -356,29 +401,74 @@ TicketSchema.pre("save", function (next) {
     // Get the user who made the change (should be set by the controller)
     const changedBy = this._statusChangedBy || this.updatedBy || this.createdBy;
     const reason = this._statusChangeReason || "Status updated";
+    const timestamp = new Date();
 
+    // Add to status history
     this.statusHistory.push({
       status: this.status,
       changedBy,
-      timestamp: new Date(),
+      timestamp,
       reason,
     });
+
+    // Get previous status (if not a new ticket)
+    let oldStatus = null;
+    if (this.statusHistory && this.statusHistory.length > 1) {
+      oldStatus = this.statusHistory[this.statusHistory.length - 2].status;
+    }
+
+    // Add to audit log
+    if (!this.isNew) {
+      this.auditLog.push({
+        action: "status_changed",
+        performedBy: changedBy,
+        timestamp,
+        details: {
+          oldStatus: oldStatus,
+          newStatus: this.status,
+          reason: reason,
+        },
+      });
+    }
   }
   next();
 });
 
 // Method to add a comment
 TicketSchema.methods.addComment = function (commentData) {
+  console.log("Adding comment in model method:", commentData);
+
+  // Ensure text is trimmed (validation should have already happened in service)
+  if (commentData.text && typeof commentData.text === "string") {
+    commentData.text = commentData.text.trim();
+    console.log("Comment text after trim:", commentData.text);
+  } else {
+    // This should not happen as service should validate, but as a safeguard
+    console.log(
+      "Comment text is invalid in model method, this should not happen"
+    );
+    commentData.text = "[No comment text provided]";
+  }
+
   this.comments.push(commentData);
+  console.log(
+    "Comment pushed to array, new comment count:",
+    this.comments.length
+  );
+
+  // Get the newly added comment
+  const newComment = this.comments[this.comments.length - 1];
+  console.log("New comment added:", newComment);
 
   // Add to audit log
   this.auditLog.push({
-    action: "comment_added",
+    action: "commented",
     performedBy: commentData.author,
     timestamp: new Date(),
     details: {
-      commentId: this.comments[this.comments.length - 1]._id,
-      isInternal: commentData.isInternal,
+      commentId: newComment._id,
+      isInternal: commentData.isInternal || false,
+      comment: commentData.text.substring(0, 500),
     },
   });
 
@@ -405,6 +495,7 @@ TicketSchema.methods.assignTo = function (userId, assignedBy) {
     details: {
       previousAssignee,
       newAssignee: userId,
+      assigneeName: null, // Will be populated in post-processing
     },
   });
 

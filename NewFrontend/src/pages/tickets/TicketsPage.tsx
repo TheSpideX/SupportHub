@@ -28,6 +28,10 @@ import {
   FaUserPlus,
   FaCircle,
   FaArrowRight,
+  FaPlus,
+  FaExchangeAlt,
+  FaPause,
+  FaPlay,
 } from "react-icons/fa";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import {
@@ -43,67 +47,247 @@ import {
   Legend,
   CartesianGrid,
 } from "recharts";
+import { Tooltip } from "@/components/ui/tooltip";
 import ActivityMindMap from "@/components/tickets/ActivityMindMap";
 import { FaChartLine, FaUserClock } from "react-icons/fa";
 import {
   useGetTicketsQuery,
   useGetTicketStatisticsQuery,
+  useGetTicketByIdQuery,
+  useGetTicketAuditLogQuery,
+  useAddCommentMutation,
+  useUpdateTicketMutation,
+  useAssignTicketMutation,
+  useAssignTicketToTeamMutation,
+  GroupedActivityResponse,
 } from "@/features/tickets/api/ticketApi";
+import {
+  useGetSLAPoliciesQuery,
+  useApplyPolicyToTicketMutation,
+  usePauseSLAMutation,
+  useResumeSLAMutation,
+  SLAPolicy,
+} from "@/api/slaApiRTK";
 import { ticketSocket } from "@/features/tickets/api/ticketSocket";
 import { toast } from "react-hot-toast";
+import { MoreHorizontal, Edit, Eye, UserPlus, RefreshCw } from "lucide-react";
 
 // Enhanced interfaces based on SRS requirements
 interface Attachment {
-  id: string;
+  _id?: string;
   filename: string;
-  url: string;
+  path: string;
+  mimetype: string;
+  size: number;
   uploadedAt: string;
-  uploadedBy: string;
+  uploadedBy?:
+    | string
+    | {
+        _id: string;
+        profile?: {
+          firstName?: string;
+          lastName?: string;
+        };
+      };
 }
 
 interface Comment {
-  id: string;
-  author: string;
+  _id?: string;
+  author:
+    | string
+    | {
+        _id: string;
+        profile?: {
+          firstName?: string;
+          lastName?: string;
+        };
+        email?: string;
+        fullName?: string; // Added for backend compatibility
+        role?: string; // Added for role display
+      };
   text: string;
   createdAt: string;
   attachments?: Attachment[];
   isInternal?: boolean; // For internal team communication
+  visibleToTeams?: Array<
+    | string
+    | {
+        _id: string;
+        name?: string;
+      }
+  >;
 }
 
 interface AuditLogEntry {
-  id: string;
+  _id?: string;
   action: string; // e.g., "status_changed", "assigned", "commented"
-  performedBy: string;
+  performedBy:
+    | string
+    | {
+        _id: string;
+        profile?: {
+          firstName?: string;
+          lastName?: string;
+        };
+      };
   timestamp: string;
-  details: Record<string, any>;
+  details?: Record<string, any>;
 }
 
 interface SLA {
-  responseDeadline: string;
-  resolutionDeadline: string;
-  breached: boolean;
-  percentageComplete: number; // For 75% SLA alert
+  policyId?: string;
+  responseDeadline?: string;
+  resolutionDeadline?: string;
+  pausedAt?: string;
+  pauseReason?: string;
+  totalPausedTime?: number;
+  breached?: {
+    response: boolean;
+    resolution: boolean;
+  };
+  percentageComplete?: number; // Calculated field for UI
 }
 
+// Interface for frontend ticket that maps to backend structure
 interface Ticket {
-  id: string;
+  id: string; // Maps to _id from backend
+  _id?: string; // Original MongoDB ID
+  ticketNumber?: string;
   title: string;
   description: string;
-  status: string; // "open", "in_progress", "resolved", "closed" or custom status
+  status: string; // Backend: "new", "assigned", "in_progress", "on_hold", "pending_customer", "resolved", "closed"
   priority: string; // "low", "medium", "high", "critical"
-  category: string; // Technical area or product
+  category: string;
+  subcategory?: string;
   createdAt: string;
   updatedAt: string;
-  createdBy: string; // Customer who created the ticket
-  assignedTo?: string; // Technical team member
-  assignedTeam?: string; // Team responsible for the ticket
-  parentTicketId?: string; // For sub-tickets
+  source?: string; // How the ticket was created
+  originalQuery?: string; // If converted from a query
+
+  // User who created the ticket
+  createdBy:
+    | string
+    | {
+        _id: string;
+        profile?: {
+          firstName?: string;
+          lastName?: string;
+        };
+        email?: string;
+        fullName?: string;
+        id?: string;
+      };
+
+  // Technical team member assigned
+  assignedTo?:
+    | string
+    | {
+        _id: string;
+        profile?: {
+          firstName?: string;
+          lastName?: string;
+        };
+        email?: string;
+        fullName?: string;
+        id?: string;
+      };
+
+  // Primary team responsible
+  primaryTeam?:
+    | string
+    | {
+        teamId:
+          | string
+          | {
+              _id: string;
+              name: string;
+              teamType: string;
+            };
+        assignedAt: string;
+        assignedBy?:
+          | string
+          | {
+              _id: string;
+              profile?: {
+                firstName?: string;
+                lastName?: string;
+              };
+            };
+      };
+
+  // Supporting teams
+  supportingTeams?: Array<{
+    teamId:
+      | string
+      | {
+          _id: string;
+          name: string;
+          teamType: string;
+        };
+    role?: string;
+    assignedAt: string;
+    assignedBy?:
+      | string
+      | {
+          _id: string;
+        };
+    status?: string;
+  }>;
+
+  // Legacy field for backward compatibility
+  assignedTeam?: string;
+
+  // Customer information
+  customer?: {
+    userId?:
+      | string
+      | {
+          _id: string;
+          profile?: {
+            firstName?: string;
+            lastName?: string;
+          };
+          email?: string;
+        };
+    email?: string;
+    name?: string;
+    contactNumber?: string;
+  };
+
+  // Status history
+  statusHistory?: Array<{
+    status: string;
+    changedBy:
+      | string
+      | {
+          _id: string;
+          profile?: {
+            firstName?: string;
+            lastName?: string;
+          };
+        };
+    timestamp: string;
+    reason?: string;
+  }>;
+
+  // For sub-tickets
+  parentTicketId?: string;
+
+  // Comments
   comments?: Comment[];
+
+  // Attachments
   attachments?: Attachment[];
+
+  // Audit log
   auditLog?: AuditLogEntry[];
+
+  // SLA information
   sla?: SLA;
-  tags?: string[]; // For additional categorization
-  customFields?: Record<string, any>; // For extensibility
+
+  // Additional data
+  tags?: string[];
+  customFields?: Record<string, any>;
 }
 
 interface TicketAnalytics {
@@ -124,6 +308,7 @@ interface TicketsPageProps {
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "open":
+    case "new": // Backend status
       return (
         <span className="bg-blue-500/20 text-blue-400 text-xs px-2.5 py-0.5 rounded-full font-medium">
           Open
@@ -131,9 +316,19 @@ const getStatusBadge = (status: string) => {
       );
     case "in-progress":
     case "in_progress": // Handle both formats
+    case "assigned": // Backend status
       return (
         <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2.5 py-0.5 rounded-full font-medium">
           In Progress
+        </span>
+      );
+    case "on_hold":
+    case "on-hold":
+    case "pending_customer":
+    case "pending-customer":
+      return (
+        <span className="bg-orange-500/20 text-orange-400 text-xs px-2.5 py-0.5 rounded-full font-medium">
+          On Hold
         </span>
       );
     case "resolved":
@@ -149,9 +344,15 @@ const getStatusBadge = (status: string) => {
         </span>
       );
     default:
+      // Format the status string for display (capitalize, replace underscores)
+      const formattedStatus = status
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+
       return (
         <span className="bg-gray-500/20 text-gray-400 text-xs px-2.5 py-0.5 rounded-full font-medium">
-          {status}
+          {formattedStatus}
         </span>
       );
   }
@@ -193,6 +394,44 @@ const getPriorityBadge = (priority: string) => {
   }
 };
 
+// Helper function to get status color
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "open":
+    case "new": // Backend status
+      return "bg-blue-500/20 text-blue-400";
+    case "in-progress":
+    case "in_progress": // Handle both formats
+    case "assigned": // Backend status
+      return "bg-yellow-500/20 text-yellow-400";
+    case "on_hold":
+    case "on-hold":
+    case "pending_customer":
+    case "pending-customer":
+      return "bg-orange-500/20 text-orange-400";
+    case "resolved":
+      return "bg-green-500/20 text-green-400";
+    case "closed":
+      return "bg-gray-500/20 text-gray-400";
+    default:
+      return "bg-gray-500/20 text-gray-400";
+  }
+};
+
+// Helper function to calculate elapsed percentage for SLA
+const calculateElapsedPercentage = (startDate: string, endDate: string) => {
+  const start = new Date(startDate).getTime();
+  const end = new Date(endDate).getTime();
+  const now = new Date().getTime();
+
+  if (now >= end) return 100;
+  if (now <= start) return 0;
+
+  const total = end - start;
+  const elapsed = now - start;
+  return Math.round((elapsed / total) * 100);
+};
+
 // Format date to readable format
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -205,28 +444,140 @@ const formatDate = (dateString: string) => {
   });
 };
 
-const getTicketAnalytics = (ticketId: string): TicketAnalytics => {
-  // Mock data - would be fetched from API in real implementation
-  return {
-    avgResponseTime: "1h 24m",
-    avgResolutionTime: "8h 15m",
-    similarTicketsCount: 12,
-    recurrenceRate: "18%",
-    escalationRate: "5%",
-    firstContactResolution: "62%",
-  };
+const getTicketAnalytics = (ticket: Ticket): TicketAnalytics => {
+  try {
+    // Validate ticket object
+    if (!ticket) {
+      return {
+        avgResponseTime: "N/A",
+        avgResolutionTime: "N/A",
+        similarTicketsCount: 0,
+        recurrenceRate: "N/A",
+        escalationRate: "N/A",
+        firstContactResolution: "N/A",
+      };
+    }
+
+    // Calculate analytics based on ticket data
+    let analytics = {
+      avgResponseTime: "N/A",
+      avgResolutionTime: "N/A",
+      similarTicketsCount: 0,
+      recurrenceRate: "N/A",
+      escalationRate: "N/A",
+      firstContactResolution: "N/A",
+    };
+
+    // If we have audit log data, calculate response times
+    if (
+      ticket.auditLog &&
+      Array.isArray(ticket.auditLog) &&
+      ticket.auditLog.length > 0
+    ) {
+      // Find ticket creation time
+      const creationEntry = ticket.auditLog.find(
+        (entry) => entry.action === "created"
+      );
+      const creationTime = creationEntry
+        ? new Date(creationEntry.timestamp)
+        : new Date(ticket.createdAt);
+
+      // Find first response time
+      const firstResponseEntry = ticket.auditLog.find(
+        (entry) =>
+          entry.action === "commented" &&
+          typeof entry.performedBy === "object" &&
+          entry.performedBy._id !==
+            (typeof ticket.createdBy === "object"
+              ? ticket.createdBy._id
+              : ticket.createdBy)
+      );
+
+      if (firstResponseEntry) {
+        const responseTime = new Date(firstResponseEntry.timestamp);
+        const diffMs = responseTime.getTime() - creationTime.getTime();
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        analytics.avgResponseTime = `${diffHrs}h ${diffMins}m`;
+      }
+
+      // Calculate resolution time if ticket is resolved
+      if (ticket.status === "resolved" || ticket.status === "closed") {
+        const resolutionEntry = ticket.auditLog.find(
+          (entry) =>
+            entry.action === "status_changed" &&
+            (entry.details?.newStatus === "resolved" ||
+              entry.details?.newStatus === "closed")
+        );
+
+        if (resolutionEntry) {
+          const resolutionTime = new Date(resolutionEntry.timestamp);
+          const diffMs = resolutionTime.getTime() - creationTime.getTime();
+          const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffMins = Math.floor(
+            (diffMs % (1000 * 60 * 60)) / (1000 * 60)
+          );
+          analytics.avgResolutionTime = `${diffHrs}h ${diffMins}m`;
+        }
+      }
+
+      // Calculate escalation rate
+      const escalationEntries = ticket.auditLog.filter(
+        (entry) =>
+          entry.action === "escalated" ||
+          (entry.action === "status_changed" &&
+            entry.details?.reason?.toLowerCase().includes("escalat"))
+      );
+
+      if (escalationEntries.length > 0) {
+        analytics.escalationRate = "Yes";
+      } else {
+        analytics.escalationRate = "No";
+      }
+
+      // First contact resolution
+      if (ticket.status === "resolved" || ticket.status === "closed") {
+        const commentEntries = ticket.auditLog.filter(
+          (entry) => entry.action === "commented"
+        );
+        if (commentEntries.length <= 2) {
+          // Only creator comment and one response
+          analytics.firstContactResolution = "Yes";
+        } else {
+          analytics.firstContactResolution = "No";
+        }
+      }
+    }
+
+    // For similar tickets count and recurrence rate, we would need API data
+    // For now, use placeholder values
+    analytics.similarTicketsCount = Math.floor(Math.random() * 20);
+    analytics.recurrenceRate = `${Math.floor(Math.random() * 30)}%`;
+
+    return analytics;
+  } catch (error) {
+    console.error("Error calculating ticket analytics:", error);
+    return {
+      avgResponseTime: "N/A",
+      avgResolutionTime: "N/A",
+      similarTicketsCount: 0,
+      recurrenceRate: "N/A",
+      escalationRate: "N/A",
+      firstContactResolution: "N/A",
+    };
+  }
 };
 
 const TicketAnalyticsModal = ({
   isOpen,
   closeModal,
-  ticketId,
+  ticket,
 }: {
   isOpen: boolean;
   closeModal: () => void;
-  ticketId: string;
+  ticket: Ticket;
 }) => {
-  const analytics = getTicketAnalytics(ticketId);
+  const analytics = getTicketAnalytics(ticket);
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -382,7 +733,7 @@ const TicketAnalyticsModal = ({
                           />
                           <XAxis dataKey="month" stroke="#9ca3af" />
                           <YAxis stroke="#9ca3af" />
-                          <Tooltip
+                          <RechartsTooltip
                             contentStyle={{
                               backgroundColor: "#374151",
                               borderColor: "#4b5563",
@@ -469,6 +820,7 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
     data: ticketsData,
     isLoading,
     error,
+    refetch,
   } = useGetTicketsQuery({
     filters: {
       status: selectedStatus !== "all" ? selectedStatus : undefined,
@@ -478,6 +830,68 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
     page,
     limit,
   });
+
+  // Set up Primus event listeners for real-time updates
+  useEffect(() => {
+    // Set up event listeners for ticket events
+    const ticketCreatedCleanup = ticketSocket.onTicketEvent(
+      "ticket:created",
+      (data) => {
+        console.log("Ticket created event received:", data);
+        toast.success(`New ticket created: ${data.ticket.title || "Untitled"}`);
+        refetch(); // Refresh the tickets list
+      }
+    );
+
+    const ticketUpdatedCleanup = ticketSocket.onTicketEvent(
+      "ticket:updated",
+      (data) => {
+        console.log("Ticket updated event received:", data);
+        toast.success(`Ticket updated: ${data.ticket.title || "Untitled"}`);
+        refetch(); // Refresh the tickets list
+      }
+    );
+
+    const ticketCommentAddedCleanup = ticketSocket.onTicketEvent(
+      "ticket:comment_added",
+      (data) => {
+        console.log("Ticket comment added event received:", data);
+        toast.success(
+          `New comment on ticket: ${data.ticket.title || "Untitled"}`
+        );
+        refetch(); // Refresh the tickets list
+      }
+    );
+
+    const ticketAssignedCleanup = ticketSocket.onTicketEvent(
+      "ticket:assigned",
+      (data) => {
+        console.log("Ticket assigned event received:", data);
+        toast.success(`Ticket assigned: ${data.ticket.title || "Untitled"}`);
+        refetch(); // Refresh the tickets list
+      }
+    );
+
+    const ticketStatusChangedCleanup = ticketSocket.onTicketEvent(
+      "ticket:status_changed",
+      (data) => {
+        console.log("Ticket status changed event received:", data);
+        toast.success(
+          `Ticket status changed: ${data.ticket.title || "Untitled"}`
+        );
+        refetch(); // Refresh the tickets list
+      }
+    );
+
+    // Clean up event listeners when component unmounts
+    return () => {
+      ticketCreatedCleanup();
+      ticketUpdatedCleanup();
+      ticketCommentAddedCleanup();
+      ticketAssignedCleanup();
+      ticketStatusChangedCleanup();
+    };
+  }, [refetch]);
 
   // Fetch ticket statistics
   const { data: statisticsData } = useGetTicketStatisticsQuery();
@@ -495,14 +909,14 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
     const unsubscribeUpdated = ticketSocket.onTicketEvent(
       "ticket:updated",
       (data) => {
-        toast.info(`Ticket updated: ${data.title}`);
+        toast.success(`Ticket updated: ${data.title}`);
       }
     );
 
     const unsubscribeCommentAdded = ticketSocket.onTicketEvent(
       "ticket:comment_added",
       (data) => {
-        toast.info(`New comment on ticket ${data.ticketId}`);
+        toast.success(`New comment on ticket ${data.ticketId}`);
       }
     );
 
@@ -524,94 +938,65 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
     setIsAnalyticsModalOpen(false);
   };
 
-  // Use API data if available, otherwise use empty array
-  const tickets: Ticket[] = ticketsData?.data || [
-    {
-      id: "TKT-2389",
-      title: "Server connectivity issues in production",
-      description:
-        "Users are experiencing intermittent connection drops to the main server.",
-      status: "in_progress",
-      priority: "high",
-      category: "Infrastructure",
-      createdBy: "customer@example.com",
-      assignedTo: "john.doe",
-      assignedTeam: "Server Infrastructure",
-      createdAt: "2023-10-15T10:30:00Z",
-      updatedAt: "2023-10-16T14:20:00Z",
-      sla: {
-        responseDeadline: "2023-10-15T12:30:00Z",
-        resolutionDeadline: "2023-10-17T10:30:00Z",
-        breached: false,
-        percentageComplete: 65,
-      },
-      tags: ["server", "connectivity", "production"],
-    },
-    {
-      id: "TKT-2376",
-      title: "Dashboard loading slowly for some users",
-      description:
-        "Several users reported that the dashboard takes more than 10 seconds to load.",
-      status: "open",
-      priority: "medium",
-      category: "Frontend",
-      createdBy: "user123@example.com",
-      assignedTo: "jane.smith",
-      createdAt: "2023-10-14T08:15:00Z",
-      updatedAt: "2023-10-14T09:45:00Z",
-    },
-    {
-      id: "TKT-2350",
-      title: "Critical security vulnerability in login page",
-      description:
-        "Security audit revealed a potential XSS vulnerability in the login form.",
-      status: "open",
-      priority: "high",
-      category: "Security",
-      createdBy: "security@example.com",
-      createdAt: "2023-10-13T16:20:00Z",
-      updatedAt: "2023-10-13T16:20:00Z",
-    },
-    {
-      id: "TKT-2345",
-      title: "Feature request: Export data to CSV",
-      description:
-        "Multiple customers have requested the ability to export their data to CSV format.",
-      status: "resolved",
-      priority: "low",
-      category: "Feature Request",
-      createdBy: "customer456@example.com",
-      assignedTo: "alex.johnson",
-      createdAt: "2023-10-12T11:10:00Z",
-      updatedAt: "2023-10-14T15:30:00Z",
-    },
-    {
-      id: "TKT-2340",
-      title: "Mobile app crashes on startup",
-      description:
-        "iOS users are reporting that the app crashes immediately after the splash screen.",
-      status: "closed",
-      priority: "high",
-      category: "Mobile",
-      createdBy: "mobile.user@example.com",
-      assignedTo: "sarah.williams",
-      createdAt: "2023-10-10T09:25:00Z",
-      updatedAt: "2023-10-13T17:15:00Z",
-    },
-  ];
+  // Map API data to the format expected by the UI
+  const tickets: Ticket[] = ticketsData?.data
+    ? ticketsData.data.map((apiTicket) => ({
+        // Map _id to id for compatibility
+        id: apiTicket._id,
+        _id: apiTicket._id,
+        ticketNumber: apiTicket.ticketNumber,
+        title: apiTicket.title,
+        description: apiTicket.description,
+        status: apiTicket.status,
+        priority: apiTicket.priority,
+        category: apiTicket.category,
+        subcategory: apiTicket.subcategory,
+        createdAt: apiTicket.createdAt,
+        updatedAt: apiTicket.updatedAt,
+        createdBy: apiTicket.createdBy,
+        assignedTo: apiTicket.assignedTo,
+        primaryTeam: apiTicket.primaryTeam,
+        supportingTeams: apiTicket.supportingTeams,
+        customer: apiTicket.customer,
+        comments: apiTicket.comments,
+        attachments: apiTicket.attachments,
+        sla: apiTicket.sla,
+        tags: apiTicket.tags,
+        customFields: apiTicket.customFields,
+        // Add any additional fields needed for UI compatibility
+      }))
+    : [];
 
   // Filter tickets based on search query and filters
   const filteredTickets = tickets.filter((ticket) => {
-    const matchesSearch =
-      ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.id.toLowerCase().includes(searchQuery.toLowerCase());
+    // Search in title, ID, ticket number, and description
+    const matchesSearch = searchQuery
+      ? ticket.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (ticket.ticketNumber &&
+          ticket.ticketNumber
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase())) ||
+        ticket.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      : true;
 
+    // Status matching with backend status values
     const matchesStatus =
       selectedStatus === "all" || ticket.status === selectedStatus;
+
+    // Priority matching
     const matchesPriority =
       selectedPriority === "all" || ticket.priority === selectedPriority;
 
-    return matchesSearch && matchesStatus && matchesPriority;
+    // For "my-tickets" view, only show tickets assigned to current user
+    const matchesView =
+      currentView === "all" ||
+      (currentView === "my-tickets" &&
+        (typeof ticket.assignedTo === "object"
+          ? ticket.assignedTo?._id === user?.id
+          : ticket.assignedTo === user?.id));
+
+    return matchesSearch && matchesStatus && matchesPriority && matchesView;
   });
 
   // Animation variants
@@ -640,6 +1025,25 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
     console.log("Opening ticket:", ticket.id); // Add this for debugging
     setSelectedTicket(ticket);
     setIsModalOpen(true);
+  };
+
+  // Action handlers for ticket dropdown menu
+  const handleEditTicket = (ticket: Ticket) => {
+    // Implement edit ticket functionality
+    console.log("Edit ticket:", ticket);
+    toast.success("Edit ticket functionality will be implemented soon");
+  };
+
+  const handleAssignTicket = (ticket: Ticket) => {
+    // Implement assign ticket functionality
+    console.log("Assign ticket:", ticket);
+    toast.success("Assign ticket functionality will be implemented soon");
+  };
+
+  const handleChangeStatus = (ticket: Ticket) => {
+    // Implement change status functionality
+    console.log("Change status for ticket:", ticket);
+    toast.success("Change status functionality will be implemented soon");
   };
 
   const closeModal = () => {
@@ -750,8 +1154,13 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                           onChange={(e) => setSelectedStatus(e.target.value)}
                         >
                           <option value="all">All Status</option>
-                          <option value="open">Open</option>
+                          <option value="new">New</option>
+                          <option value="assigned">Assigned</option>
                           <option value="in_progress">In Progress</option>
+                          <option value="on_hold">On Hold</option>
+                          <option value="pending_customer">
+                            Pending Customer
+                          </option>
                           <option value="resolved">Resolved</option>
                           <option value="closed">Closed</option>
                         </select>
@@ -762,6 +1171,7 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                           onChange={(e) => setSelectedPriority(e.target.value)}
                         >
                           <option value="all">All Priority</option>
+                          <option value="critical">Critical</option>
                           <option value="high">High</option>
                           <option value="medium">Medium</option>
                           <option value="low">Low</option>
@@ -834,7 +1244,11 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                                   onClick={() => openTicketDetail(ticket)}
                                 >
                                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                                    {ticket.id}
+                                    <div className="flex items-center">
+                                      <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs mr-2">
+                                        {ticket.ticketNumber || ticket.id}
+                                      </span>
+                                    </div>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-gray-300">
                                     {ticket.title}
@@ -846,7 +1260,12 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                                     {getPriorityBadge(ticket.priority)}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                                    {ticket.assignedTo || "-"}
+                                    {typeof ticket.assignedTo === "object"
+                                      ? ticket.assignedTo?.profile?.firstName &&
+                                        ticket.assignedTo?.profile?.lastName
+                                        ? `${ticket.assignedTo.profile.firstName} ${ticket.assignedTo.profile.lastName}`
+                                        : ticket.assignedTo?.email || "-"
+                                      : ticket.assignedTo || "-"}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                                     {formatDate(ticket.createdAt)}
@@ -855,7 +1274,13 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                                     {formatDate(ticket.updatedAt)}
                                   </td>
                                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right ticket-actions">
-                                    <button className="text-gray-400 hover:text-white transition-colors">
+                                    <button
+                                      className="text-gray-400 hover:text-white transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openTicketDetail(ticket);
+                                      }}
+                                    >
                                       <FaEllipsisH />
                                     </button>
                                   </td>
@@ -887,7 +1312,16 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                                               {ticket.assignedTo && (
                                                 <div className="bg-gray-700/50 px-3 py-1 rounded-full text-xs">
                                                   Assigned to:{" "}
-                                                  {ticket.assignedTo}
+                                                  {typeof ticket.assignedTo ===
+                                                  "object"
+                                                    ? ticket.assignedTo?.profile
+                                                        ?.firstName &&
+                                                      ticket.assignedTo?.profile
+                                                        ?.lastName
+                                                      ? `${ticket.assignedTo.profile.firstName} ${ticket.assignedTo.profile.lastName}`
+                                                      : ticket.assignedTo
+                                                          ?.email || "Unknown"
+                                                    : ticket.assignedTo}
                                                 </div>
                                               )}
                                             </div>
@@ -1135,18 +1569,521 @@ const TicketDetailModal = ({
 }) => {
   const [activeTab, setActiveTab] = useState("details");
   const [analyticsModalOpen, setAnalyticsModalOpen] = useState(false);
+  const [showCommentForm, setShowCommentForm] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [isInternalComment, setIsInternalComment] = useState(false);
+  const [isAddingComment, setIsAddingComment] = useState(false);
+  const [showStatusForm, setShowStatusForm] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [showAssignForm, setShowAssignForm] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState("");
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedSLAPolicy, setSelectedSLAPolicy] = useState<string>("");
+  const [showSLAForm, setShowSLAForm] = useState(false);
+  const [pauseReason, setPauseReason] = useState<string>("");
+  const [showPauseForm, setShowPauseForm] = useState(false);
+
+  // Import the mutations and queries
+  const [addComment] = useAddCommentMutation();
+  const [updateTicket] = useUpdateTicketMutation();
+
+  // Get ticket data with refetch capability
+  const { refetch } = useGetTicketByIdQuery(ticket?._id || ticket?.id || "", {
+    skip: !ticket?._id && !ticket?.id, // Skip if no ticket ID
+    refetchOnMountOrArgChange: true,
+  });
+
+  // Get ticket audit log data
+  const { data: groupedActivities, isLoading: isLoadingActivities } =
+    useGetTicketAuditLogQuery(ticket?._id || ticket?.id || "", {
+      skip: !ticket?._id && !ticket?.id,
+    });
+
+  // Get SLA policies
+  const { data: slaPolicies, isLoading: isLoadingSLAPolicies } =
+    useGetSLAPoliciesQuery();
+
+  // SLA mutations
+  const [applyPolicy, { isLoading: isApplyingSLA }] =
+    useApplyPolicyToTicketMutation();
+  const [pauseSLA, { isLoading: isPausingSLA }] = usePauseSLAMutation();
+  const [resumeSLA, { isLoading: isResumingSLA }] = useResumeSLAMutation();
+
+  const [assignTicket] = useAssignTicketMutation();
+
+  // Handle adding a comment
+  const handleAddComment = async () => {
+    if (!ticket) return;
+
+    // Validate comment text
+    const trimmedText = commentText.trim();
+    if (!trimmedText) {
+      toast.error("Comment text cannot be empty");
+      return;
+    }
+
+    setIsAddingComment(true);
+    try {
+      console.log("Comment text before sending:", {
+        rawText: commentText,
+        trimmedText,
+        length: trimmedText.length,
+        isInternal: isInternalComment,
+      });
+
+      // Use direct fetch approach since it's working reliably
+      const ticketId = ticket._id || ticket.id;
+      const commentData = {
+        text: trimmedText,
+        isInternal: isInternalComment,
+      };
+
+      console.log("Sending comment data:", JSON.stringify(commentData));
+
+      const response = await fetch(`/api/tickets/${ticketId}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(commentData),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error adding comment:", errorText);
+        throw new Error(`Failed to add comment: ${errorText}`);
+      }
+
+      // Parse the response as JSON
+      try {
+        const responseText = await response.text();
+        const responseData = JSON.parse(responseText);
+        console.log("Comment added successfully, response:", responseData);
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        // Continue anyway since we know the request succeeded
+      }
+
+      // Reset form
+      setCommentText("");
+      setIsInternalComment(false);
+      setShowCommentForm(false);
+      toast.success("Comment added successfully");
+
+      // Subscribe to ticket updates if not already subscribed
+      ticketSocket.subscribeToTicket(ticketId);
+
+      // Refetch ticket to get updated comments
+      refetch();
+
+      // Reset form
+      setCommentText("");
+      setIsInternalComment(false);
+      setShowCommentForm(false);
+      toast.success("Comment added successfully");
+
+      // Subscribe to ticket updates if not already subscribed
+      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+
+      // Refetch ticket to get updated comments
+      refetch();
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      toast.error("Failed to add comment. Please try again.");
+    } finally {
+      setIsAddingComment(false);
+    }
+  };
+
+  // Initialize selected status when ticket changes
+  useEffect(() => {
+    if (ticket) {
+      setSelectedStatus(ticket.status);
+    }
+  }, [ticket]);
+
+  // Fetch users when assign form is opened
+  useEffect(() => {
+    if (showAssignForm) {
+      fetchUsers();
+    }
+  }, [showAssignForm]);
+
+  // Handle status change
+  const handleStatusChange = async () => {
+    if (!ticket || selectedStatus === ticket.status) {
+      setShowStatusForm(false);
+      return;
+    }
+
+    // Validate status is one of the allowed values
+    const validStatuses = [
+      "new",
+      "assigned",
+      "in_progress",
+      "on_hold",
+      "pending_customer",
+      "resolved",
+      "closed",
+    ];
+    if (!validStatuses.includes(selectedStatus)) {
+      toast.error(`Invalid status: ${selectedStatus}`);
+      return;
+    }
+
+    setIsChangingStatus(true);
+    try {
+      await updateTicket({
+        id: ticket._id || ticket.id,
+        data: {
+          status: selectedStatus as
+            | "new"
+            | "assigned"
+            | "in_progress"
+            | "on_hold"
+            | "pending_customer"
+            | "resolved"
+            | "closed",
+        },
+      }).unwrap();
+
+      // Reset form
+      setShowStatusForm(false);
+      toast.success(`Ticket status updated to ${selectedStatus}`);
+
+      // Subscribe to ticket updates if not already subscribed
+      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+    } catch (error) {
+      console.error("Error updating ticket status:", error);
+      toast.error("Failed to update ticket status. Please try again.");
+    } finally {
+      setIsChangingStatus(false);
+    }
+  };
+
+  // Fetch users for assignment
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      // This would normally be an API call to get users
+      // For now, we'll use a mock implementation
+      const response = await fetch("/api/users?role=team_member,team_lead");
+      if (!response.ok) {
+        throw new Error("Failed to fetch users");
+      }
+      const data = await response.json();
+      setUsers(data.data || []);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to load users. Please try again.");
+      // Mock data for demonstration
+      setUsers([
+        {
+          _id: "user1",
+          email: "john.doe@example.com",
+          profile: { firstName: "John", lastName: "Doe" },
+        },
+        {
+          _id: "user2",
+          email: "jane.smith@example.com",
+          profile: { firstName: "Jane", lastName: "Smith" },
+        },
+        {
+          _id: "user3",
+          email: "mike.tech@example.com",
+          profile: { firstName: "Mike", lastName: "Tech" },
+        },
+      ]);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  // Handle assign ticket
+  const handleAssignTicket = async () => {
+    if (!ticket || !selectedAssignee) {
+      setShowAssignForm(false);
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      await assignTicket({
+        id: ticket._id || ticket.id,
+        data: { assigneeId: selectedAssignee },
+      }).unwrap();
+
+      // Reset form
+      setShowAssignForm(false);
+      setSelectedAssignee("");
+      toast.success("Ticket assigned successfully");
+
+      // Subscribe to ticket updates if not already subscribed
+      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+    } catch (error) {
+      console.error("Error assigning ticket:", error);
+      toast.error("Failed to assign ticket. Please try again.");
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Handle applying SLA policy
+  const handleApplySLAPolicy = async () => {
+    if (!ticket || !selectedSLAPolicy) {
+      setShowSLAForm(false);
+      return;
+    }
+
+    try {
+      await applyPolicy({
+        ticketId: ticket._id || ticket.id,
+        data: { policyId: selectedSLAPolicy },
+      }).unwrap();
+
+      // Reset form
+      setShowSLAForm(false);
+      setSelectedSLAPolicy("");
+      toast.success("SLA policy applied successfully");
+
+      // Refetch ticket data
+      refetch();
+    } catch (error) {
+      console.error("Error applying SLA policy:", error);
+      toast.error("Failed to apply SLA policy. Please try again.");
+    }
+  };
+
+  // Handle pausing SLA
+  const handlePauseSLA = async () => {
+    if (!ticket || !pauseReason) {
+      setShowPauseForm(false);
+      return;
+    }
+
+    try {
+      await pauseSLA({
+        ticketId: ticket._id || ticket.id,
+        data: { reason: pauseReason },
+      }).unwrap();
+
+      // Reset form
+      setShowPauseForm(false);
+      setPauseReason("");
+      toast.success("SLA paused successfully");
+
+      // Refetch ticket data
+      refetch();
+    } catch (error) {
+      console.error("Error pausing SLA:", error);
+      toast.error("Failed to pause SLA. Please try again.");
+    }
+  };
+
+  // Handle resuming SLA
+  const handleResumeSLA = async () => {
+    if (!ticket) return;
+
+    try {
+      await resumeSLA(ticket._id || ticket.id).unwrap();
+      toast.success("SLA resumed successfully");
+
+      // Refetch ticket data
+      refetch();
+    } catch (error) {
+      console.error("Error resuming SLA:", error);
+      toast.error("Failed to resume SLA. Please try again.");
+    }
+  };
+
+  // Handle updating ticket status - alias for handleStatusChange
+  const handleUpdateStatus = handleStatusChange;
+
+  // Calculate SLA percentage complete
+  const calculateSLAPercentage = (ticket: Ticket) => {
+    if (!ticket.sla || !ticket.sla.resolutionDeadline) return 0;
+
+    const now = new Date();
+    const created = new Date(ticket.createdAt);
+    const deadline = new Date(ticket.sla.resolutionDeadline);
+
+    // If deadline has passed, return 100%
+    if (now > deadline) return 100;
+
+    // Calculate percentage based on time elapsed
+    const totalTime = deadline.getTime() - created.getTime();
+    const elapsedTime = now.getTime() - created.getTime();
+
+    return Math.min(Math.round((elapsedTime / totalTime) * 100), 100);
+  };
+
+  // Subscribe to ticket updates when the modal is opened
+  useEffect(() => {
+    if (isOpen && ticket) {
+      // Subscribe to ticket updates
+      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+
+      // Set up event listeners for real-time updates
+      const handleTicketUpdated = () => {
+        // Refetch the ticket data
+        refetch();
+        toast.success("Ticket updated");
+      };
+
+      const handleCommentAdded = () => {
+        // Refetch the ticket data
+        refetch();
+        toast.success("New comment added");
+      };
+
+      const handleStatusChanged = () => {
+        // Refetch the ticket data
+        refetch();
+        toast.success("Ticket status changed");
+      };
+
+      const handleTicketAssigned = () => {
+        // Refetch the ticket data
+        refetch();
+        toast.success("Ticket assigned");
+      };
+
+      // Register event listeners
+      const unsubscribeUpdated = ticketSocket.onTicketEvent(
+        "ticket:updated",
+        handleTicketUpdated
+      );
+      const unsubscribeCommentAdded = ticketSocket.onTicketEvent(
+        "ticket:comment_added",
+        handleCommentAdded
+      );
+      const unsubscribeStatusChanged = ticketSocket.onTicketEvent(
+        "ticket:status_changed",
+        handleStatusChanged
+      );
+      const unsubscribeAssigned = ticketSocket.onTicketEvent(
+        "ticket:assigned",
+        handleTicketAssigned
+      );
+
+      // Return cleanup function to unsubscribe when modal is closed
+      return () => {
+        ticketSocket.unsubscribeFromTicket(ticket._id || ticket.id);
+        unsubscribeUpdated();
+        unsubscribeCommentAdded();
+        unsubscribeStatusChanged();
+        unsubscribeAssigned();
+      };
+    }
+  }, [isOpen, ticket]);
 
   // Early return if ticket is null
   if (!ticket) return null;
 
-  // Sample data for activity chart
-  const activityData = [
-    { name: "Mon", comments: 3, updates: 2 },
-    { name: "Tue", comments: 5, updates: 1 },
-    { name: "Wed", comments: 2, updates: 4 },
-    { name: "Thu", comments: 0, updates: 1 },
-    { name: "Fri", comments: 4, updates: 3 },
-  ];
+  // Generate activity data from ticket history
+  const generateActivityData = (ticket: Ticket) => {
+    try {
+      // Get the last 7 days
+      const days = [];
+      const today = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        days.push({
+          date,
+          name: date.toLocaleDateString("en-US", { weekday: "short" }),
+          comments: 0,
+          updates: 0,
+        });
+      }
+
+      // Count status changes from statusHistory
+      if (ticket.statusHistory && Array.isArray(ticket.statusHistory)) {
+        ticket.statusHistory.forEach((status) => {
+          if (!status.timestamp) return;
+
+          const statusDate = new Date(status.timestamp);
+          const dayIndex = days.findIndex(
+            (day) =>
+              day.date.getDate() === statusDate.getDate() &&
+              day.date.getMonth() === statusDate.getMonth() &&
+              day.date.getFullYear() === statusDate.getFullYear()
+          );
+
+          if (dayIndex !== -1) {
+            days[dayIndex].updates++;
+          }
+        });
+      }
+
+      // Count comments
+      if (ticket.comments && Array.isArray(ticket.comments)) {
+        ticket.comments.forEach((comment) => {
+          if (!comment.createdAt) return;
+
+          const commentDate = new Date(comment.createdAt);
+          const dayIndex = days.findIndex(
+            (day) =>
+              day.date.getDate() === commentDate.getDate() &&
+              day.date.getMonth() === commentDate.getMonth() &&
+              day.date.getFullYear() === commentDate.getFullYear()
+          );
+
+          if (dayIndex !== -1) {
+            days[dayIndex].comments++;
+          }
+        });
+      }
+
+      // Count audit log entries
+      if (ticket.auditLog && Array.isArray(ticket.auditLog)) {
+        ticket.auditLog.forEach((entry) => {
+          if (!entry.timestamp) return;
+
+          const entryDate = new Date(entry.timestamp);
+          const dayIndex = days.findIndex(
+            (day) =>
+              day.date.getDate() === entryDate.getDate() &&
+              day.date.getMonth() === entryDate.getMonth() &&
+              day.date.getFullYear() === entryDate.getFullYear()
+          );
+
+          if (dayIndex !== -1) {
+            if (entry.action === "commented") {
+              days[dayIndex].comments++;
+            } else if (
+              entry.action === "status_changed" ||
+              entry.action === "updated" ||
+              entry.action === "assigned"
+            ) {
+              days[dayIndex].updates++;
+            }
+          }
+        });
+      }
+
+      return days;
+    } catch (error) {
+      console.error("Error generating activity data:", error);
+      // Return default data if there's an error
+      return [
+        { name: "Mon", comments: 0, updates: 0 },
+        { name: "Tue", comments: 0, updates: 0 },
+        { name: "Wed", comments: 0, updates: 0 },
+        { name: "Thu", comments: 0, updates: 0 },
+        { name: "Fri", comments: 0, updates: 0 },
+        { name: "Sat", comments: 0, updates: 0 },
+        { name: "Sun", comments: 0, updates: 0 },
+      ];
+    }
+  };
+
+  // Generate activity data from the ticket
+  const activityData = ticket ? generateActivityData(ticket) : [];
 
   // Sample data for response time pie chart
   const responseTimeData = [
@@ -1170,89 +2107,256 @@ const TicketDetailModal = ({
       }))
     : null;
 
-  // Add this mock activity data for the selected ticket
-  // This would normally come from your API
-  const getTicketActivityEvents = (ticketId: string) => {
-    // Mock data - would be fetched from API in real implementation
-    return [
-      {
-        id: "act-1",
-        type: "status_change",
-        timestamp: "2023-10-15T10:30:00Z",
-        user: {
-          id: "user1",
-          name: "John Doe",
-          avatar: "/avatars/john.jpg",
-        },
-        details: {
-          title: "Status Changed",
-          from: "Open",
-          to: "In Progress",
-        },
-      },
-      {
-        id: "act-2",
-        type: "assignment",
-        timestamp: "2023-10-15T10:35:00Z",
-        user: {
-          id: "user2",
-          name: "Sarah Admin",
-          avatar: "/avatars/sarah.jpg",
-        },
-        details: {
-          title: "Ticket Assigned",
-          description: "Assigned to Server Infrastructure team",
-        },
-      },
-      {
-        id: "act-3",
-        type: "comment",
-        timestamp: "2023-10-15T11:20:00Z",
-        user: {
-          id: "user3",
-          name: "Mike Tech",
-          avatar: "/avatars/mike.jpg",
-        },
-        details: {
-          title: "Added Comment",
-          description:
-            "Investigating the server logs to identify the root cause of connectivity issues.",
-        },
-      },
-      {
-        id: "act-4",
-        type: "sla_update",
-        timestamp: "2023-10-16T09:15:00Z",
-        user: {
-          id: "system",
-          name: "System",
-        },
-        details: {
-          title: "SLA Warning",
-          description: "This ticket has reached 75% of its resolution SLA",
-        },
-      },
-      {
-        id: "act-5",
-        type: "edit",
-        timestamp: "2023-10-16T14:20:00Z",
-        user: {
-          id: "user3",
-          name: "Mike Tech",
-          avatar: "/avatars/mike.jpg",
-        },
-        details: {
-          title: "Ticket Updated",
-          description: "Added additional details about the server environment",
-        },
-      },
-    ];
+  // Convert audit log entries to activity events for the ActivityMindMap component
+  const getTicketActivityEvents = (ticket: Ticket) => {
+    try {
+      // Validate ticket and auditLog
+      if (!ticket) {
+        console.log("No ticket provided to getTicketActivityEvents");
+        return [];
+      }
+
+      // If no auditLog exists, use statusHistory as a fallback
+      let activitySource = [];
+
+      if (
+        ticket.auditLog &&
+        Array.isArray(ticket.auditLog) &&
+        ticket.auditLog.length > 0
+      ) {
+        activitySource = ticket.auditLog;
+      } else if (
+        ticket.statusHistory &&
+        Array.isArray(ticket.statusHistory) &&
+        ticket.statusHistory.length > 0
+      ) {
+        // Convert statusHistory to audit log format
+        activitySource = ticket.statusHistory.map((status) => ({
+          action: "status_changed",
+          performedBy: status.changedBy,
+          timestamp: status.timestamp,
+          details: {
+            oldStatus: "previous",
+            newStatus: status.status,
+            reason: status.reason,
+          },
+        }));
+      } else if (
+        ticket.comments &&
+        Array.isArray(ticket.comments) &&
+        ticket.comments.length > 0
+      ) {
+        // Convert comments to audit log format
+        activitySource = ticket.comments.map((comment) => ({
+          action: "commented",
+          performedBy: comment.author,
+          timestamp: comment.createdAt,
+          details: {
+            comment: comment.text,
+            isInternal: comment.isInternal,
+          },
+        }));
+      } else {
+        // Create a minimal audit log with ticket creation
+        activitySource = [
+          {
+            action: "created",
+            performedBy: ticket.createdBy,
+            timestamp: ticket.createdAt,
+            details: {
+              title: ticket.title,
+            },
+          },
+        ];
+      }
+
+      // Filter out any undefined or invalid entries
+      return activitySource
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry, index) => {
+          // Determine the event type based on the action
+          let type:
+            | "status_change"
+            | "assignment"
+            | "comment"
+            | "sla_update"
+            | "edit" = "edit";
+
+          if (!entry.action) {
+            type = "edit";
+          } else if (
+            entry.action === "status_changed" ||
+            entry.action.includes("status")
+          ) {
+            type = "status_change";
+          } else if (
+            entry.action === "assigned" ||
+            entry.action.includes("assign")
+          ) {
+            type = "assignment";
+          } else if (
+            entry.action === "commented" ||
+            entry.action.includes("comment")
+          ) {
+            type = "comment";
+          } else if (
+            typeof entry.action === "string" &&
+            entry.action.includes("sla")
+          ) {
+            type = "sla_update";
+          }
+
+          // Extract user information with robust fallbacks
+          let userName = "Unknown";
+          let userId = "unknown";
+
+          if (typeof entry.performedBy === "object" && entry.performedBy) {
+            // Try to get user name from profile
+            if (
+              entry.performedBy.profile?.firstName &&
+              entry.performedBy.profile?.lastName
+            ) {
+              userName = `${entry.performedBy.profile.firstName} ${entry.performedBy.profile.lastName}`;
+            } else if (entry.performedBy.fullName) {
+              userName = entry.performedBy.fullName;
+            } else if (entry.performedBy.email) {
+              userName = entry.performedBy.email;
+            }
+
+            // Get user ID
+            userId = entry.performedBy._id || entry.performedBy.id || "unknown";
+          } else if (typeof entry.performedBy === "string") {
+            userId = entry.performedBy;
+            // Try to find user info if we have the ID
+            if (
+              ticket.createdBy &&
+              ((typeof ticket.createdBy === "object" &&
+                ticket.createdBy._id === entry.performedBy) ||
+                ticket.createdBy === entry.performedBy)
+            ) {
+              if (typeof ticket.createdBy === "object") {
+                if (
+                  ticket.createdBy.profile?.firstName &&
+                  ticket.createdBy.profile?.lastName
+                ) {
+                  userName = `${ticket.createdBy.profile.firstName} ${ticket.createdBy.profile.lastName}`;
+                } else if (ticket.createdBy.email) {
+                  userName = ticket.createdBy.email;
+                }
+              }
+            }
+          }
+
+          // Format action title with proper capitalization
+          let actionTitle = "Activity";
+          if (entry.action) {
+            if (entry.action === "status_changed") {
+              actionTitle = "Status Changed";
+            } else if (entry.action === "assigned") {
+              actionTitle = "Ticket Assigned";
+            } else if (entry.action === "commented") {
+              actionTitle = "Added Comment";
+            } else if (entry.action === "created") {
+              actionTitle = "Ticket Created";
+            } else if (typeof entry.action === "string") {
+              actionTitle = entry.action
+                .split("_")
+                .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(" ");
+            }
+          }
+
+          // Create description with fallbacks
+          let description = "";
+          if (entry.details?.comment) {
+            description = entry.details.comment;
+          } else if (entry.action === "status_changed") {
+            description = `Changed from ${
+              entry.details?.oldStatus || "previous status"
+            } to ${
+              entry.details?.newStatus || entry.details?.status || "new status"
+            }`;
+
+            if (entry.details?.reason) {
+              description += ` (${entry.details.reason})`;
+            }
+          } else if (entry.action === "assigned") {
+            description = `Assigned to ${
+              entry.details?.assigneeName ||
+              (entry.details?.newAssignee &&
+              typeof entry.details.newAssignee === "object"
+                ? entry.details.newAssignee.email || "team member"
+                : entry.details?.newAssignee || "team member")
+            }`;
+          } else if (entry.action === "created") {
+            description = `Ticket created with title: ${ticket.title}`;
+          }
+
+          // Create the activity event with robust defaults
+          return {
+            id: entry._id || `act-${index}`,
+            type,
+            timestamp: entry.timestamp || new Date().toISOString(),
+            user: {
+              id: userId,
+              name: userName,
+            },
+            details: {
+              title: actionTitle,
+              description: description,
+              from: entry.details?.oldStatus || entry.details?.from,
+              to:
+                entry.details?.newStatus ||
+                entry.details?.status ||
+                entry.details?.to,
+            },
+          };
+        })
+        .sort((a, b) => {
+          // Handle potential undefined values
+          if (!a || !b) return 0;
+          if (!a.timestamp) return 1; // Push entries without timestamp to the end
+          if (!b.timestamp) return -1;
+
+          try {
+            return (
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+          } catch (error) {
+            console.error("Error sorting by timestamp:", error);
+            return 0; // Keep original order if there's an error
+          }
+        }); // Sort by timestamp, newest first
+    } catch (error) {
+      console.error("Error processing ticket activity:", error);
+      return []; // Return empty array in case of any error
+    }
   };
 
-  // Use ticket instead of selectedTicket
-  const activityEvents = getTicketActivityEvents(ticket.id);
+  // Use the ticket object to get activity events
+  let activityEvents = [];
+  try {
+    activityEvents = getTicketActivityEvents(ticket);
+  } catch (error) {
+    console.error("Error getting ticket activity events:", error);
+    // Use empty array as fallback
+  }
 
-  const ticketAnalytics = getTicketAnalytics(ticket.id);
+  // Get ticket analytics with error handling
+  let ticketAnalytics = {
+    avgResponseTime: "N/A",
+    avgResolutionTime: "N/A",
+    similarTicketsCount: 0,
+    recurrenceRate: "N/A",
+    escalationRate: "N/A",
+    firstContactResolution: "N/A",
+  };
+  try {
+    ticketAnalytics = getTicketAnalytics(ticket);
+  } catch (error) {
+    console.error("Error getting ticket analytics:", error);
+    // Use default values as fallback
+  }
 
   return (
     <>
@@ -1287,7 +2391,12 @@ const TicketDetailModal = ({
                     <div className="flex justify-between items-center px-6 py-4">
                       <Dialog.Title className="text-xl font-semibold text-white flex items-center gap-2">
                         <FaTicketAlt className="text-blue-400" />
-                        <span>{ticket.id}</span>
+                        <span className="flex items-center gap-2">
+                          <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-sm">
+                            {ticket.ticketNumber || ticket.id}
+                          </span>
+                          {ticket.title}
+                        </span>
                       </Dialog.Title>
                       <div className="flex items-center gap-3">
                         <button
@@ -1359,13 +2468,70 @@ const TicketDetailModal = ({
                       <div className="bg-gray-700/30 rounded-lg p-5 flex items-center justify-between">
                         <div>
                           <h3 className="text-gray-400 text-sm">Status</h3>
-                          <div className="mt-1">
+                          <div className="mt-1 flex items-center gap-2">
                             {getStatusBadge(ticket.status)}
+                            <button
+                              onClick={() => setShowStatusForm(true)}
+                              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            >
+                              Change
+                            </button>
                           </div>
+
+                          {/* Status change dropdown */}
+                          {showStatusForm && (
+                            <div className="mt-3 bg-gray-800 rounded-md p-3 border border-gray-700">
+                              <h4 className="text-sm font-medium text-white mb-2">
+                                Change Status
+                              </h4>
+                              <select
+                                className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white mb-3"
+                                value={selectedStatus}
+                                onChange={(e) =>
+                                  setSelectedStatus(e.target.value)
+                                }
+                              >
+                                <option value="new">New</option>
+                                <option value="assigned">Assigned</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="on_hold">On Hold</option>
+                                <option value="pending_customer">
+                                  Pending Customer
+                                </option>
+                                <option value="resolved">Resolved</option>
+                                <option value="closed">Closed</option>
+                              </select>
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  className="px-2 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                                  onClick={() => setShowStatusForm(false)}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  className="px-2 py-1 bg-blue-500 text-white text-xs rounded-md hover:bg-blue-600 transition-colors"
+                                  onClick={handleStatusChange}
+                                  disabled={isChangingStatus}
+                                >
+                                  {isChangingStatus ? "Updating..." : "Update"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="text-2xl text-gray-400">
+                          {ticket.status === "new" && <FaExclamationCircle />}
                           {ticket.status === "open" && <FaExclamationCircle />}
-                          {ticket.status === "in_progress" && <FaClock />}
+                          {ticket.status === "assigned" && (
+                            <FaUserPlus className="text-blue-400" />
+                          )}
+                          {ticket.status === "in_progress" && (
+                            <FaClock className="text-yellow-400" />
+                          )}
+                          {ticket.status === "on_hold" ||
+                          ticket.status === "pending_customer" ? (
+                            <FaTimesCircle className="text-orange-400" />
+                          ) : null}
                           {ticket.status === "resolved" && (
                             <FaCheckCircle className="text-green-400" />
                           )}
@@ -1420,40 +2586,57 @@ const TicketDetailModal = ({
                               <h3 className="text-lg font-medium text-white mb-4">
                                 Activity Timeline
                               </h3>
-                              <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart
-                                    data={activityData}
-                                    margin={{
-                                      top: 5,
-                                      right: 30,
-                                      left: 0,
-                                      bottom: 5,
-                                    }}
+                              {activityData && activityData.length > 0 ? (
+                                <div className="h-64">
+                                  <ResponsiveContainer
+                                    width="100%"
+                                    height="100%"
                                   >
-                                    <XAxis dataKey="name" stroke="#9ca3af" />
-                                    <YAxis stroke="#9ca3af" />
-                                    <Tooltip
-                                      contentStyle={{
-                                        backgroundColor: "#374151",
-                                        borderColor: "#4b5563",
-                                        color: "#e5e7eb",
+                                    <BarChart
+                                      data={activityData}
+                                      margin={{
+                                        top: 5,
+                                        right: 30,
+                                        left: 0,
+                                        bottom: 5,
                                       }}
-                                    />
-                                    <Legend />
-                                    <Bar
-                                      dataKey="comments"
-                                      fill="#3b82f6"
-                                      name="Comments"
-                                    />
-                                    <Bar
-                                      dataKey="updates"
-                                      fill="#10b981"
-                                      name="Status Updates"
-                                    />
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </div>
+                                    >
+                                      <XAxis dataKey="name" stroke="#9ca3af" />
+                                      <YAxis stroke="#9ca3af" />
+                                      <RechartsTooltip
+                                        contentStyle={{
+                                          backgroundColor: "#374151",
+                                          borderColor: "#4b5563",
+                                          color: "#e5e7eb",
+                                        }}
+                                      />
+                                      <Legend />
+                                      <Bar
+                                        dataKey="comments"
+                                        fill="#3b82f6"
+                                        name="Comments"
+                                      />
+                                      <Bar
+                                        dataKey="updates"
+                                        fill="#10b981"
+                                        name="Status Updates"
+                                      />
+                                    </BarChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              ) : (
+                                <div className="h-64 flex items-center justify-center bg-gray-800/30 rounded-lg">
+                                  <div className="text-center">
+                                    <p className="text-gray-400 mb-2">
+                                      No activity data available yet
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                      Activity will be shown here as actions are
+                                      taken on this ticket
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             {/* Comments section */}
@@ -1462,63 +2645,181 @@ const TicketDetailModal = ({
                                 <h3 className="text-lg font-medium text-white">
                                   Comments & Updates
                                 </h3>
-                                <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 text-sm">
+                                <button
+                                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-md transition-colors flex items-center gap-1 text-sm"
+                                  onClick={() => setShowCommentForm(true)}
+                                >
                                   <FaComment size={14} />
                                   Add Comment
                                 </button>
                               </div>
 
+                              {/* Comment form */}
+                              {showCommentForm && (
+                                <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                                  <h4 className="font-medium text-white mb-2">
+                                    Add a Comment
+                                  </h4>
+                                  <textarea
+                                    className="w-full bg-gray-800 border border-gray-600 rounded-md p-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 mb-3"
+                                    placeholder="Type your comment here..."
+                                    rows={4}
+                                    value={commentText}
+                                    onChange={(e) =>
+                                      setCommentText(e.target.value)
+                                    }
+                                  />
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        id="internal-comment"
+                                        className="rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50"
+                                        checked={isInternalComment}
+                                        onChange={(e) =>
+                                          setIsInternalComment(e.target.checked)
+                                        }
+                                      />
+                                      <label
+                                        htmlFor="internal-comment"
+                                        className="text-sm text-gray-300"
+                                      >
+                                        Internal comment (not visible to
+                                        customer)
+                                      </label>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        className="px-3 py-1.5 bg-gray-600 text-white rounded-md hover:bg-gray-500 transition-colors"
+                                        onClick={() => {
+                                          setShowCommentForm(false);
+                                          setCommentText("");
+                                          setIsInternalComment(false);
+                                        }}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        className="px-3 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                        onClick={handleAddComment}
+                                        disabled={
+                                          !commentText.trim() || isAddingComment
+                                        }
+                                      >
+                                        {isAddingComment ? (
+                                          <>
+                                            <span className="animate-spin">
+                                              ⏳
+                                            </span>{" "}
+                                            Sending...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <FaComment size={14} /> Add Comment
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
                               {ticket.comments && ticket.comments.length > 0 ? (
                                 <div className="space-y-4">
-                                  {ticket.comments.map((comment) => (
-                                    <div
-                                      key={comment.id}
-                                      className="bg-gray-700/50 rounded-lg p-4"
-                                    >
-                                      <div className="flex justify-between items-center mb-3">
-                                        <div className="flex items-center gap-2">
-                                          <div className="bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center">
-                                            <FaUser />
+                                  {[...ticket.comments]
+                                    .reverse()
+                                    .map((comment, index) => (
+                                      <div
+                                        key={comment._id || index}
+                                        className="bg-gray-700/50 rounded-lg p-4"
+                                      >
+                                        <div className="flex justify-between items-center mb-3">
+                                          <div className="flex items-center gap-2">
+                                            <div className="bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center">
+                                              <FaUser />
+                                            </div>
+                                            <div>
+                                              <span className="font-medium text-white">
+                                                {typeof comment.author ===
+                                                "object"
+                                                  ? comment.author?.fullName || // Use fullName if available
+                                                    (comment.author?.profile
+                                                      ?.firstName &&
+                                                    comment.author?.profile
+                                                      ?.lastName
+                                                      ? `${comment.author.profile.firstName} ${comment.author.profile.lastName}`
+                                                      : comment.author?.email ||
+                                                        "Unknown")
+                                                  : comment.author || "Unknown"}
+                                                {typeof comment.author ===
+                                                  "object" &&
+                                                  comment.author?.role && (
+                                                    <span className="ml-1 text-xs text-gray-400">
+                                                      ({comment.author.role})
+                                                    </span>
+                                                  )}
+                                              </span>
+                                              <p className="text-xs text-gray-400">
+                                                {formatDate(comment.createdAt)}
+                                              </p>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <span className="font-medium text-white">
-                                              {comment.author}
+                                          {comment.isInternal && (
+                                            <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-0.5 rounded-full">
+                                              Internal
                                             </span>
-                                            <p className="text-xs text-gray-400">
-                                              {formatDate(comment.createdAt)}
+                                          )}
+                                        </div>
+                                        <p className="text-gray-200 mb-3">
+                                          {comment.text &&
+                                          typeof comment.text === "string" &&
+                                          comment.text.trim() ? (
+                                            comment.text
+                                          ) : (
+                                            <span className="text-gray-400 italic">
+                                              [No comment text]
+                                            </span>
+                                          )}
+                                        </p>
+                                        {/* Debug info */}
+                                        {process.env.NODE_ENV ===
+                                          "development" && (
+                                          <div className="text-xs text-gray-500 border-t border-gray-700 pt-2 mt-2">
+                                            <p>
+                                              Debug:{" "}
+                                              {JSON.stringify({
+                                                id: comment._id,
+                                                hasText: !!comment.text,
+                                                textType: typeof comment.text,
+                                                textLength:
+                                                  comment.text?.length || 0,
+                                              })}
                                             </p>
                                           </div>
-                                        </div>
-                                        {comment.isInternal && (
-                                          <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-0.5 rounded-full">
-                                            Internal
-                                          </span>
                                         )}
+                                        {comment.attachments &&
+                                          comment.attachments.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                              {comment.attachments.map(
+                                                (attachment, attIndex) => (
+                                                  <a
+                                                    key={
+                                                      attachment._id || attIndex
+                                                    }
+                                                    href={attachment.path}
+                                                    className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded flex items-center gap-1"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                  >
+                                                    <FaPaperclip size={12} />
+                                                    {attachment.filename}
+                                                  </a>
+                                                )
+                                              )}
+                                            </div>
+                                          )}
                                       </div>
-                                      <p className="text-gray-200 mb-3">
-                                        {comment.text}
-                                      </p>
-                                      {comment.attachments &&
-                                        comment.attachments.length > 0 && (
-                                          <div className="flex flex-wrap gap-2">
-                                            {comment.attachments.map(
-                                              (attachment) => (
-                                                <a
-                                                  key={attachment.id}
-                                                  href={attachment.url}
-                                                  className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded flex items-center gap-1"
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                >
-                                                  <FaPaperclip size={12} />
-                                                  {attachment.filename}
-                                                </a>
-                                              )
-                                            )}
-                                          </div>
-                                        )}
-                                    </div>
-                                  ))}
+                                    ))}
                                 </div>
                               ) : (
                                 <div className="bg-gray-700/50 rounded-lg p-8 text-center">
@@ -1551,7 +2852,13 @@ const TicketDetailModal = ({
                                       <FaUser size={12} />
                                     </div>
                                     <p className="text-white">
-                                      {ticket.createdBy}
+                                      {typeof ticket.createdBy === "object"
+                                        ? ticket.createdBy?.profile
+                                            ?.firstName &&
+                                          ticket.createdBy?.profile?.lastName
+                                          ? `${ticket.createdBy.profile.firstName} ${ticket.createdBy.profile.lastName}`
+                                          : ticket.createdBy?.email || "Unknown"
+                                        : ticket.createdBy || "Unknown"}
                                     </p>
                                   </div>
                                 </div>
@@ -1576,17 +2883,95 @@ const TicketDetailModal = ({
 
                                 {ticket.assignedTo && (
                                   <div>
-                                    <p className="text-sm text-gray-400">
-                                      Assigned To
-                                    </p>
+                                    <div className="flex justify-between items-center">
+                                      <p className="text-sm text-gray-400">
+                                        Assigned To
+                                      </p>
+                                      <button
+                                        onClick={() => setShowAssignForm(true)}
+                                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                      >
+                                        Change
+                                      </button>
+                                    </div>
                                     <div className="flex items-center gap-2 mt-1">
                                       <div className="bg-green-500 rounded-full w-6 h-6 flex items-center justify-center">
                                         <FaUser size={12} />
                                       </div>
                                       <p className="text-white">
-                                        {ticket.assignedTo}
+                                        {typeof ticket.assignedTo === "object"
+                                          ? ticket.assignedTo?.profile
+                                              ?.firstName &&
+                                            ticket.assignedTo?.profile?.lastName
+                                            ? `${ticket.assignedTo.profile.firstName} ${ticket.assignedTo.profile.lastName}`
+                                            : ticket.assignedTo?.email ||
+                                              "Unknown"
+                                          : ticket.assignedTo || "Unassigned"}
                                       </p>
                                     </div>
+
+                                    {/* Assign form */}
+                                    {showAssignForm && (
+                                      <div className="mt-3 bg-gray-800 rounded-md p-3 border border-gray-700">
+                                        <h4 className="text-sm font-medium text-white mb-2">
+                                          Assign Ticket
+                                        </h4>
+                                        {isLoadingUsers ? (
+                                          <div className="text-center py-2">
+                                            <span className="animate-spin inline-block mr-2">
+                                              ⏳
+                                            </span>{" "}
+                                            Loading users...
+                                          </div>
+                                        ) : (
+                                          <select
+                                            className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white mb-3"
+                                            value={selectedAssignee}
+                                            onChange={(e) =>
+                                              setSelectedAssignee(
+                                                e.target.value
+                                              )
+                                            }
+                                          >
+                                            <option value="">
+                                              Select a user
+                                            </option>
+                                            {users?.map((user) => (
+                                              <option
+                                                key={user._id}
+                                                value={user._id}
+                                              >
+                                                {user.profile?.firstName &&
+                                                user.profile?.lastName
+                                                  ? `${user.profile.firstName} ${user.profile.lastName}`
+                                                  : user.email}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        )}
+                                        <div className="flex justify-end gap-2">
+                                          <button
+                                            className="px-2 py-1 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                                            onClick={() =>
+                                              setShowAssignForm(false)
+                                            }
+                                          >
+                                            Cancel
+                                          </button>
+                                          <button
+                                            className="px-2 py-1 bg-blue-500 text-white text-xs rounded-md hover:bg-blue-600 transition-colors"
+                                            onClick={handleAssignTicket}
+                                            disabled={
+                                              isAssigning || !selectedAssignee
+                                            }
+                                          >
+                                            {isAssigning
+                                              ? "Assigning..."
+                                              : "Assign"}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
 
@@ -1596,7 +2981,14 @@ const TicketDetailModal = ({
                                       Team
                                     </p>
                                     <p className="text-white mt-1">
-                                      {ticket.assignedTeam}
+                                      {typeof ticket.primaryTeam === "object"
+                                        ? typeof ticket.primaryTeam.teamId ===
+                                          "object"
+                                          ? ticket.primaryTeam.teamId.name
+                                          : ticket.primaryTeam.teamId
+                                        : ticket.assignedTeam ||
+                                          ticket.primaryTeam ||
+                                          "Unassigned"}
                                     </p>
                                   </div>
                                 )}
@@ -1622,12 +3014,124 @@ const TicketDetailModal = ({
                             </div>
 
                             {/* SLA section with visualization */}
-                            {ticket.sla && (
-                              <div className="bg-gray-700/30 rounded-lg p-5">
-                                <h3 className="text-lg font-medium text-white mb-4">
+                            <div className="bg-gray-700/30 rounded-lg p-5">
+                              <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-medium text-white">
                                   SLA Status
                                 </h3>
+                                {ticket.sla && ticket.sla.pausedAt ? (
+                                  <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                                    <FaPause size={10} /> Paused
+                                  </span>
+                                ) : ticket.sla ? (
+                                  <span className="bg-green-500/20 text-green-400 text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                                    <FaPlay size={10} /> Active
+                                  </span>
+                                ) : (
+                                  <span className="bg-gray-500/20 text-gray-400 text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                                    <FaClock size={10} /> Not Set
+                                  </span>
+                                )}
+                              </div>
 
+                              {!ticket.sla ? (
+                                <div className="space-y-4">
+                                  <div className="text-center py-6 bg-gray-800/50 rounded-lg">
+                                    <FaClock className="mx-auto text-gray-400 text-4xl mb-3" />
+                                    <p className="text-gray-300">
+                                      No SLA policy applied to this ticket
+                                    </p>
+                                    <p className="text-sm text-gray-400 mt-1">
+                                      Apply an SLA policy to set response and
+                                      resolution deadlines
+                                    </p>
+                                  </div>
+
+                                  {/* Apply SLA form */}
+                                  {showSLAForm ? (
+                                    <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                                      <h4 className="text-sm font-medium text-white mb-3">
+                                        Apply SLA Policy
+                                      </h4>
+                                      {isLoadingSLAPolicies ? (
+                                        <div className="text-center py-2">
+                                          <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                                          <p className="text-sm text-gray-400 mt-2">
+                                            Loading policies...
+                                          </p>
+                                        </div>
+                                      ) : slaPolicies &&
+                                        slaPolicies.length > 0 ? (
+                                        <>
+                                          <select
+                                            className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white mb-3"
+                                            value={selectedSLAPolicy}
+                                            onChange={(e) =>
+                                              setSelectedSLAPolicy(
+                                                e.target.value
+                                              )
+                                            }
+                                          >
+                                            <option value="">
+                                              Select a policy
+                                            </option>
+                                            {slaPolicies.map((policy) => (
+                                              <option
+                                                key={policy._id}
+                                                value={policy._id}
+                                              >
+                                                {policy.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <div className="flex justify-end gap-2">
+                                            <button
+                                              className="px-3 py-1.5 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                                              onClick={() =>
+                                                setShowSLAForm(false)
+                                              }
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                              onClick={handleApplySLAPolicy}
+                                              disabled={
+                                                isApplyingSLA ||
+                                                !selectedSLAPolicy
+                                              }
+                                            >
+                                              {isApplyingSLA ? (
+                                                <>
+                                                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                                                  Applying...
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <FaCheck size={10} /> Apply
+                                                </>
+                                              )}
+                                            </button>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="text-center py-2">
+                                          <p className="text-sm text-gray-400">
+                                            No SLA policies found
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setShowSLAForm(true)}
+                                      className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                                    >
+                                      <FaClock /> Apply SLA Policy
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
                                 <div className="space-y-4">
                                   {/* SLA pie chart */}
                                   <div className="h-40 mb-2">
@@ -1637,7 +3141,19 @@ const TicketDetailModal = ({
                                     >
                                       <PieChart>
                                         <Pie
-                                          data={responseTimeData}
+                                          data={[
+                                            {
+                                              name: "Elapsed",
+                                              value:
+                                                calculateSLAPercentage(ticket),
+                                            },
+                                            {
+                                              name: "Remaining",
+                                              value:
+                                                100 -
+                                                calculateSLAPercentage(ticket),
+                                            },
+                                          ]}
                                           cx="50%"
                                           cy="50%"
                                           innerRadius={40}
@@ -1651,18 +3167,17 @@ const TicketDetailModal = ({
                                             )}%`
                                           }
                                         >
-                                          {responseTimeData.map(
-                                            (entry, index) => (
-                                              <Cell
-                                                key={`cell-${index}`}
-                                                fill={
-                                                  COLORS[index % COLORS.length]
-                                                }
-                                              />
-                                            )
-                                          )}
+                                          <Cell
+                                            fill={
+                                              calculateSLAPercentage(ticket) >
+                                              75
+                                                ? "#f87171"
+                                                : "#4ade80"
+                                            }
+                                          />
+                                          <Cell fill="#374151" />
                                         </Pie>
-                                        <Tooltip
+                                        <RechartsTooltip
                                           contentStyle={{
                                             backgroundColor: "#374151",
                                             borderColor: "#4b5563",
@@ -1673,24 +3188,50 @@ const TicketDetailModal = ({
                                     </ResponsiveContainer>
                                   </div>
 
-                                  <div>
-                                    <p className="text-sm text-gray-400">
-                                      Response Deadline
-                                    </p>
-                                    <p className="text-white mt-1">
-                                      {formatDate(ticket.sla.responseDeadline)}
-                                    </p>
-                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <p className="text-sm text-gray-400">
+                                        Response Deadline
+                                      </p>
+                                      <p
+                                        className={`text-white mt-1 flex items-center ${
+                                          ticket.sla.breached?.response
+                                            ? "text-red-400"
+                                            : ""
+                                        }`}
+                                      >
+                                        {formatDate(
+                                          ticket.sla.responseDeadline
+                                        )}
+                                        {ticket.sla.breached?.response && (
+                                          <span className="ml-2 bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">
+                                            Breached
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
 
-                                  <div>
-                                    <p className="text-sm text-gray-400">
-                                      Resolution Deadline
-                                    </p>
-                                    <p className="text-white mt-1">
-                                      {formatDate(
-                                        ticket.sla.resolutionDeadline
-                                      )}
-                                    </p>
+                                    <div>
+                                      <p className="text-sm text-gray-400">
+                                        Resolution Deadline
+                                      </p>
+                                      <p
+                                        className={`text-white mt-1 flex items-center ${
+                                          ticket.sla.breached?.resolution
+                                            ? "text-red-400"
+                                            : ""
+                                        }`}
+                                      >
+                                        {formatDate(
+                                          ticket.sla.resolutionDeadline
+                                        )}
+                                        {ticket.sla.breached?.resolution && (
+                                          <span className="ml-2 bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">
+                                            Breached
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
                                   </div>
 
                                   <div>
@@ -1701,32 +3242,136 @@ const TicketDetailModal = ({
                                       <div className="flex items-center justify-between mb-1">
                                         <span
                                           className={
-                                            ticket.sla.percentageComplete > 75
+                                            calculateSLAPercentage(ticket) > 75
                                               ? "text-orange-400"
                                               : "text-green-400"
                                           }
                                         >
-                                          {ticket.sla.percentageComplete}%
+                                          {calculateSLAPercentage(ticket)}%
                                           Complete
                                         </span>
                                       </div>
                                       <div className="w-full bg-gray-600 rounded-full h-2.5">
                                         <div
                                           className={`h-2.5 rounded-full ${
-                                            ticket.sla.percentageComplete > 75
+                                            calculateSLAPercentage(ticket) > 75
                                               ? "bg-orange-500"
                                               : "bg-green-500"
                                           }`}
                                           style={{
-                                            width: `${ticket.sla.percentageComplete}%`,
+                                            width: `${calculateSLAPercentage(
+                                              ticket
+                                            )}%`,
                                           }}
                                         ></div>
                                       </div>
                                     </div>
                                   </div>
+
+                                  {/* SLA Actions */}
+                                  <div className="pt-2 border-t border-gray-700">
+                                    {ticket.sla.pausedAt ? (
+                                      <div className="space-y-3">
+                                        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                                          <div className="flex items-start gap-2">
+                                            <FaPause className="text-yellow-400 mt-1" />
+                                            <div>
+                                              <p className="text-sm text-yellow-400 font-medium">
+                                                SLA Paused
+                                              </p>
+                                              <p className="text-xs text-gray-400 mt-1">
+                                                Paused at:{" "}
+                                                {formatDate(
+                                                  ticket.sla.pausedAt
+                                                )}
+                                              </p>
+                                              {ticket.sla.pauseReason && (
+                                                <p className="text-xs text-gray-300 mt-1">
+                                                  Reason:{" "}
+                                                  {ticket.sla.pauseReason}
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={handleResumeSLA}
+                                          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                                          disabled={isResumingSLA}
+                                        >
+                                          {isResumingSLA ? (
+                                            <>
+                                              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                              Resuming...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <FaPlay /> Resume SLA
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        {showPauseForm ? (
+                                          <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                                            <h4 className="text-sm font-medium text-white mb-3">
+                                              Pause SLA
+                                            </h4>
+                                            <textarea
+                                              className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white mb-3"
+                                              placeholder="Reason for pausing SLA"
+                                              value={pauseReason}
+                                              onChange={(e) =>
+                                                setPauseReason(e.target.value)
+                                              }
+                                              rows={3}
+                                            />
+                                            <div className="flex justify-end gap-2">
+                                              <button
+                                                className="px-3 py-1.5 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                                                onClick={() =>
+                                                  setShowPauseForm(false)
+                                                }
+                                              >
+                                                Cancel
+                                              </button>
+                                              <button
+                                                className="px-3 py-1.5 bg-yellow-500 text-white text-xs rounded-md hover:bg-yellow-600 transition-colors flex items-center gap-1"
+                                                onClick={handlePauseSLA}
+                                                disabled={
+                                                  isPausingSLA || !pauseReason
+                                                }
+                                              >
+                                                {isPausingSLA ? (
+                                                  <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                                                    Pausing...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <FaPause size={10} /> Pause
+                                                  </>
+                                                )}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            onClick={() =>
+                                              setShowPauseForm(true)
+                                            }
+                                            className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                                          >
+                                            <FaPause /> Pause SLA
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
 
                             {/* Action buttons */}
                             <div className="bg-gray-700/30 rounded-lg p-5">
@@ -1734,13 +3379,144 @@ const TicketDetailModal = ({
                                 Actions
                               </h3>
                               <div className="space-y-3">
-                                <button className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2">
-                                  <FaEdit /> Update Status
-                                </button>
-                                <button className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2">
-                                  <FaUserPlus /> Reassign Ticket
-                                </button>
-                                <button className="w-full bg-gray-600 hover:bg-gray-500 text-white py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2">
+                                {/* Update Status Button */}
+                                {showStatusForm ? (
+                                  <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 mb-3">
+                                    <h4 className="text-sm font-medium text-white mb-3">
+                                      Update Status
+                                    </h4>
+                                    <select
+                                      className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white mb-3"
+                                      value={selectedStatus}
+                                      onChange={(e) =>
+                                        setSelectedStatus(e.target.value)
+                                      }
+                                    >
+                                      <option value="">Select a status</option>
+                                      <option value="new">New</option>
+                                      <option value="assigned">Assigned</option>
+                                      <option value="in_progress">
+                                        In Progress
+                                      </option>
+                                      <option value="on_hold">On Hold</option>
+                                      <option value="pending_customer">
+                                        Pending Customer
+                                      </option>
+                                      <option value="resolved">Resolved</option>
+                                      <option value="closed">Closed</option>
+                                    </select>
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        className="px-3 py-1.5 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                                        onClick={() => setShowStatusForm(false)}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        className="px-3 py-1.5 bg-blue-500 text-white text-xs rounded-md hover:bg-blue-600 transition-colors flex items-center gap-1"
+                                        onClick={handleStatusChange}
+                                        disabled={
+                                          isChangingStatus || !selectedStatus
+                                        }
+                                      >
+                                        {isChangingStatus ? (
+                                          <>
+                                            <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                                            Updating...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <FaCheck size={10} /> Update
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setShowStatusForm(true)}
+                                    className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <FaEdit /> Update Status
+                                  </button>
+                                )}
+
+                                {/* Reassign Ticket Button */}
+                                {showAssignForm ? (
+                                  <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700 mb-3">
+                                    <h4 className="text-sm font-medium text-white mb-3">
+                                      Reassign Ticket
+                                    </h4>
+                                    {isLoadingUsers ? (
+                                      <div className="text-center py-2">
+                                        <span className="animate-spin inline-block mr-2">
+                                          ⏳
+                                        </span>{" "}
+                                        Loading users...
+                                      </div>
+                                    ) : (
+                                      <select
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white mb-3"
+                                        value={selectedAssignee}
+                                        onChange={(e) =>
+                                          setSelectedAssignee(e.target.value)
+                                        }
+                                      >
+                                        <option value="">Select a user</option>
+                                        {users?.map((user) => (
+                                          <option
+                                            key={user._id}
+                                            value={user._id}
+                                          >
+                                            {user.profile?.firstName &&
+                                            user.profile?.lastName
+                                              ? `${user.profile.firstName} ${user.profile.lastName}`
+                                              : user.email}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        className="px-3 py-1.5 bg-gray-600 text-white text-xs rounded-md hover:bg-gray-500 transition-colors"
+                                        onClick={() => setShowAssignForm(false)}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        className="px-3 py-1.5 bg-green-500 text-white text-xs rounded-md hover:bg-green-600 transition-colors flex items-center gap-1"
+                                        onClick={handleAssignTicket}
+                                        disabled={
+                                          isAssigning || !selectedAssignee
+                                        }
+                                      >
+                                        {isAssigning ? (
+                                          <>
+                                            <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white"></div>
+                                            Assigning...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <FaCheck size={10} /> Assign
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setShowAssignForm(true)}
+                                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                                  >
+                                    <FaUserPlus /> Reassign Ticket
+                                  </button>
+                                )}
+
+                                {/* View Audit Log Button */}
+                                <button
+                                  onClick={() => setActiveTab("activity")}
+                                  className="w-full bg-gray-600 hover:bg-gray-500 text-white py-2.5 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+                                >
                                   <FaHistory /> View Audit Log
                                 </button>
                               </div>
@@ -1757,26 +3533,223 @@ const TicketDetailModal = ({
 
                           {/* Activity mind map visualization with enhanced features */}
                           <div className="bg-gray-700/30 rounded-lg p-5">
-                            <ActivityMindMap events={activityEvents} />
+                            {isLoadingActivities ? (
+                              <div className="flex justify-center items-center h-64">
+                                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                              </div>
+                            ) : groupedActivities &&
+                              groupedActivities.length > 0 ? (
+                              <div className="relative">
+                                {/* Timeline line */}
+                                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-700"></div>
 
-                            {/* Activity filters */}
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <button className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs hover:bg-blue-500/30 transition-colors">
-                                Status Changes
-                              </button>
-                              <button className="bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full text-xs hover:bg-indigo-500/30 transition-colors">
-                                Comments
-                              </button>
-                              <button className="bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full text-xs hover:bg-purple-500/30 transition-colors">
-                                Assignments
-                              </button>
-                              <button className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-xs hover:bg-amber-500/30 transition-colors">
-                                SLA Updates
-                              </button>
-                              <button className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs hover:bg-emerald-500/30 transition-colors">
-                                Edits
-                              </button>
-                            </div>
+                                {/* Timeline events grouped by status */}
+                                <div className="space-y-10">
+                                  {groupedActivities.map(
+                                    (group, groupIndex) => (
+                                      <div
+                                        key={`group-${groupIndex}`}
+                                        className="relative"
+                                      >
+                                        {/* Status header */}
+                                        <div className="mb-4 bg-gray-800/50 p-3 rounded-lg border-l-4 border-blue-500">
+                                          <div className="flex justify-between items-center">
+                                            <h3 className="font-medium text-white text-lg">
+                                              {group.statusLabel ||
+                                                group.status}
+                                            </h3>
+                                            <span className="text-xs text-gray-400">
+                                              {formatDate(group.startTime)}
+                                              {group.endTime &&
+                                                ` - ${formatDate(
+                                                  group.endTime
+                                                )}`}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        {/* Activities in this status group */}
+                                        <div className="space-y-6 ml-2">
+                                          {group.activities.map(
+                                            (entry, index) => (
+                                              <div
+                                                key={
+                                                  entry._id ||
+                                                  `${groupIndex}-${index}`
+                                                }
+                                                className="relative pl-10"
+                                              >
+                                                {/* Timeline dot */}
+                                                <div className="absolute left-0 top-1.5 w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                                                  {entry.action ===
+                                                    "created" && (
+                                                    <FaPlus className="text-blue-400" />
+                                                  )}
+                                                  {entry.action ===
+                                                    "status_changed" && (
+                                                    <FaExchangeAlt className="text-yellow-400" />
+                                                  )}
+                                                  {entry.action ===
+                                                    "assigned" && (
+                                                    <FaUserPlus className="text-green-400" />
+                                                  )}
+                                                  {entry.action ===
+                                                    "commented" && (
+                                                    <FaComment className="text-purple-400" />
+                                                  )}
+                                                  {entry.action ===
+                                                    "updated" && (
+                                                    <FaEdit className="text-orange-400" />
+                                                  )}
+                                                </div>
+
+                                                {/* Event content */}
+                                                <div className="bg-gray-700/30 rounded-lg p-4">
+                                                  <div className="flex justify-between items-center mb-2">
+                                                    <h4 className="font-medium text-white">
+                                                      {entry.action ===
+                                                        "created" &&
+                                                        "Ticket Created"}
+                                                      {entry.action ===
+                                                        "status_changed" &&
+                                                        "Status Changed"}
+                                                      {entry.action ===
+                                                        "assigned" &&
+                                                        "Ticket Assigned"}
+                                                      {entry.action ===
+                                                        "commented" &&
+                                                        "Comment Added"}
+                                                      {entry.action ===
+                                                        "updated" &&
+                                                        "Ticket Updated"}
+                                                      {![
+                                                        "created",
+                                                        "status_changed",
+                                                        "assigned",
+                                                        "commented",
+                                                        "updated",
+                                                      ].includes(
+                                                        entry.action
+                                                      ) &&
+                                                        entry.action
+                                                          .split("_")
+                                                          .map(
+                                                            (word) =>
+                                                              word
+                                                                .charAt(0)
+                                                                .toUpperCase() +
+                                                              word.slice(1)
+                                                          )
+                                                          .join(" ")}
+                                                    </h4>
+                                                    <span className="text-xs text-gray-400">
+                                                      {formatDate(
+                                                        entry.timestamp
+                                                      )}
+                                                    </span>
+                                                  </div>
+                                                  <p className="text-gray-300">
+                                                    <span className="font-medium">
+                                                      {entry.performedBy
+                                                        ?.name ||
+                                                        "Unknown user"}
+                                                    </span>{" "}
+                                                    {entry.action ===
+                                                      "created" &&
+                                                      "created this ticket"}
+                                                    {entry.action ===
+                                                      "status_changed" && (
+                                                      <>
+                                                        changed status from{" "}
+                                                        <span className="font-medium">
+                                                          {entry.details
+                                                            ?.oldStatus ||
+                                                            "previous status"}
+                                                        </span>{" "}
+                                                        to{" "}
+                                                        <span className="font-medium">
+                                                          {entry.details
+                                                            ?.newStatus ||
+                                                            "new status"}
+                                                        </span>
+                                                      </>
+                                                    )}
+                                                    {entry.action ===
+                                                      "assigned" && (
+                                                      <>
+                                                        assigned this ticket to{" "}
+                                                        <span className="font-medium">
+                                                          {entry.details
+                                                            ?.assigneeName ||
+                                                            "team member"}
+                                                        </span>
+                                                      </>
+                                                    )}
+                                                    {entry.action ===
+                                                      "commented" &&
+                                                      "added a comment"}
+                                                    {entry.action ===
+                                                      "updated" && (
+                                                      <>
+                                                        updated{" "}
+                                                        {Object.keys(
+                                                          entry.details || {}
+                                                        )
+                                                          .map((key) =>
+                                                            key
+                                                              .replace(
+                                                                /([A-Z])/g,
+                                                                " $1"
+                                                              )
+                                                              .toLowerCase()
+                                                          )
+                                                          .join(", ") ||
+                                                          "ticket details"}
+                                                      </>
+                                                    )}
+                                                  </p>
+                                                  {entry.details &&
+                                                    entry.action ===
+                                                      "commented" &&
+                                                    entry.details.comment && (
+                                                      <div className="mt-2 bg-gray-800/50 p-3 rounded-md text-gray-300 text-sm">
+                                                        {entry.details.comment}
+                                                      </div>
+                                                    )}
+                                                </div>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <ActivityMindMap events={activityEvents} />
+
+                                {/* Activity filters */}
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  <button className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-xs hover:bg-blue-500/30 transition-colors">
+                                    Status Changes
+                                  </button>
+                                  <button className="bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full text-xs hover:bg-indigo-500/30 transition-colors">
+                                    Comments
+                                  </button>
+                                  <button className="bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full text-xs hover:bg-purple-500/30 transition-colors">
+                                    Assignments
+                                  </button>
+                                  <button className="bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full text-xs hover:bg-amber-500/30 transition-colors">
+                                    SLA Updates
+                                  </button>
+                                  <button className="bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs hover:bg-emerald-500/30 transition-colors">
+                                    Edits
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {/* Activity statistics */}
@@ -1791,7 +3764,9 @@ const TicketDetailModal = ({
                                     Total Events
                                   </span>
                                   <span className="font-medium text-white">
-                                    {activityEvents.length}
+                                    {activityEvents && activityEvents.length
+                                      ? activityEvents.length
+                                      : 0}
                                   </span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -1799,9 +3774,19 @@ const TicketDetailModal = ({
                                     Last Updated
                                   </span>
                                   <span className="font-medium text-white">
-                                    {new Date(
-                                      activityEvents[0].timestamp
-                                    ).toLocaleString()}
+                                    {
+                                      activityEvents &&
+                                      activityEvents.length > 0 &&
+                                      activityEvents[0]?.timestamp
+                                        ? new Date(
+                                            activityEvents[0].timestamp
+                                          ).toLocaleString()
+                                        : formatDate(
+                                            ticket.updatedAt ||
+                                              ticket.createdAt ||
+                                              new Date().toISOString()
+                                          ) // Fallback with multiple options
+                                    }
                                   </span>
                                 </div>
                                 <div className="flex justify-between items-center">
@@ -1810,9 +3795,14 @@ const TicketDetailModal = ({
                                   </span>
                                   <span className="font-medium text-white">
                                     {
-                                      new Set(
-                                        activityEvents.map((e) => e.user.id)
-                                      ).size
+                                      activityEvents &&
+                                      activityEvents.length > 0
+                                        ? new Set(
+                                            activityEvents.map(
+                                              (e) => e.user?.id || "unknown"
+                                            )
+                                          ).size
+                                        : 1 // Default to 1 (the ticket creator)
                                     }
                                   </span>
                                 </div>
@@ -1846,7 +3836,7 @@ const TicketDetailModal = ({
                                         />
                                       ))}
                                     </Pie>
-                                    <Tooltip />
+                                    <RechartsTooltip />
                                   </PieChart>
                                 </ResponsiveContainer>
                               </div>
@@ -1861,147 +3851,303 @@ const TicketDetailModal = ({
                             SLA Performance
                           </h3>
 
-                          {/* SLA metrics visualization */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-gray-700/30 rounded-lg p-5">
-                              <h4 className="text-md font-medium text-white mb-3">
-                                Response Time
-                              </h4>
-                              <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <PieChart>
-                                    <Pie
-                                      data={responseTimeData}
-                                      cx="50%"
-                                      cy="50%"
-                                      labelLine={false}
-                                      outerRadius={80}
-                                      fill="#8884d8"
-                                      dataKey="value"
-                                      label={({ name, percent }) =>
-                                        `${name}: ${(percent * 100).toFixed(
-                                          0
-                                        )}%`
-                                      }
+                          {ticket.sla && ticket.sla.policyId ? (
+                            <>
+                              {/* SLA metrics visualization */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-gray-700/30 rounded-lg p-5">
+                                  <h4 className="text-md font-medium text-white mb-3">
+                                    Response Time
+                                  </h4>
+                                  <div className="h-64">
+                                    <ResponsiveContainer
+                                      width="100%"
+                                      height="100%"
                                     >
-                                      {responseTimeData.map((entry, index) => (
-                                        <Cell
-                                          key={`cell-${index}`}
-                                          fill={COLORS[index % COLORS.length]}
+                                      <PieChart>
+                                        <Pie
+                                          data={[
+                                            {
+                                              name: "Elapsed",
+                                              value: ticket.sla.responseDeadline
+                                                ? Math.min(
+                                                    100,
+                                                    calculateElapsedPercentage(
+                                                      ticket.createdAt,
+                                                      ticket.sla
+                                                        .responseDeadline
+                                                    )
+                                                  )
+                                                : 0,
+                                            },
+                                            {
+                                              name: "Remaining",
+                                              value: ticket.sla.responseDeadline
+                                                ? Math.max(
+                                                    0,
+                                                    100 -
+                                                      calculateElapsedPercentage(
+                                                        ticket.createdAt,
+                                                        ticket.sla
+                                                          .responseDeadline
+                                                      )
+                                                  )
+                                                : 100,
+                                            },
+                                          ]}
+                                          cx="50%"
+                                          cy="50%"
+                                          labelLine={false}
+                                          outerRadius={80}
+                                          fill="#8884d8"
+                                          dataKey="value"
+                                          label={({ name, percent }) =>
+                                            `${name}: ${(percent * 100).toFixed(
+                                              0
+                                            )}%`
+                                          }
+                                        >
+                                          <Cell fill="#4ade80" />
+                                          <Cell fill="#f87171" />
+                                        </Pie>
+                                        <RechartsTooltip
+                                          contentStyle={{
+                                            backgroundColor: "#374151",
+                                            borderColor: "#4b5563",
+                                            color: "#e5e7eb",
+                                          }}
                                         />
-                                      ))}
-                                    </Pie>
-                                    <Tooltip
-                                      contentStyle={{
-                                        backgroundColor: "#374151",
-                                        borderColor: "#4b5563",
-                                        color: "#e5e7eb",
-                                      }}
-                                    />
-                                  </PieChart>
-                                </ResponsiveContainer>
+                                      </PieChart>
+                                    </ResponsiveContainer>
+                                  </div>
+                                </div>
+
+                                <div className="bg-gray-700/30 rounded-lg p-5">
+                                  <h4 className="text-md font-medium text-white mb-3">
+                                    SLA Timeline
+                                  </h4>
+                                  <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-gray-300">
+                                        Created
+                                      </span>
+                                      <span className="text-gray-300">
+                                        {formatDate(ticket.createdAt)}
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                      <div
+                                        className="bg-blue-500 h-full"
+                                        style={{ width: "100%" }}
+                                      ></div>
+                                    </div>
+
+                                    {ticket.sla.responseDeadline && (
+                                      <>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-gray-300">
+                                            Response Deadline
+                                          </span>
+                                          <span className="text-gray-300">
+                                            {formatDate(
+                                              ticket.sla.responseDeadline
+                                            )}
+                                          </span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                          <div
+                                            className={`${
+                                              ticket.sla.breached?.response
+                                                ? "bg-red-500"
+                                                : "bg-green-500"
+                                            } h-full`}
+                                            style={{
+                                              width: `${Math.min(
+                                                100,
+                                                calculateElapsedPercentage(
+                                                  ticket.createdAt,
+                                                  ticket.sla.responseDeadline
+                                                )
+                                              )}%`,
+                                            }}
+                                          ></div>
+                                        </div>
+                                      </>
+                                    )}
+
+                                    {ticket.sla.resolutionDeadline && (
+                                      <>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-gray-300">
+                                            Resolution Deadline
+                                          </span>
+                                          <span className="text-gray-300">
+                                            {formatDate(
+                                              ticket.sla.resolutionDeadline
+                                            )}
+                                          </span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                          <div
+                                            className={`${
+                                              ticket.sla.breached?.resolution
+                                                ? "bg-red-500"
+                                                : "bg-yellow-500"
+                                            } h-full`}
+                                            style={{
+                                              width: `${Math.min(
+                                                100,
+                                                calculateElapsedPercentage(
+                                                  ticket.createdAt,
+                                                  ticket.sla.resolutionDeadline
+                                                )
+                                              )}%`,
+                                            }}
+                                          ></div>
+                                        </div>
+                                      </>
+                                    )}
+
+                                    {ticket.sla.resolutionDeadline &&
+                                      !ticket.sla.breached?.resolution && (
+                                        <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-md flex items-center">
+                                          <FaExclamationCircle className="text-yellow-400 mr-2" />
+                                          <span className="text-sm text-yellow-300">
+                                            This ticket has reached{" "}
+                                            {Math.min(
+                                              100,
+                                              calculateElapsedPercentage(
+                                                ticket.createdAt,
+                                                ticket.sla.resolutionDeadline
+                                              )
+                                            )}
+                                            % of its resolution SLA time
+                                          </span>
+                                        </div>
+                                      )}
+
+                                    {ticket.sla.pausedAt && (
+                                      <div className="mt-4 p-3 bg-blue-500/20 border border-blue-500/30 rounded-md flex items-center">
+                                        <FaPause className="text-blue-400 mr-2" />
+                                        <span className="text-sm text-blue-300">
+                                          SLA is currently paused:{" "}
+                                          {ticket.sla.pauseReason ||
+                                            "No reason provided"}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
+
+                              <div className="bg-gray-700/30 rounded-lg p-5">
+                                <h4 className="text-md font-medium text-white mb-3">
+                                  SLA Details
+                                </h4>
+                                <div className="space-y-3">
+                                  <div className="flex justify-between items-center pb-2 border-b border-gray-600">
+                                    <span className="text-gray-300">
+                                      Response SLA
+                                    </span>
+                                    {ticket.sla.breached?.response ? (
+                                      <span className="text-red-400 flex items-center">
+                                        <FaExclamationCircle className="mr-1" />{" "}
+                                        Breached
+                                      </span>
+                                    ) : ticket.sla.responseDeadline &&
+                                      new Date(ticket.sla.responseDeadline) <
+                                        new Date() ? (
+                                      <span className="text-green-400 flex items-center">
+                                        <FaCheck className="mr-1" /> Met
+                                      </span>
+                                    ) : (
+                                      <span className="text-yellow-400 flex items-center">
+                                        <FaClock className="mr-1" /> In Progress
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-between items-center pb-2 border-b border-gray-600">
+                                    <span className="text-gray-300">
+                                      Resolution SLA
+                                    </span>
+                                    {ticket.sla.breached?.resolution ? (
+                                      <span className="text-red-400 flex items-center">
+                                        <FaExclamationCircle className="mr-1" />{" "}
+                                        Breached
+                                      </span>
+                                    ) : ticket.status === "resolved" ||
+                                      ticket.status === "closed" ? (
+                                      <span className="text-green-400 flex items-center">
+                                        <FaCheck className="mr-1" /> Met
+                                      </span>
+                                    ) : (
+                                      <span className="text-yellow-400 flex items-center">
+                                        <FaClock className="mr-1" /> In Progress
+                                        {ticket.sla.resolutionDeadline && (
+                                          <>
+                                            {" "}
+                                            (
+                                            {Math.min(
+                                              100,
+                                              calculateElapsedPercentage(
+                                                ticket.createdAt,
+                                                ticket.sla.resolutionDeadline
+                                              )
+                                            )}
+                                            % elapsed)
+                                          </>
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-between items-center pb-2 border-b border-gray-600">
+                                    <span className="text-gray-300">
+                                      SLA Policy
+                                    </span>
+                                    <span className="text-blue-400">
+                                      {ticket.priority.charAt(0).toUpperCase() +
+                                        ticket.priority.slice(1)}{" "}
+                                      Priority
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-gray-300">
+                                      SLA Status
+                                    </span>
+                                    <span className="text-gray-300">
+                                      {ticket.sla.pausedAt ? (
+                                        <span className="text-blue-400 flex items-center">
+                                          <FaPause className="mr-1" /> Paused
+                                        </span>
+                                      ) : (
+                                        <span className="text-green-400 flex items-center">
+                                          <FaPlay className="mr-1" /> Active
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="bg-gray-700/30 rounded-lg p-8 text-center">
+                              <FaClock className="mx-auto text-gray-400 text-4xl mb-3" />
+                              <p className="text-gray-300 text-lg font-medium mb-2">
+                                No SLA Policy Applied
+                              </p>
+                              <p className="text-gray-400 mb-6">
+                                This ticket doesn't have an SLA policy applied.
+                                SLA policies help track response and resolution
+                                times.
+                              </p>
+                              <button
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors inline-flex items-center"
+                                onClick={() => setActiveTab("actions")}
+                              >
+                                <FaPlus className="mr-2" /> Apply SLA Policy
+                              </button>
                             </div>
-
-                            <div className="bg-gray-700/30 rounded-lg p-5">
-                              <h4 className="text-md font-medium text-white mb-3">
-                                SLA Timeline
-                              </h4>
-                              <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-300">Created</span>
-                                  <span className="text-gray-300">
-                                    Oct 15, 10:30 AM
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                                  <div
-                                    className="bg-blue-500 h-full"
-                                    style={{ width: "100%" }}
-                                  ></div>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-300">
-                                    First Response
-                                  </span>
-                                  <span className="text-gray-300">
-                                    Oct 15, 11:15 AM
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                                  <div
-                                    className="bg-green-500 h-full"
-                                    style={{ width: "100%" }}
-                                  ></div>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-300">
-                                    Resolution Target
-                                  </span>
-                                  <span className="text-gray-300">
-                                    Oct 17, 10:30 AM
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                                  <div
-                                    className="bg-yellow-500 h-full"
-                                    style={{ width: "75%" }}
-                                  ></div>
-                                </div>
-
-                                <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/30 rounded-md flex items-center">
-                                  <FaExclamationCircle className="text-yellow-400 mr-2" />
-                                  <span className="text-sm text-yellow-300">
-                                    This ticket has reached 75% of its
-                                    resolution SLA time
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-gray-700/30 rounded-lg p-5">
-                            <h4 className="text-md font-medium text-white mb-3">
-                              SLA Details
-                            </h4>
-                            <div className="space-y-3">
-                              <div className="flex justify-between items-center pb-2 border-b border-gray-600">
-                                <span className="text-gray-300">
-                                  Response SLA
-                                </span>
-                                <span className="text-green-400 flex items-center">
-                                  <FaCheck className="mr-1" /> Met (45 minutes)
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center pb-2 border-b border-gray-600">
-                                <span className="text-gray-300">
-                                  Resolution SLA
-                                </span>
-                                <span className="text-yellow-400 flex items-center">
-                                  <FaClock className="mr-1" /> In Progress (75%
-                                  elapsed)
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center pb-2 border-b border-gray-600">
-                                <span className="text-gray-300">
-                                  SLA Policy
-                                </span>
-                                <span className="text-blue-400">
-                                  High Priority - Server Issues
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-gray-300">
-                                  Business Hours
-                                </span>
-                                <span className="text-gray-300">
-                                  Mon-Fri, 9:00 AM - 6:00 PM
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2018,7 +4164,7 @@ const TicketDetailModal = ({
         <TicketAnalyticsModal
           isOpen={analyticsModalOpen}
           closeModal={() => setAnalyticsModalOpen(false)}
-          ticketId={ticket.id}
+          ticket={ticket}
         />
       )}
     </>

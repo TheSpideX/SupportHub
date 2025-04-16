@@ -120,16 +120,48 @@ exports.getTicketById = async (ticketId, organizationId) => {
       _id: ticketId,
       organizationId,
     })
-      .populate("createdBy", "profile.firstName profile.lastName email")
-      .populate("assignedTo", "profile.firstName profile.lastName email")
+      .populate("createdBy", "profile.firstName profile.lastName email role")
+      .populate("assignedTo", "profile.firstName profile.lastName email role")
       .populate("primaryTeam.teamId", "name teamType")
       .populate("supportingTeams.teamId", "name teamType")
       .populate("customer.userId", "profile.firstName profile.lastName email")
-      .populate("comments.author", "profile.firstName profile.lastName email")
-      .populate("originalQuery");
+      .populate(
+        "comments.author",
+        "profile.firstName profile.lastName email role"
+      )
+      .populate(
+        "auditLog.performedBy",
+        "profile.firstName profile.lastName email role fullName"
+      )
+      .populate(
+        "statusHistory.changedBy",
+        "profile.firstName profile.lastName email role"
+      )
+      .populate("originalQuery")
+      .populate("sla.policyId");
 
     if (!ticket) {
       throw new ApiError(404, "Ticket not found");
+    }
+
+    // Process comments to ensure they have proper user information and text
+    if (ticket.comments && Array.isArray(ticket.comments)) {
+      ticket.comments = ticket.comments.map((comment) => {
+        // Ensure comment has text
+        if (!comment.text || comment.text.trim() === "") {
+          comment.text = "[No comment text provided]";
+        }
+
+        // Format user information if it's an object
+        if (comment.author && typeof comment.author === "object") {
+          comment.author.fullName =
+            comment.author.profile?.firstName &&
+            comment.author.profile?.lastName
+              ? `${comment.author.profile.firstName} ${comment.author.profile.lastName}`
+              : comment.author.email || "Unknown";
+        }
+        return comment;
+      });
     }
 
     return ticket;
@@ -138,6 +170,246 @@ exports.getTicketById = async (ticketId, organizationId) => {
     throw error;
   }
 };
+
+/**
+ * Get ticket audit log
+ * @param {string} ticketId - Ticket ID
+ * @param {string} organizationId - Organization ID for security check
+ * @returns {Promise<Array>} Audit log entries grouped by status
+ */
+exports.getTicketAuditLog = async (ticketId, organizationId) => {
+  try {
+    const ticket = await Ticket.findOne(
+      {
+        _id: ticketId,
+        organizationId,
+      },
+      {
+        auditLog: 1,
+        statusHistory: 1,
+        comments: 1,
+        status: 1,
+        createdAt: 1,
+        createdBy: 1,
+        ticketNumber: 1,
+        title: 1,
+      }
+    )
+      .populate(
+        "auditLog.performedBy",
+        "profile.firstName profile.lastName email fullName"
+      )
+      .populate(
+        "statusHistory.changedBy",
+        "profile.firstName profile.lastName email"
+      )
+      .populate("comments.author", "profile.firstName profile.lastName email")
+      .populate("createdBy", "profile.firstName profile.lastName email");
+
+    if (!ticket) {
+      throw new ApiError(404, "Ticket not found");
+    }
+
+    // Process audit log to ensure consistent format
+    const processedAuditLog = ticket.auditLog.map((entry) => {
+      // Format user information
+      let userName = "Unknown";
+      if (entry.performedBy) {
+        if (typeof entry.performedBy === "object") {
+          if (
+            entry.performedBy.profile?.firstName &&
+            entry.performedBy.profile?.lastName
+          ) {
+            userName = `${entry.performedBy.profile.firstName} ${entry.performedBy.profile.lastName}`;
+          } else if (entry.performedBy.fullName) {
+            userName = entry.performedBy.fullName;
+          } else if (entry.performedBy.email) {
+            userName = entry.performedBy.email;
+          }
+        }
+      }
+
+      // Return formatted entry
+      return {
+        _id: entry._id,
+        action: entry.action,
+        timestamp: entry.timestamp,
+        performedBy:
+          typeof entry.performedBy === "object"
+            ? {
+                _id: entry.performedBy._id,
+                name: userName,
+              }
+            : {
+                _id: entry.performedBy,
+                name: userName,
+              },
+        details: entry.details || {},
+      };
+    });
+
+    // Sort by timestamp, oldest first (for grouping)
+    processedAuditLog.sort((a, b) => {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    });
+
+    // Group activities by status changes
+    const groupedActivities = [];
+
+    // Initialize with creation status
+    let currentGroup = {
+      status: "created",
+      statusLabel: "Created",
+      startTime: ticket.createdAt,
+      endTime: null,
+      activities: [],
+    };
+
+    // Add creation activity
+    const creationActivity = processedAuditLog.find(
+      (entry) => entry.action === "created"
+    );
+    if (creationActivity) {
+      currentGroup.activities.push(creationActivity);
+    }
+
+    // Get status history for timestamps
+    const statusChanges = [...ticket.statusHistory];
+    statusChanges.sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    // Skip the first status (creation) as we've already handled it
+    for (let i = 1; i < statusChanges.length; i++) {
+      const statusChange = statusChanges[i];
+      const prevStatusChange = statusChanges[i - 1];
+
+      // Set the end time of the current group
+      currentGroup.endTime = statusChange.timestamp;
+
+      // Find all activities that happened during this status
+      const activitiesInThisStatus = processedAuditLog.filter((activity) => {
+        const activityTime = new Date(activity.timestamp).getTime();
+        const statusStartTime = new Date(prevStatusChange.timestamp).getTime();
+        const statusEndTime = new Date(statusChange.timestamp).getTime();
+
+        return (
+          activityTime >= statusStartTime &&
+          activityTime < statusEndTime &&
+          activity.action !== "created"
+        ); // Skip creation activity as we've already added it
+      });
+
+      // Add activities to the current group
+      currentGroup.activities = currentGroup.activities.concat(
+        activitiesInThisStatus
+      );
+
+      // Save the current group
+      groupedActivities.push(currentGroup);
+
+      // Start a new group with the new status
+      currentGroup = {
+        status: statusChange.status,
+        statusLabel: formatStatusLabel(statusChange.status),
+        startTime: statusChange.timestamp,
+        endTime: null, // Will be set in the next iteration or remain null if this is the last status
+        activities: [],
+      };
+
+      // Find the status change activity and add it to the new group
+      const statusChangeActivity = processedAuditLog.find(
+        (activity) =>
+          activity.action === "status_changed" &&
+          activity.details?.newStatus === statusChange.status &&
+          new Date(activity.timestamp).getTime() ===
+            new Date(statusChange.timestamp).getTime()
+      );
+
+      if (statusChangeActivity) {
+        currentGroup.activities.push(statusChangeActivity);
+      }
+    }
+
+    // For the last status, find all activities that happened after the last status change
+    if (statusChanges.length > 0) {
+      const lastStatusChange = statusChanges[statusChanges.length - 1];
+      const activitiesInLastStatus = processedAuditLog.filter((activity) => {
+        const activityTime = new Date(activity.timestamp).getTime();
+        const statusStartTime = new Date(lastStatusChange.timestamp).getTime();
+
+        return (
+          activityTime >= statusStartTime &&
+          activity.action !== "status_changed" && // Skip the status change itself
+          !currentGroup.activities.some(
+            (a) => a._id.toString() === activity._id.toString()
+          )
+        ); // Avoid duplicates
+      });
+
+      currentGroup.activities = currentGroup.activities.concat(
+        activitiesInLastStatus
+      );
+    }
+
+    // Add the last group
+    groupedActivities.push(currentGroup);
+
+    // Format the final response
+    const formattedResponse = groupedActivities.map((group) => {
+      return {
+        status: group.status,
+        statusLabel: group.statusLabel,
+        startTime: group.startTime,
+        endTime: group.endTime,
+        activities: group.activities.sort((a, b) => {
+          // Sort activities within each group by timestamp (newest first)
+          return (
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+        }),
+        ticketInfo: {
+          ticketNumber: ticket.ticketNumber,
+          title: ticket.title,
+        },
+      };
+    });
+
+    // Sort groups by start time (newest first)
+    formattedResponse.sort((a, b) => {
+      return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
+    });
+
+    return formattedResponse;
+  } catch (error) {
+    logger.error("Error getting ticket audit log:", error);
+    throw error;
+  }
+};
+
+/**
+ * Format status label for display
+ * @param {string} status - Status code
+ * @returns {string} Formatted status label
+ */
+function formatStatusLabel(status) {
+  const statusMap = {
+    new: "New",
+    assigned: "Assigned",
+    in_progress: "In Progress",
+    on_hold: "On Hold",
+    pending_customer: "Pending Customer",
+    resolved: "Resolved",
+    closed: "Closed",
+    created: "Created",
+  };
+
+  return (
+    statusMap[status] ||
+    status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ")
+  );
+}
 
 /**
  * Get tickets with filters
@@ -346,6 +618,12 @@ exports.updateTicket = async (ticketId, updateData, userId, organizationId) => {
     // Send WebSocket notification
     const primus = websocket.getPrimus();
     if (primus) {
+      // Get the latest audit log entry
+      const latestAuditLog =
+        ticket.auditLog && ticket.auditLog.length > 0
+          ? ticket.auditLog[ticket.auditLog.length - 1]
+          : null;
+
       // Send to ticket room
       ticketWs.sendTicketUpdate(
         primus,
@@ -365,6 +643,11 @@ exports.updateTicket = async (ticketId, updateData, userId, organizationId) => {
             primaryTeam: ticket.primaryTeam,
             supportingTeams: ticket.supportingTeams,
             updatedAt: ticket.updatedAt,
+            auditLog: latestAuditLog ? [latestAuditLog] : [],
+            statusHistory:
+              ticket.statusHistory && ticket.statusHistory.length > 0
+                ? [ticket.statusHistory[ticket.statusHistory.length - 1]]
+                : [],
           },
         }
       );
@@ -405,6 +688,15 @@ exports.updateTicket = async (ticketId, updateData, userId, organizationId) => {
  */
 exports.addComment = async (ticketId, commentData, userId, organizationId) => {
   try {
+    logger.info("Adding comment to ticket - service", {
+      ticketId,
+      commentData,
+      commentText: commentData.text,
+      commentTextType: typeof commentData.text,
+      commentTextLength: commentData.text ? commentData.text.length : 0,
+      userId,
+    });
+
     const ticket = await Ticket.findOne({
       _id: ticketId,
       organizationId,
@@ -414,13 +706,51 @@ exports.addComment = async (ticketId, commentData, userId, organizationId) => {
       throw new ApiError(404, "Ticket not found");
     }
 
+    // Validate comment text before creating comment object
+    if (!commentData.text) {
+      logger.warn("Empty comment text received in service", {
+        ticketId,
+        userId,
+        text: commentData.text,
+        textType: typeof commentData.text,
+      });
+      throw new ApiError(400, "Comment text cannot be empty");
+    }
+
+    if (typeof commentData.text !== "string") {
+      logger.warn("Invalid comment text type received in service", {
+        ticketId,
+        userId,
+        text: commentData.text,
+        textType: typeof commentData.text,
+      });
+      throw new ApiError(400, "Comment text must be a string");
+    }
+
+    if (commentData.text.trim() === "") {
+      logger.warn("Empty comment text (after trim) received in service", {
+        ticketId,
+        userId,
+        text: commentData.text,
+        textLength: commentData.text.length,
+      });
+      throw new ApiError(400, "Comment text cannot be empty");
+    }
+
     // Add comment
     const comment = {
       author: userId,
-      text: commentData.text,
+      text: commentData.text.trim(), // Text is already validated above
       isInternal: commentData.isInternal || false,
       createdAt: new Date(),
     };
+
+    logger.info("Processed comment data", {
+      comment,
+      commentText: comment.text,
+      commentTextType: typeof comment.text,
+      commentTextLength: comment.text ? comment.text.length : 0,
+    });
 
     // If specific teams should see this comment
     if (
@@ -441,15 +771,22 @@ exports.addComment = async (ticketId, commentData, userId, organizationId) => {
     const commentType = comment.isInternal ? "internal_comment" : "comment";
     await sendTicketNotifications(ticket, commentType, {
       commentId: ticket.comments[ticket.comments.length - 1]._id,
-      commentText:
-        comment.text.substring(0, 100) +
-        (comment.text.length > 100 ? "..." : ""),
+      commentText: comment.text
+        ? comment.text.substring(0, 100) +
+          (comment.text.length > 100 ? "..." : "")
+        : "[No text]",
     });
 
     // Send WebSocket notification
     const primus = websocket.getPrimus();
     if (primus) {
       const newComment = ticket.comments[ticket.comments.length - 1];
+
+      // Get the latest audit log entry (should be the comment entry)
+      const latestAuditLog =
+        ticket.auditLog && ticket.auditLog.length > 0
+          ? ticket.auditLog[ticket.auditLog.length - 1]
+          : null;
 
       // Send to ticket room
       ticketWs.sendTicketUpdate(
@@ -466,6 +803,7 @@ exports.addComment = async (ticketId, commentData, userId, organizationId) => {
             isInternal: newComment.isInternal,
             attachments: newComment.attachments,
           },
+          auditLog: latestAuditLog ? [latestAuditLog] : [],
         }
       );
     }
@@ -529,6 +867,22 @@ exports.assignTicket = async (ticketId, assigneeId, userId, organizationId) => {
     // Send WebSocket notification
     const primus = websocket.getPrimus();
     if (primus) {
+      // Get the latest audit log entry (should be the assignment entry)
+      const latestAuditLog =
+        ticket.auditLog && ticket.auditLog.length > 0
+          ? ticket.auditLog[ticket.auditLog.length - 1]
+          : null;
+
+      // Get assignee details
+      const assignee = await User.findById(assigneeId).select(
+        "profile.firstName profile.lastName email"
+      );
+      const assigneeName = assignee
+        ? assignee.profile?.firstName && assignee.profile?.lastName
+          ? `${assignee.profile.firstName} ${assignee.profile.lastName}`
+          : assignee.email
+        : "Unknown";
+
       // Send to ticket room
       ticketWs.sendTicketUpdate(
         primus,
@@ -538,8 +892,10 @@ exports.assignTicket = async (ticketId, assigneeId, userId, organizationId) => {
           ticketId: ticket._id,
           assignedTo: {
             _id: assigneeId,
+            name: assigneeName,
           },
           assignedBy: userId,
+          auditLog: latestAuditLog ? [latestAuditLog] : [],
         }
       );
 

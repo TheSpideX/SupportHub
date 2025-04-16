@@ -90,6 +90,8 @@ export interface Ticket {
       resolution: boolean;
     };
   };
+  tags?: string[];
+  customFields?: Record<string, any>;
 }
 
 export interface CreateTicketRequest {
@@ -163,6 +165,29 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface AuditLogEntry {
+  _id: string;
+  action: string;
+  timestamp: string;
+  performedBy: {
+    _id: string;
+    name: string;
+  };
+  details: Record<string, any>;
+}
+
+export interface GroupedActivityResponse {
+  status: string;
+  statusLabel: string;
+  startTime: string;
+  endTime: string | null;
+  activities: AuditLogEntry[];
+  ticketInfo: {
+    ticketNumber: string;
+    title: string;
+  };
+}
+
 const ticketApi = api.injectEndpoints({
   endpoints: (builder) => ({
     // Get tickets with filters
@@ -207,6 +232,21 @@ const ticketApi = api.injectEndpoints({
       providesTags: (result, error, id) => [{ type: "Tickets" as const, id }],
     }),
 
+    // Get ticket audit log
+    getTicketAuditLog: builder.query<GroupedActivityResponse[], string>({
+      query: (id) => ({
+        url: `/api/tickets/${id}/audit-log`,
+        method: "GET",
+      }),
+      transformResponse: (response: {
+        success: boolean;
+        data: GroupedActivityResponse[];
+      }) => response.data,
+      providesTags: (result, error, id) => [
+        { type: "TicketAuditLog" as const, id },
+      ],
+    }),
+
     // Create ticket
     createTicket: builder.mutation<Ticket, CreateTicketRequest>({
       query: (data) => ({
@@ -238,11 +278,17 @@ const ticketApi = api.injectEndpoints({
       Ticket,
       { id: string; data: AddCommentRequest }
     >({
-      query: ({ id, data }) => ({
-        url: `/api/tickets/${id}/comments`,
-        method: "POST",
-        body: data,
-      }),
+      query: ({ id, data }) => {
+        console.log("API layer sending comment data:", JSON.stringify(data));
+        return {
+          url: `/api/tickets/${id}/comments`,
+          method: "POST",
+          body: data,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        };
+      },
       invalidatesTags: (result, error, { id }) => [{ type: "Tickets", id }],
     }),
 
@@ -292,6 +338,7 @@ const ticketApi = api.injectEndpoints({
 export const {
   useGetTicketsQuery,
   useGetTicketByIdQuery,
+  useGetTicketAuditLogQuery,
   useCreateTicketMutation,
   useUpdateTicketMutation,
   useAddCommentMutation,
