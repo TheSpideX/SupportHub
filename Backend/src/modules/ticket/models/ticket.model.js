@@ -11,9 +11,9 @@ const TicketSchema = new Schema(
     // Basic Information
     ticketNumber: {
       type: String,
-      required: true,
       unique: true,
       index: true,
+      // Not required as it will be auto-generated
     },
     title: {
       type: String,
@@ -293,7 +293,7 @@ TicketSchema.pre("save", async function (next) {
     try {
       // Get the organization code or use 'TKT' as default
       let orgPrefix = "TKT";
-      
+
       if (this.organizationId) {
         const Organization = mongoose.model("Organization");
         const org = await Organization.findById(this.organizationId);
@@ -301,44 +301,46 @@ TicketSchema.pre("save", async function (next) {
           orgPrefix = org.code;
         }
       }
-      
+
       // Get the current year
       const currentYear = new Date().getFullYear().toString().substr(-2);
-      
+
       // Find the highest ticket number for this organization and year
       const highestTicket = await this.constructor.findOne(
-        { 
+        {
           ticketNumber: new RegExp(`^${orgPrefix}-${currentYear}-`),
-          organizationId: this.organizationId
+          organizationId: this.organizationId,
         },
         { ticketNumber: 1 },
         { sort: { ticketNumber: -1 } }
       );
-      
+
       let nextNumber = 1;
-      
+
       if (highestTicket && highestTicket.ticketNumber) {
         // Extract the number part
-        const parts = highestTicket.ticketNumber.split('-');
+        const parts = highestTicket.ticketNumber.split("-");
         if (parts.length === 3) {
           nextNumber = parseInt(parts[2]) + 1;
         }
       }
-      
+
       // Format with leading zeros (5 digits)
-      const formattedNumber = nextNumber.toString().padStart(5, '0');
-      
+      const formattedNumber = nextNumber.toString().padStart(5, "0");
+
       // Set the ticket number
       this.ticketNumber = `${orgPrefix}-${currentYear}-${formattedNumber}`;
-      
+
       // Add initial status to history
-      this.statusHistory = [{
-        status: this.status,
-        changedBy: this.createdBy,
-        timestamp: new Date(),
-        reason: 'Ticket created'
-      }];
-      
+      this.statusHistory = [
+        {
+          status: this.status,
+          changedBy: this.createdBy,
+          timestamp: new Date(),
+          reason: "Ticket created",
+        },
+      ];
+
       next();
     } catch (error) {
       next(error);
@@ -354,12 +356,12 @@ TicketSchema.pre("save", function (next) {
     // Get the user who made the change (should be set by the controller)
     const changedBy = this._statusChangedBy || this.updatedBy || this.createdBy;
     const reason = this._statusChangeReason || "Status updated";
-    
+
     this.statusHistory.push({
       status: this.status,
       changedBy,
       timestamp: new Date(),
-      reason
+      reason,
     });
   }
   next();
@@ -368,7 +370,7 @@ TicketSchema.pre("save", function (next) {
 // Method to add a comment
 TicketSchema.methods.addComment = function (commentData) {
   this.comments.push(commentData);
-  
+
   // Add to audit log
   this.auditLog.push({
     action: "comment_added",
@@ -376,10 +378,10 @@ TicketSchema.methods.addComment = function (commentData) {
     timestamp: new Date(),
     details: {
       commentId: this.comments[this.comments.length - 1]._id,
-      isInternal: commentData.isInternal
-    }
+      isInternal: commentData.isInternal,
+    },
   });
-  
+
   return this.save();
 };
 
@@ -387,14 +389,14 @@ TicketSchema.methods.addComment = function (commentData) {
 TicketSchema.methods.assignTo = function (userId, assignedBy) {
   const previousAssignee = this.assignedTo;
   this.assignedTo = userId;
-  
+
   // Update status if it's new
   if (this.status === "new") {
     this.status = "assigned";
     this._statusChangedBy = assignedBy;
     this._statusChangeReason = "Ticket assigned";
   }
-  
+
   // Add to audit log
   this.auditLog.push({
     action: "assigned",
@@ -402,24 +404,28 @@ TicketSchema.methods.assignTo = function (userId, assignedBy) {
     timestamp: new Date(),
     details: {
       previousAssignee,
-      newAssignee: userId
-    }
+      newAssignee: userId,
+    },
   });
-  
+
   return this.save();
 };
 
 // Method to assign to team
-TicketSchema.methods.assignToTeam = function (teamId, assignedBy, isPrimary = true) {
+TicketSchema.methods.assignToTeam = function (
+  teamId,
+  assignedBy,
+  isPrimary = true
+) {
   if (isPrimary) {
     const previousTeam = this.primaryTeam?.teamId;
-    
+
     this.primaryTeam = {
       teamId,
       assignedAt: new Date(),
-      assignedBy
+      assignedBy,
     };
-    
+
     // Add to audit log
     this.auditLog.push({
       action: "team_assigned_primary",
@@ -427,15 +433,15 @@ TicketSchema.methods.assignToTeam = function (teamId, assignedBy, isPrimary = tr
       timestamp: new Date(),
       details: {
         previousTeam,
-        newTeam: teamId
-      }
+        newTeam: teamId,
+      },
     });
   } else {
     // Check if team is already in supporting teams
     const existingTeamIndex = this.supportingTeams.findIndex(
-      team => team.teamId.toString() === teamId.toString()
+      (team) => team.teamId.toString() === teamId.toString()
     );
-    
+
     if (existingTeamIndex >= 0) {
       // Update existing team
       this.supportingTeams[existingTeamIndex].status = "assigned";
@@ -447,21 +453,21 @@ TicketSchema.methods.assignToTeam = function (teamId, assignedBy, isPrimary = tr
         teamId,
         assignedAt: new Date(),
         assignedBy,
-        status: "assigned"
+        status: "assigned",
       });
     }
-    
+
     // Add to audit log
     this.auditLog.push({
       action: "team_assigned_supporting",
       performedBy: assignedBy,
       timestamp: new Date(),
       details: {
-        teamId
-      }
+        teamId,
+      },
     });
   }
-  
+
   return this.save();
 };
 
@@ -469,59 +475,67 @@ TicketSchema.methods.assignToTeam = function (teamId, assignedBy, isPrimary = tr
 TicketSchema.methods.updateSLA = function (slaData) {
   this.sla = {
     ...this.sla,
-    ...slaData
+    ...slaData,
   };
-  
+
   // Add to audit log
   this.auditLog.push({
     action: "sla_updated",
     timestamp: new Date(),
-    details: slaData
+    details: slaData,
   });
-  
+
   return this.save();
 };
 
 // Method to check if SLA is breached
 TicketSchema.methods.checkSLABreach = function () {
   const now = new Date();
-  
+
   if (this.sla) {
     // Check response SLA
-    if (this.sla.responseDeadline && now > this.sla.responseDeadline && !this.sla.breached.response) {
+    if (
+      this.sla.responseDeadline &&
+      now > this.sla.responseDeadline &&
+      !this.sla.breached.response
+    ) {
       this.sla.breached.response = true;
-      
+
       // Add to audit log
       this.auditLog.push({
         action: "sla_breached",
         timestamp: now,
         details: {
           type: "response",
-          deadline: this.sla.responseDeadline
-        }
+          deadline: this.sla.responseDeadline,
+        },
       });
     }
-    
+
     // Check resolution SLA
-    if (this.sla.resolutionDeadline && now > this.sla.resolutionDeadline && !this.sla.breached.resolution) {
+    if (
+      this.sla.resolutionDeadline &&
+      now > this.sla.resolutionDeadline &&
+      !this.sla.breached.resolution
+    ) {
       this.sla.breached.resolution = true;
-      
+
       // Add to audit log
       this.auditLog.push({
         action: "sla_breached",
         timestamp: now,
         details: {
           type: "resolution",
-          deadline: this.sla.resolutionDeadline
-        }
+          deadline: this.sla.resolutionDeadline,
+        },
       });
     }
-    
+
     if (this.isModified("sla")) {
       return this.save();
     }
   }
-  
+
   return Promise.resolve(this);
 };
 

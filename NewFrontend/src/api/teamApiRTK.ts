@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import { Team } from "./teamApi";
+import { User } from "./userApi";
 
 export const teamApiRTK = api.injectEndpoints({
   endpoints: (builder) => ({
@@ -85,6 +86,17 @@ export const teamApiRTK = api.injectEndpoints({
         method: "GET",
       }),
     }),
+
+    // Get team members
+    getTeamMembers: builder.query<User[], string>({
+      query: (teamId) => ({
+        url: `/api/teams/${teamId}/members`,
+        method: "GET",
+      }),
+      providesTags: (result, error, teamId) => [
+        { type: "TeamMembers" as const, id: teamId },
+      ],
+    }),
   }),
 });
 
@@ -96,4 +108,5 @@ export const {
   useDeleteTeamMutation,
   useGenerateInviteCodeMutation,
   useGetTeamAnalyticsQuery,
+  useGetTeamMembersQuery,
 } = teamApiRTK;

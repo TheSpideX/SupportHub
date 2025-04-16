@@ -261,3 +261,125 @@ exports.checkTeamMembership = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get team members
+ * @route GET /api/teams/:id/members
+ * @access Private - Team members, team lead, or admin
+ */
+exports.getTeamMembers = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+    const organizationId = req.user.organizationId;
+
+    // Check if user is admin or team member
+    const isAdmin = req.user.role === "admin";
+    const membership = await teamService.checkTeamMembership(userId, id);
+
+    if (!isAdmin && !membership.isMember) {
+      throw new ApiError(403, "Not authorized to view this team's members");
+    }
+
+    // Get the team to access its members
+    const team = await teamService.getTeamById(id);
+
+    // Debug log team data
+    logger.debug(`Team data for ${id}:`, {
+      teamId: id,
+      teamName: team.name,
+      membersCount: team.members ? team.members.length : 0,
+      members: team.members,
+    });
+
+    // Get the User model
+    const User = require("../../auth/models/user.model");
+
+    // Check if team has members
+    if (!team.members || team.members.length === 0) {
+      logger.debug(`Team ${id} has no members`);
+      return res.status(200).json({
+        success: true,
+        data: [],
+      });
+    }
+
+    // Extract member IDs from the team
+    const memberIds = team.members.map((member) => {
+      // Handle both string IDs and object IDs
+      return typeof member.userId === "object"
+        ? member.userId._id
+        : member.userId;
+    });
+
+    // Debug log member IDs
+    logger.debug(`Member IDs for team ${id}:`, memberIds);
+
+    // Fetch user details for all members
+    logger.debug(`Querying users with criteria:`, {
+      memberIds,
+      organizationId,
+    });
+
+    // Use lean() to get plain JavaScript objects instead of Mongoose documents
+    const members = await User.find(
+      { _id: { $in: memberIds } },
+      "profile.firstName profile.lastName email role"
+    ).lean();
+
+    logger.debug(`Found ${members.length} users for team ${id}:`, members);
+
+    // Combine user details with team member roles
+    const teamMembers = members.map((member) => {
+      const teamMember = team.members.find((m) => {
+        const memberId =
+          typeof m.userId === "object"
+            ? m.userId._id.toString()
+            : m.userId.toString();
+        return memberId === member._id.toString();
+      });
+
+      // Check if this user is the team creator
+      const isCreator = team.createdBy.toString() === member._id.toString();
+
+      // For display purposes, prioritize user role for admins
+      const displayRole =
+        member.role === "admin"
+          ? "admin"
+          : teamMember
+          ? teamMember.role
+          : "member";
+
+      return {
+        _id: member._id,
+        profile: member.profile,
+        email: member.email,
+        role: displayRole,
+        teamRole: teamMember ? teamMember.role : null,
+        userRole: member.role,
+        isCreator: isCreator,
+        joinedAt: teamMember ? teamMember.joinedAt : null,
+      };
+    });
+
+    // If no members were found, log a warning
+    if (teamMembers.length === 0) {
+      logger.warn(
+        `No team members found for team ${id} despite having ${team.members.length} members in the team document`
+      );
+    }
+
+    // Set cache control headers to prevent caching
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+
+    res.status(200).json({
+      success: true,
+      data: teamMembers,
+    });
+  } catch (error) {
+    logger.error(`Error getting team members: ${error.message}`, error);
+    next(error);
+  }
+};

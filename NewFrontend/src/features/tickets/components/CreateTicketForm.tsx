@@ -6,11 +6,14 @@ import {
   FaUser,
   FaUsers,
   FaTags,
+  FaArrowLeft,
+  FaPlusCircle,
 } from "react-icons/fa";
 import { useCreateTicketMutation } from "../api/ticketApi";
-import { useGetTeamsQuery } from "@/api/teamApiRTK";
+import { useGetTeamsQuery, useGetTeamMembersQuery } from "@/api/teamApiRTK";
 import { useGetUsersQuery } from "@/api/userApiRTK";
 import { toast } from "react-hot-toast";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 interface CreateTicketFormProps {
   onSuccess?: () => void;
@@ -18,11 +21,17 @@ interface CreateTicketFormProps {
 
 const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     category: "",
     subcategory: "",
+    customCategory: "",
+    customSubcategory: "",
+    useCustomCategory: false,
     priority: "medium",
     primaryTeam: "",
     assignedTo: "",
@@ -38,6 +47,12 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     useCreateTicketMutation();
   const { data: teamsData } = useGetTeamsQuery();
   const { data: usersData } = useGetUsersQuery();
+
+  // Fetch team members when a team is selected
+  const { data: teamMembersData, isFetching: isLoadingTeamMembers } =
+    useGetTeamMembersQuery(formData.primaryTeam, {
+      skip: !formData.primaryTeam,
+    });
 
   // Categories with subcategories
   const categories = [
@@ -89,7 +104,16 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     if (!formData.title.trim()) newErrors.title = "Title is required";
     if (!formData.description.trim())
       newErrors.description = "Description is required";
-    if (!formData.category) newErrors.category = "Category is required";
+
+    // Validate category (either predefined or custom)
+    if (formData.useCustomCategory) {
+      if (!formData.customCategory.trim()) {
+        newErrors.customCategory = "Custom category is required";
+      }
+    } else if (!formData.category) {
+      newErrors.category = "Category is required";
+    }
+
     if (!formData.priority) newErrors.priority = "Priority is required";
 
     if (Object.keys(newErrors).length > 0) {
@@ -98,7 +122,24 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      await createTicket(formData).unwrap();
+      // Prepare data for submission
+      const ticketData = {
+        ...formData,
+        // Use custom category/subcategory if enabled
+        category: formData.useCustomCategory
+          ? formData.customCategory
+          : formData.category,
+        subcategory: formData.useCustomCategory
+          ? formData.customSubcategory
+          : formData.subcategory,
+      };
+
+      // Remove custom fields before submission
+      delete ticketData.customCategory;
+      delete ticketData.customSubcategory;
+      delete ticketData.useCustomCategory;
+
+      await createTicket(ticketData).unwrap();
       toast.success("Ticket created successfully");
       if (onSuccess) {
         onSuccess();
@@ -117,7 +158,7 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
 
     if (name.startsWith("customer.")) {
       const customerField = name.split(".")[1];
@@ -128,11 +169,48 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
           [customerField]: value,
         },
       });
+    } else if (type === "checkbox") {
+      // Handle checkbox inputs
+      setFormData({
+        ...formData,
+        [name]: checked,
+      });
+
+      // Reset category/subcategory when switching between custom and predefined
+      if (name === "useCustomCategory") {
+        if (checked) {
+          // Switching to custom category
+          setFormData((prev) => ({
+            ...prev,
+            [name]: checked,
+            category: "",
+            subcategory: "",
+          }));
+        } else {
+          // Switching to predefined category
+          setFormData((prev) => ({
+            ...prev,
+            [name]: checked,
+            customCategory: "",
+            customSubcategory: "",
+          }));
+        }
+      }
     } else {
       setFormData({
         ...formData,
         [name]: value,
       });
+
+      // Special handling for team selection
+      if (name === "primaryTeam") {
+        // Reset assignedTo when team changes
+        setFormData((prev) => ({
+          ...prev,
+          [name]: value,
+          assignedTo: "",
+        }));
+      }
     }
 
     // Clear error when field is edited
@@ -154,25 +232,30 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     }
   }, [formData.category]);
 
+  // Debug when primary team changes
+  useEffect(() => {
+    if (formData.primaryTeam) {
+      console.log("Primary team selected:", formData.primaryTeam);
+    }
+  }, [formData.primaryTeam]);
+
   // Get subcategories for selected category
   const getSubcategories = () => {
     const category = categories.find((c) => c.name === formData.category);
     return category ? category.subcategories : [];
   };
 
-  // Filter technical teams
-  const technicalTeams =
-    teamsData?.data?.filter((team) => team.teamType === "technical") || [];
+  // Get all teams or filter by type based on user role
+  const availableTeams = isAdmin
+    ? teamsData?.data || []
+    : teamsData?.data?.filter((team) => team.teamType === "technical") || [];
 
-  // Filter technical team members
-  const technicalMembers =
-    usersData?.data?.filter((user) =>
-      user.teams?.some(
-        (team) =>
-          team.role === "member" &&
-          technicalTeams.some((t) => t._id === team.teamId)
-      )
-    ) || [];
+  // Log team members data for debugging
+  useEffect(() => {
+    if (formData.primaryTeam && teamMembersData) {
+      console.log("Team members data from API:", teamMembersData);
+    }
+  }, [formData.primaryTeam, teamMembersData]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -230,66 +313,138 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
         </div>
 
         {/* Category and Subcategory */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        <div className="space-y-4">
+          {/* Custom Category Toggle */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="useCustomCategory"
+              name="useCustomCategory"
+              checked={formData.useCustomCategory}
+              onChange={handleChange}
+              className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800"
+            />
             <label
-              htmlFor="category"
-              className="block text-sm font-medium text-gray-300 mb-1"
+              htmlFor="useCustomCategory"
+              className="ml-2 text-sm font-medium text-gray-300 flex items-center"
             >
-              Category <span className="text-red-500">*</span>
+              <FaPlusCircle className="mr-1" /> Use custom category
             </label>
-            <div className="relative">
-              <select
-                id="category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className={`w-full bg-gray-700/50 border ${
-                  errors.category ? "border-red-500" : "border-gray-600/50"
-                } rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none`}
-              >
-                <option value="">Select Category</option>
-                {categories.map((category) => (
-                  <option key={category.name} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <FaTags className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            </div>
-            {errors.category && (
-              <p className="mt-1 text-sm text-red-500 flex items-center">
-                <FaExclamationCircle className="mr-1" /> {errors.category}
-              </p>
-            )}
           </div>
 
-          <div>
-            <label
-              htmlFor="subcategory"
-              className="block text-sm font-medium text-gray-300 mb-1"
-            >
-              Subcategory
-            </label>
-            <div className="relative">
-              <select
-                id="subcategory"
-                name="subcategory"
-                value={formData.subcategory}
-                onChange={handleChange}
-                disabled={!formData.category}
-                className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none disabled:opacity-50"
-              >
-                <option value="">Select Subcategory</option>
-                {getSubcategories().map((subcategory) => (
-                  <option key={subcategory} value={subcategory}>
-                    {subcategory}
-                  </option>
-                ))}
-              </select>
-              <FaTags className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          {formData.useCustomCategory ? (
+            // Custom Category Input
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="customCategory"
+                  className="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Custom Category <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="customCategory"
+                  name="customCategory"
+                  value={formData.customCategory}
+                  onChange={handleChange}
+                  className={`w-full bg-gray-700/50 border ${
+                    errors.customCategory
+                      ? "border-red-500"
+                      : "border-gray-600/50"
+                  } rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50`}
+                  placeholder="Enter custom category"
+                />
+                {errors.customCategory && (
+                  <p className="mt-1 text-sm text-red-500 flex items-center">
+                    <FaExclamationCircle className="mr-1" />{" "}
+                    {errors.customCategory}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="customSubcategory"
+                  className="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Custom Subcategory
+                </label>
+                <input
+                  type="text"
+                  id="customSubcategory"
+                  name="customSubcategory"
+                  value={formData.customSubcategory}
+                  onChange={handleChange}
+                  className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  placeholder="Enter custom subcategory (optional)"
+                />
+              </div>
             </div>
-          </div>
+          ) : (
+            // Standard Category Dropdown
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="category"
+                  className="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Category <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    id="category"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    className={`w-full bg-gray-700/50 border ${
+                      errors.category ? "border-red-500" : "border-gray-600/50"
+                    } rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none`}
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((category) => (
+                      <option key={category.name} value={category.name}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <FaTags className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                </div>
+                {errors.category && (
+                  <p className="mt-1 text-sm text-red-500 flex items-center">
+                    <FaExclamationCircle className="mr-1" /> {errors.category}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="subcategory"
+                  className="block text-sm font-medium text-gray-300 mb-1"
+                >
+                  Subcategory
+                </label>
+                <div className="relative">
+                  <select
+                    id="subcategory"
+                    name="subcategory"
+                    value={formData.subcategory}
+                    onChange={handleChange}
+                    disabled={!formData.category}
+                    className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none disabled:opacity-50"
+                  >
+                    <option value="">Select Subcategory</option>
+                    {getSubcategories().map((subcategory) => (
+                      <option key={subcategory} value={subcategory}>
+                        {subcategory}
+                      </option>
+                    ))}
+                  </select>
+                  <FaTags className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Priority */}
@@ -398,9 +553,9 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
                 className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none"
               >
                 <option value="">Select Team</option>
-                {technicalTeams.map((team) => (
+                {availableTeams.map((team) => (
                   <option key={team._id} value={team._id}>
-                    {team.name}
+                    {team.name} {team.teamType ? `(${team.teamType})` : ""}
                   </option>
                 ))}
               </select>
@@ -413,7 +568,8 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
               htmlFor="assignedTo"
               className="block text-sm font-medium text-gray-300 mb-1"
             >
-              Assign to Individual
+              Assign to Individual{" "}
+              <span className="text-xs text-gray-400">(Optional)</span>
             </label>
             <div className="relative">
               <select
@@ -421,17 +577,37 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
                 name="assignedTo"
                 value={formData.assignedTo}
                 onChange={handleChange}
-                className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none"
+                disabled={!formData.primaryTeam}
+                className="w-full bg-gray-700/50 border border-gray-600/50 rounded-lg py-2 px-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none disabled:opacity-50"
               >
                 <option value="">Select Assignee</option>
-                {technicalMembers.map((user) => (
-                  <option key={user._id} value={user._id}>
-                    {user.profile?.firstName} {user.profile?.lastName} (
-                    {user.email})
-                  </option>
-                ))}
+                {isLoadingTeamMembers ? (
+                  <option value="">Loading team members...</option>
+                ) : formData.primaryTeam &&
+                  teamMembersData?.data &&
+                  teamMembersData.data.length > 0 ? (
+                  teamMembersData.data.map((user) => (
+                    <option key={user._id} value={user._id}>
+                      {user.profile?.firstName || ""}{" "}
+                      {user.profile?.lastName || ""} ({user.email || "No email"}
+                      )
+                      {user.role === "admin"
+                        ? " - Admin"
+                        : user.role === "lead"
+                        ? " - Team Lead"
+                        : ""}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No team members found</option>
+                )}
               </select>
               <FaUser className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              {!formData.primaryTeam && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Select a team first to see available members
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -483,50 +659,60 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-end space-x-3 pt-4 border-t border-gray-700">
+      <div className="flex justify-between pt-4 border-t border-gray-700">
         <button
           type="button"
-          onClick={() => navigate("/tickets")}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+          onClick={() => navigate(-1)}
+          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center"
         >
-          Cancel
+          <FaArrowLeft className="mr-2" /> Back
         </button>
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Creating...
-            </>
-          ) : (
-            <>
-              <FaTicketAlt className="mr-2" /> Create Ticket
-            </>
-          )}
-        </button>
+        <div className="flex space-x-3">
+          <button
+            type="button"
+            onClick={() => (onSuccess ? onSuccess() : navigate("/tickets"))}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? (
+              <>
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Creating...
+              </>
+            ) : (
+              <>
+                <FaTicketAlt className="mr-2" /> Create Ticket
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </form>
   );

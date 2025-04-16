@@ -55,6 +55,9 @@ router.delete("/:id", csrfProtection, asyncHandler(teamController.deleteTeam));
 // Team membership operations
 router.get("/:id/membership", asyncHandler(teamController.checkTeamMembership));
 
+// Get team members
+router.get("/:id/members", asyncHandler(teamController.getTeamMembers));
+
 router.post(
   "/:id/members",
   csrfProtection,
