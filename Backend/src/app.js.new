@@ -1,0 +1,217 @@
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const cookieParser = require("cookie-parser");
+const config = require("./config");
+const logger = require("./utils/logger");
+
+const app = express();
+
+// Middleware
+app.use(
+  cors({
+    origin: ["http://localhost:5173"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-CSRF-Token",
+      "X-Debug-Ticket-Creation",
+    ],
+    exposedHeaders: ["Content-Length", "X-CSRF-Token"],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  })
+);
+
+// Standard body parsers first to ensure they process the request body
+app.use(
+  bodyParser.json({
+    limit: "10mb",
+    strict: false,
+    verify: (req, res, buf) => {
+      // Store the raw buffer for debugging
+      req._buffer = buf;
+      
+      // Log buffer content for debugging
+      if (req.url.includes("/tickets") && req.method === "POST") {
+        logger.info(`Buffer content for ${req.method} ${req.url}:`, {
+          bufferLength: buf.length,
+          bufferPreview: buf.length > 0 ? buf.toString('utf8').substring(0, 100) : 'empty',
+          contentType: req.headers["content-type"],
+        });
+      }
+    },
+  })
+);
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+    limit: "10mb",
+  })
+);
+app.use(cookieParser());
+
+// Capture raw body for JSON requests (after body parser)
+app.use((req, res, next) => {
+  // If we already have a parsed body from bodyParser.json(), store it as rawBody too
+  if (
+    req.headers["content-type"] &&
+    req.headers["content-type"].includes("application/json") &&
+    req.body && 
+    Object.keys(req.body).length > 0
+  ) {
+    // We already have a parsed body, just store it as rawBody too
+    req.rawBody = JSON.stringify(req.body);
+    return next();
+  }
+  
+  // Otherwise try to capture the raw body
+  if (
+    req.headers["content-type"] &&
+    req.headers["content-type"].includes("application/json")
+  ) {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+    });
+    req.on("end", () => {
+      req.rawBody = data;
+
+      // Log the raw body for debugging
+      if (req.url.includes("/tickets")) {
+        logger.info(`Raw body for ${req.method} ${req.url}:`, {
+          rawBody: data,
+          rawBodyLength: data.length,
+          contentType: req.headers["content-type"],
+        });
+
+        // Try to parse the raw body as JSON
+        if (data && data.trim()) {
+          try {
+            const parsedData = JSON.parse(data);
+            // If body is empty but we successfully parsed the raw body, use it
+            if (
+              Object.keys(req.body || {}).length === 0 &&
+              Object.keys(parsedData).length > 0
+            ) {
+              logger.info("Using parsed raw body instead of empty req.body", {
+                parsedData,
+              });
+              req.body = parsedData;
+            }
+          } catch (err) {
+            logger.error("Failed to parse raw body in middleware", {
+              error: err.message,
+            });
+          }
+        }
+      }
+
+      next();
+    });
+  } else {
+    next();
+  }
+});
+
+// Add a middleware to log empty bodies with JSON content type
+app.use((req, res, next) => {
+  if (
+    req.headers["content-type"] &&
+    req.headers["content-type"].includes("application/json") &&
+    Object.keys(req.body || {}).length === 0 &&
+    req.url.includes("/tickets")
+  ) {
+    logger.warn(`Empty JSON body detected for ${req.method} ${req.url}`, {
+      headers: req.headers,
+      hasRawBody: !!req.rawBody,
+      rawBodyLength: req.rawBody ? req.rawBody.length : 0,
+      hasBuffer: !!req._buffer,
+      bufferLength: req._buffer ? req._buffer.length : 0,
+    });
+
+    // Try to use the buffer if available
+    if (req._buffer && req._buffer.length) {
+      try {
+        const bufferString = req._buffer.toString("utf8");
+        const parsedBuffer = JSON.parse(bufferString);
+        logger.info("Successfully parsed buffer", { parsedBuffer });
+        req.body = parsedBuffer;
+      } catch (err) {
+        logger.error("Failed to parse buffer", { error: err.message });
+      }
+    }
+  }
+  next();
+});
+
+// Request tracking for metrics
+const requestTracker = require("./middleware/requestTracker");
+app.use(requestTracker);
+
+// Import routes
+const authRoutes = require("./modules/auth/routes/auth.routes");
+const teamRoutes = require("./modules/team/routes/team.routes");
+const userRoutes = require("./modules/user/routes/user.routes");
+const teamAnalyticsRoutes = require("./modules/team/routes/team-analytics.routes");
+const inviteCodeRoutes = require("./modules/organization/routes/inviteCode.routes");
+const systemRoutes = require("./modules/system/routes/system.routes");
+const ticketRoutes = require("./modules/ticket/routes/ticket.routes");
+const slaRoutes = require("./modules/ticket/routes/sla.routes");
+const reportRoutes = require("./modules/ticket/routes/report.routes");
+const notificationRoutes = require("./modules/notification/routes/notification.routes");
+const testRoutes = require("./routes/test.routes");
+
+// Use routes
+app.use("/api/auth", authRoutes);
+app.use("/api/teams", teamRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/team-analytics", teamAnalyticsRoutes);
+app.use("/api/invite-codes", inviteCodeRoutes);
+app.use("/api/system", systemRoutes);
+app.use("/api/tickets", ticketRoutes);
+app.use("/api/sla", slaRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/test", testRoutes);
+
+// Error handling middleware
+const {
+  notFoundHandler,
+  errorHandler,
+} = require("./middleware/errorMiddleware");
+
+// Register error handlers after all routes
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// Connect to MongoDB
+mongoose
+  .connect(config.mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+// Initialize scheduled jobs
+const slaCheckJob = require("./jobs/sla-check.job");
+
+// Start server
+const PORT = process.env.PORT || 4290;
+const server = app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+
+  // Schedule SLA check job after server starts
+  try {
+    slaCheckJob.scheduleJob();
+    logger.info("SLA check job scheduled successfully");
+  } catch (error) {
+    logger.error("Failed to schedule SLA check job:", error);
+  }
+});
+
+module.exports = { app, server };

@@ -23,19 +23,33 @@ exports.createTicket = async (req, res, next) => {
       bodyType: typeof req.body,
       bodyKeys: Object.keys(req.body),
       headers: req.headers,
-      contentType: req.headers["content-type"],
-      userId,
       organizationId,
+      service: "tech-support-crm",
+      timestamp: new Date().toISOString().replace("T", " ").substring(0, 19),
+      userId,
     });
 
-    // Handle potential string parsing issues
+    // Enhanced body parsing and validation
     let ticketData = req.body;
+
+    // Handle potential string parsing issues
     if (typeof req.body === "string") {
       try {
         ticketData = JSON.parse(req.body);
         logger.info("Parsed string body to JSON", { parsedData: ticketData });
       } catch (parseError) {
         logger.error("Failed to parse request body as JSON", {
+          error: parseError,
+        });
+      }
+    } else if (req.rawBody) {
+      // Try to parse from raw buffer if available
+      try {
+        const rawString = req.rawBody.toString("utf8");
+        logger.info("Attempting to parse from raw buffer", { rawString });
+        ticketData = JSON.parse(rawString);
+      } catch (parseError) {
+        logger.error("Failed to parse raw body as JSON", {
           error: parseError,
         });
       }

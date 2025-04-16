@@ -16,6 +16,7 @@ import { useGetUsersQuery } from "@/api/userApiRTK";
 import { useGetSLAPoliciesQuery } from "@/services/slaApi";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { createTicketDirectFetch } from "../utils/directTicketApi";
 
 interface CreateTicketFormProps {
   onSuccess?: () => void;
@@ -216,12 +217,6 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
     );
 
     try {
-      // Use the RTK Query mutation to create the ticket
-      console.log(
-        "Submitting ticket data to API:",
-        JSON.stringify(ticketData, null, 2)
-      );
-
       // Create a clean ticket object with only the required fields
       const cleanTicketData = {
         title: ticketData.title,
@@ -232,28 +227,29 @@ const CreateTicketForm: React.FC<CreateTicketFormProps> = ({ onSuccess }) => {
       };
 
       // Add optional fields if they exist
-      if (ticketData.subcategory)
-        cleanTicketData.subcategory = ticketData.subcategory;
-      if (ticketData.primaryTeam)
-        cleanTicketData.primaryTeam = ticketData.primaryTeam;
-      if (ticketData.assignedTo)
-        cleanTicketData.assignedTo = ticketData.assignedTo;
+      if (ticketData.subcategory) {
+        cleanTicketData["subcategory"] = ticketData.subcategory;
+      }
+      if (ticketData.primaryTeam) {
+        cleanTicketData["primaryTeam"] = ticketData.primaryTeam;
+      }
+      if (ticketData.assignedTo) {
+        cleanTicketData["assignedTo"] = ticketData.assignedTo;
+      }
 
-      console.log(
-        "Clean ticket data prepared:",
-        JSON.stringify(cleanTicketData, null, 2)
-      );
+      // Create the ticket using direct fetch
+      const result = await createTicketDirectFetch(cleanTicketData);
 
-      const result = await createTicket(cleanTicketData).unwrap();
-
-      console.log("Ticket created successfully:", result);
       toast.success("Ticket created successfully");
 
       if (onSuccess) {
         onSuccess();
-      } else {
+      } else if (result.success && result.data && result.data._id) {
         // Navigate to the specific ticket page
         navigate(`/tickets/${result.data._id}`);
+      } else {
+        // If we don't have a ticket ID, just navigate to the tickets list
+        navigate("/tickets");
       }
     } catch (err: any) {
       console.error("Failed to create ticket:", err);

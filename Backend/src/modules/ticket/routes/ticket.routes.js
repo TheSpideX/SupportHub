@@ -8,6 +8,7 @@ const router = express.Router();
 const ticketController = require("../controllers/ticket.controller");
 const { authenticate } = require("../../auth/middleware/auth.middleware");
 const { srs } = require("../../auth/middleware/role.middleware");
+const logger = require("../../../utils/logger");
 
 // Protect all routes
 router.use(authenticate);
