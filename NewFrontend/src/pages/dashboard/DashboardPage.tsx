@@ -29,9 +29,10 @@ const DashboardPage: React.FC = () => {
 
     // Set ready state when auth is fully loaded, regardless of user data
     if (!authLoading) {
+      // Increase the delay to give more time for proper role detection
       const timer = setTimeout(() => {
         setIsReady(true);
-      }, 500);
+      }, 1500); // Increased from 500ms to 1500ms for better role detection
 
       return () => clearTimeout(timer);
     }

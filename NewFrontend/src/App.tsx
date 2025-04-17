@@ -14,6 +14,7 @@ import RegisterWithCodePage from "@/pages/auth/RegisterWithCodePage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import EnhancedAdminDashboard from "@/pages/dashboard/EnhancedAdminDashboard";
 import EnhancedSupportDashboard from "@/pages/dashboard/EnhancedSupportDashboard";
+import TeamLeadDashboard from "@/pages/dashboard/TeamLeadDashboard";
 import TeamLeadSupportDashboard from "@/pages/dashboard/TeamLeadSupportDashboard";
 import TeamLeadTechnicalDashboard from "@/pages/dashboard/TeamLeadTechnicalDashboard";
 import { AuthGuard } from "@/features/auth/components/AuthGuard";
@@ -129,6 +130,14 @@ const routes = [
         element: (
           <AuthGuard>
             <EnhancedSupportDashboard />
+          </AuthGuard>
+        ),
+      },
+      {
+        path: "team-lead-dashboard",
+        element: (
+          <AuthGuard>
+            <TeamLeadDashboard />
           </AuthGuard>
         ),
       },

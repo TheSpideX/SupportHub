@@ -1038,6 +1038,8 @@ exports.addComment = async (ticketId, commentData, userId, organizationId) => {
  */
 exports.assignTicket = async (ticketId, assigneeId, userId, organizationId) => {
   try {
+    logger.info(`Assigning ticket ${ticketId} to assignee ${assigneeId}`);
+
     const ticket = await Ticket.findOne({
       _id: ticketId,
       organizationId,
@@ -1047,10 +1049,31 @@ exports.assignTicket = async (ticketId, assigneeId, userId, organizationId) => {
       throw new ApiError(404, "Ticket not found");
     }
 
-    // Validate assignee exists
-    const assignee = await User.findById(assigneeId);
-    if (!assignee) {
-      throw new ApiError(404, "Assignee not found");
+    // Check if assigneeId is an email address
+    let assignee;
+    if (typeof assigneeId === "string" && assigneeId.includes("@")) {
+      logger.info(`Assignee ID appears to be an email: ${assigneeId}`);
+      // Find user by email
+      assignee = await User.findOne({ email: assigneeId.toLowerCase() });
+
+      if (!assignee) {
+        logger.warn(`No user found with email: ${assigneeId}`);
+        throw new ApiError(404, `No user found with email: ${assigneeId}`);
+      }
+
+      logger.info(
+        `Found user by email: ${assigneeId}, user ID: ${assignee._id}`
+      );
+      // Use the user's ID for assignment
+      assigneeId = assignee._id;
+    } else {
+      // Try to find by ID
+      assignee = await User.findById(assigneeId);
+
+      if (!assignee) {
+        logger.warn(`No user found with ID: ${assigneeId}`);
+        throw new ApiError(404, "Assignee not found");
+      }
     }
 
     // Assign ticket

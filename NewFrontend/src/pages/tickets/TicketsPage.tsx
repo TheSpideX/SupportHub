@@ -1622,7 +1622,7 @@ const TicketDetailModal = ({
 
   const [assignTicket] = useAssignTicketMutation();
 
-  // Handle adding a comment
+  // Handle adding a comment using direct API call
   const handleAddComment = async () => {
     if (!ticket) return;
 
@@ -1642,28 +1642,56 @@ const TicketDetailModal = ({
         isInternal: isInternalComment,
       });
 
-      // Use the RTK Query mutation instead of direct fetch
       const ticketId = ticket._id || ticket.id;
-      await addComment({
-        id: ticketId,
-        data: {
-          text: trimmedText,
-          isInternal: isInternalComment,
-        },
-      }).unwrap();
 
-      // We no longer need to add comments to the query separately
-      // The backend will handle this automatically
-      // Just log that we're skipping this step
-      if (ticket.originalQuery && ticket.source === "customer_query") {
-        console.log(
-          "Ticket was created from query, but we're no longer adding comments to queries separately."
-        );
-      } else {
-        console.log(
-          "Ticket was not created from a query or has no originalQuery reference, skipping query comment"
-        );
-      }
+      // Create the request payload
+      const payload = JSON.stringify({
+        text: trimmedText,
+        isInternal: isInternalComment,
+      });
+      console.log("Comment payload:", payload);
+
+      // Use XMLHttpRequest for direct API call to ticket endpoint
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/api/tickets/${ticketId}/comments`, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.withCredentials = true;
+
+        xhr.onload = function () {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              console.log("Comment added successfully:", response);
+              resolve(response);
+            } catch (e) {
+              console.error("Error parsing response:", e);
+              reject(new Error("Invalid response format"));
+            }
+          } else {
+            console.error("Error response from server:", xhr.responseText);
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(
+                new Error(errorData.message || `Server returned ${xhr.status}`)
+              );
+            } catch (e) {
+              reject(new Error(`Server returned ${xhr.status}`));
+            }
+          }
+        };
+
+        xhr.onerror = function () {
+          console.error("Network error occurred");
+          reject(new Error("Network error occurred"));
+        };
+
+        console.log("Sending comment request with payload:", payload);
+        xhr.send(payload);
+      });
+
+      console.log("Comment submission result:", result);
 
       // Reset form
       setCommentText("");
@@ -1678,7 +1706,14 @@ const TicketDetailModal = ({
       await refetch();
     } catch (error) {
       console.error("Error adding comment:", error);
-      toast.error("Failed to add comment. Please try again.");
+      let errorMessage = "Failed to add comment. Please try again.";
+
+      // Extract more specific error message if available
+      if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setIsAddingComment(false);
     }
@@ -1818,7 +1853,7 @@ const TicketDetailModal = ({
     }
   };
 
-  // Handle assign ticket
+  // Handle assign ticket using direct API call
   const handleAssignTicket = async () => {
     if (!ticket || !selectedAssignee) {
       setShowAssignForm(false);
@@ -1827,10 +1862,58 @@ const TicketDetailModal = ({
 
     setIsAssigning(true);
     try {
-      await assignTicket({
-        id: ticket._id || ticket.id,
-        data: { assigneeId: selectedAssignee },
-      }).unwrap();
+      const ticketId = ticket._id || ticket.id;
+      console.log(`Assigning ticket ${ticketId} to user ${selectedAssignee}`);
+
+      // The selectedAssignee is now directly the email from the dropdown
+      // No need to find the user object
+      const assigneeIdToUse = selectedAssignee;
+      console.log("Using assignee ID (email):", assigneeIdToUse);
+
+      // Create the request payload
+      const payload = JSON.stringify({ assigneeId: assigneeIdToUse });
+      console.log("Request payload:", payload);
+
+      // Try using XMLHttpRequest as a more reliable alternative to fetch
+      const result = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/api/tickets/${ticketId}/assign`, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.withCredentials = true;
+
+        xhr.onload = function () {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              console.log("XHR success response:", response);
+              resolve(response);
+            } catch (e) {
+              console.error("Error parsing response:", e);
+              reject(new Error("Invalid response format"));
+            }
+          } else {
+            console.error("XHR error response:", xhr.responseText);
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(
+                new Error(errorData.message || `Server returned ${xhr.status}`)
+              );
+            } catch (e) {
+              reject(new Error(`Server returned ${xhr.status}`));
+            }
+          }
+        };
+
+        xhr.onerror = function () {
+          console.error("XHR network error");
+          reject(new Error("Network error occurred"));
+        };
+
+        console.log("Sending XHR with payload:", payload);
+        xhr.send(payload);
+      });
+      console.log("Ticket assignment result:", result);
 
       // Reset form
       setShowAssignForm(false);
@@ -1838,10 +1921,26 @@ const TicketDetailModal = ({
       toast.success("Ticket assigned successfully");
 
       // Subscribe to ticket updates if not already subscribed
-      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+      ticketSocket.subscribeToTicket(ticketId);
+
+      // Refetch ticket data to ensure we have the latest state
+      await refetch();
     } catch (error) {
       console.error("Error assigning ticket:", error);
-      toast.error("Failed to assign ticket. Please try again.");
+      let errorMessage = "Failed to assign ticket. Please try again.";
+
+      // Extract more specific error message if available
+      if (
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+      ) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setIsAssigning(false);
     }
@@ -2124,6 +2223,15 @@ const TicketDetailModal = ({
       // Get the last 7 days
       const days = [];
       const today = new Date();
+
+      // Log the ticket data for debugging
+      console.log("Generating activity data from ticket:", {
+        id: ticket.id || ticket._id,
+        statusHistory: ticket.statusHistory?.length || 0,
+        auditLog: ticket.auditLog?.length || 0,
+        comments: ticket.comments?.length || 0,
+      });
+
       for (let i = 6; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(today.getDate() - i);
@@ -2133,6 +2241,23 @@ const TicketDetailModal = ({
           comments: 0,
           updates: 0,
         });
+      }
+
+      // Initialize with at least one update for ticket creation
+      // Find the day that matches the ticket creation date
+      if (ticket.createdAt) {
+        const creationDate = new Date(ticket.createdAt);
+        const dayIndex = days.findIndex(
+          (day) =>
+            day.date.getDate() === creationDate.getDate() &&
+            day.date.getMonth() === creationDate.getMonth() &&
+            day.date.getFullYear() === creationDate.getFullYear()
+        );
+
+        if (dayIndex !== -1) {
+          days[dayIndex].updates++;
+          console.log(`Added creation update for ${days[dayIndex].name}`);
+        }
       }
 
       console.log("Generating activity data for ticket:", ticket);
@@ -2235,6 +2360,31 @@ const TicketDetailModal = ({
 
   // Generate activity data from the ticket
   const activityData = ticket ? generateActivityData(ticket) : [];
+
+  // Ensure we have at least some data for the activity chart
+  // This prevents the empty chart issue when first opening the ticket
+  const ensureActivityData = (data) => {
+    if (!data || data.length === 0) {
+      // Create default data for the last 7 days
+      const days = [];
+      const today = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        days.push({
+          date,
+          name: date.toLocaleDateString("en-US", { weekday: "short" }),
+          comments: 0,
+          updates: i === 0 ? 1 : 0, // At least one update for today
+        });
+      }
+      return days;
+    }
+    return data;
+  };
+
+  // Apply the data validation
+  const validatedActivityData = ensureActivityData(activityData);
 
   // Sample data for response time pie chart
   const responseTimeData = [
@@ -2740,14 +2890,15 @@ const TicketDetailModal = ({
                               <h3 className="text-lg font-medium text-white mb-4">
                                 Activity Timeline
                               </h3>
-                              {activityData && activityData.length > 0 ? (
+                              {validatedActivityData &&
+                              validatedActivityData.length > 0 ? (
                                 <div className="h-64">
                                   <ResponsiveContainer
                                     width="100%"
                                     height="100%"
                                   >
                                     <BarChart
-                                      data={activityData}
+                                      data={validatedActivityData}
                                       margin={{
                                         top: 5,
                                         right: 30,
@@ -3093,11 +3244,13 @@ const TicketDetailModal = ({
                                             {users?.map((user) => (
                                               <option
                                                 key={user._id}
-                                                value={user._id}
+                                                value={user.email || user._id}
+                                                data-email={user.email}
+                                                data-id={user._id}
                                               >
                                                 {user.profile?.firstName &&
                                                 user.profile?.lastName
-                                                  ? `${user.profile.firstName} ${user.profile.lastName}`
+                                                  ? `${user.profile.firstName} ${user.profile.lastName} (${user.email})`
                                                   : user.email}
                                               </option>
                                             ))}

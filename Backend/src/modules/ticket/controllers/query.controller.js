@@ -190,10 +190,42 @@ exports.addComment = async (req, res, next) => {
         // Get the ticket service
         const ticketService = require("../services/ticket.service");
 
+        // Log the comment data for debugging
+        logger.info("Adding comment to ticket - service", {
+          ticketId: queryId,
+          userId,
+          commentData: req.body,
+          commentTextLength: req.body.text ? req.body.text.length : 0,
+          commentTextType: typeof req.body.text,
+        });
+
+        // Validate the comment data
+        if (
+          !req.body.text ||
+          typeof req.body.text !== "string" ||
+          req.body.text.trim() === ""
+        ) {
+          logger.warn("Empty comment text received in controller", {
+            ticketId: queryId,
+            userId,
+            textType: typeof req.body.text,
+          });
+          return res.status(400).json({
+            success: false,
+            error: "Comment text cannot be empty",
+          });
+        }
+
+        // Prepare clean comment data
+        const cleanCommentData = {
+          text: req.body.text.trim(),
+          isInternal: !!req.body.isInternal,
+        };
+
         // Add the comment to the ticket
         const updatedTicket = await ticketService.addComment(
           queryId,
-          req.body,
+          cleanCommentData,
           userId,
           organizationId
         );
@@ -213,9 +245,32 @@ exports.addComment = async (req, res, next) => {
       }
     }
 
+    // Validate the comment data for regular query comments too
+    if (
+      !req.body.text ||
+      typeof req.body.text !== "string" ||
+      req.body.text.trim() === ""
+    ) {
+      logger.warn("Empty comment text received for query comment", {
+        queryId,
+        userId,
+        textType: typeof req.body.text,
+      });
+      return res.status(400).json({
+        success: false,
+        error: "Comment text cannot be empty",
+      });
+    }
+
+    // Prepare clean comment data
+    const cleanCommentData = {
+      text: req.body.text.trim(),
+      isInternal: !!req.body.isInternal,
+    };
+
     const query = await queryService.addComment(
       queryId,
-      req.body,
+      cleanCommentData,
       userId,
       organizationId
     );

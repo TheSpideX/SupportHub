@@ -170,6 +170,9 @@ export const APP_ROUTES = {
     SETTINGS: "/dashboard/settings",
     SECURITY: "/dashboard/security",
     SESSIONS: "/dashboard/sessions",
+    TEAM_LEAD: "/team-lead-dashboard",
+    TEAM_LEAD_SUPPORT: "/team-lead-support-dashboard",
+    TEAM_LEAD_TECHNICAL: "/team-lead-technical-dashboard",
   },
 
   // Team management routes

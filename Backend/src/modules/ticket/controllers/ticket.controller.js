@@ -415,13 +415,22 @@ exports.addComment = async (req, res, next) => {
 exports.assignTicket = async (req, res, next) => {
   try {
     const ticketId = req.params.id;
-    const { assigneeId } = req.body;
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
 
+    // Log the request body to help diagnose issues
+    console.log("Assign ticket request body:", req.body);
+
+    // Extract assigneeId from request body
+    const { assigneeId } = req.body;
+
+    // Validate assigneeId
     if (!assigneeId) {
+      console.log("Missing assigneeId in request body");
       return next(new ApiError(400, "Assignee ID is required"));
     }
+
+    console.log(`Assigning ticket ${ticketId} to assignee ${assigneeId}`);
 
     const ticket = await ticketService.assignTicket(
       ticketId,

@@ -98,6 +98,7 @@ export const useAuth = () => {
           component: "useAuth",
           role: userData?.role,
           hasUser: !!userData,
+          teamType: userData?.teamType,
         });
 
         // Determine the appropriate dashboard based on user role
@@ -107,19 +108,27 @@ export const useAuth = () => {
           // Map user roles to their respective dashboards
           switch (userData.role) {
             case "admin":
-              dashboardPath = "/admin-dashboard";
+              dashboardPath = "/dashboard";
               break;
             case "support":
-            case "support_member":
+              dashboardPath = "/support-dashboard";
+              break;
+            case "support_member" as any: // Type cast to handle the string literal
               dashboardPath = "/support-dashboard";
               break;
             case "team_lead":
               // Check if the user is a support team lead or technical team lead
               if (userData.teamType === "support") {
-                dashboardPath = "/team-lead-support-dashboard";
+                dashboardPath = APP_ROUTES.DASHBOARD.TEAM_LEAD_SUPPORT;
               } else if (userData.teamType === "technical") {
-                dashboardPath = "/team-lead-technical-dashboard";
+                dashboardPath = APP_ROUTES.DASHBOARD.TEAM_LEAD_TECHNICAL;
+              } else {
+                // Default for team leads without a specific team type
+                dashboardPath = APP_ROUTES.DASHBOARD.TEAM_LEAD;
               }
+              break;
+            case "technical":
+              dashboardPath = "/technical-dashboard";
               break;
             case "customer":
               dashboardPath = "/dashboard"; // Customer dashboard
@@ -129,17 +138,41 @@ export const useAuth = () => {
           }
         }
 
-        // Get the redirect path from state or use the role-based dashboard
-        const from = location.state?.from?.pathname || dashboardPath;
+        // Override redirect path from location state only if it's a valid path
+        // Otherwise use the role-based dashboard path
+        const fromPath = location.state?.from?.pathname;
+        const from =
+          fromPath && fromPath !== "/" && fromPath !== "/login"
+            ? fromPath
+            : dashboardPath;
 
         logger.info("Redirecting after login", {
           component: "useAuth",
           path: from,
           role: userData?.role,
+          teamType: userData?.teamType,
+          originalPath: location.state?.from?.pathname,
         });
 
-        // Redirect to the intended destination
-        navigate(from, { replace: true });
+        // Add a longer delay to ensure the auth state is fully updated and user data is loaded
+        logger.info(
+          "Adding delay before redirect to ensure auth state is fully updated"
+        );
+        setTimeout(() => {
+          // Double-check that we have the user data before redirecting
+          const currentState = authServiceInstance.getAuthState();
+          const userData = currentState.user;
+
+          logger.info("User data before redirect:", {
+            component: "useAuth",
+            role: userData?.role,
+            hasUser: !!userData,
+            teamType: userData?.teamType,
+          });
+
+          // Redirect to the intended destination
+          navigate(from, { replace: true });
+        }, 1500); // Increased to 1.5 seconds for better reliability
 
         return true;
       }

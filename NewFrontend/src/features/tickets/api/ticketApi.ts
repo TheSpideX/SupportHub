@@ -237,11 +237,15 @@ const ticketApi = api.injectEndpoints({
       query: (id) => ({
         url: `/api/tickets/${id}/audit-log`,
         method: "GET",
+        // Add cache busting parameter to ensure fresh data
+        params: { _t: Date.now() },
       }),
       transformResponse: (response: {
         success: boolean;
         data: GroupedActivityResponse[];
       }) => {
+        console.log("Received audit log data:", response.data);
+
         // Process the audit log to remove any duplicate activities
         if (response.data && Array.isArray(response.data)) {
           // For each status group, make sure there are no duplicate activities
@@ -271,9 +275,19 @@ const ticketApi = api.injectEndpoints({
             return group;
           });
 
+          console.log("Processed audit log data:", processedData);
           return processedData;
         }
         return response.data;
+      },
+      // Disable caching to ensure fresh data
+      keepUnusedDataFor: 0,
+      // Refetch on mount and on focus to ensure data is always fresh
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      // Force refetch every time to ensure we always have the latest data
+      forceRefetch: ({ currentArg, previousArg }) => {
+        return true; // Always refetch
       },
       providesTags: (result, error, id) => [
         { type: "TicketAuditLog" as const, id },
@@ -342,6 +356,7 @@ const ticketApi = api.injectEndpoints({
       invalidatesTags: (result, error, { id }) => [
         { type: "Tickets", id },
         { type: "Tickets", id: "LIST" },
+        { type: "TicketAuditLog", id },
       ],
     }),
 
@@ -377,7 +392,10 @@ const ticketApi = api.injectEndpoints({
           credentials: "include",
         };
       },
-      invalidatesTags: (result, error, { id }) => [{ type: "Tickets", id }],
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Tickets", id },
+        { type: "TicketAuditLog", id },
+      ],
       // Add transformResponse to log the response
       transformResponse: (response) => {
         console.log("Comment addition response:", response);
@@ -395,15 +413,42 @@ const ticketApi = api.injectEndpoints({
       Ticket,
       { id: string; data: AssignTicketRequest }
     >({
-      query: ({ id, data }) => ({
-        url: `/api/tickets/${id}/assign`,
-        method: "POST",
-        body: data,
-      }),
+      query: ({ id, data }) => {
+        console.log("Assigning ticket with data:", JSON.stringify(data));
+
+        // Ensure we're sending a clean object with the right structure
+        const cleanData = {
+          assigneeId: data.assigneeId,
+        };
+
+        console.log("Sending clean assign data:", JSON.stringify(cleanData));
+
+        return {
+          url: `/api/tickets/${id}/assign`,
+          method: "POST",
+          body: JSON.stringify(cleanData),
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          credentials: "include",
+        };
+      },
       invalidatesTags: (result, error, { id }) => [
         { type: "Tickets", id },
         { type: "Tickets", id: "LIST" },
+        { type: "TicketAuditLog", id },
       ],
+      // Add transformResponse to log the response
+      transformResponse: (response) => {
+        console.log("Ticket assignment response:", response);
+        return response;
+      },
+      // Add transformErrorResponse to log the error
+      transformErrorResponse: (response) => {
+        console.error("Ticket assignment error:", response);
+        return response;
+      },
     }),
 
     // Assign ticket to team
@@ -419,6 +464,7 @@ const ticketApi = api.injectEndpoints({
       invalidatesTags: (result, error, { id }) => [
         { type: "Tickets", id },
         { type: "Tickets", id: "LIST" },
+        { type: "TicketAuditLog", id },
       ],
     }),
 

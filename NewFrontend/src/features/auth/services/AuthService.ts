@@ -492,13 +492,54 @@ export class AuthService {
         // Connect to WebSocket
         this.webSocketAuthService?.connect();
 
-        // Update auth state with user data
-        this.updateAuthState({
-          isAuthenticated: true,
-          user: response.data.user,
-          isLoading: false,
-          error: null,
-        });
+        // Add a delay to ensure tokens are properly set
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Fetch complete user data from /me endpoint
+        try {
+          logger.info("Fetching complete user data from /me endpoint");
+          const userResponse = await apiClient.get(
+            `${this.config.apiBaseUrl}/auth/me`
+          );
+
+          if (userResponse.data && userResponse.data.success) {
+            logger.info("Successfully fetched user data from /me endpoint", {
+              role: userResponse.data.data.role,
+              teamType: userResponse.data.data.teamType,
+            });
+
+            // Update auth state with complete user data
+            this.updateAuthState({
+              isAuthenticated: true,
+              user: userResponse.data.data,
+              isLoading: false,
+              error: null,
+            });
+          } else {
+            // Fallback to the user data from login response
+            logger.warn(
+              "Failed to fetch user data from /me endpoint, using login response data"
+            );
+            this.updateAuthState({
+              isAuthenticated: true,
+              user: response.data.user,
+              isLoading: false,
+              error: null,
+            });
+          }
+        } catch (userError) {
+          // If fetching user data fails, use the login response data
+          logger.error(
+            "Error fetching user data from /me endpoint:",
+            userError
+          );
+          this.updateAuthState({
+            isAuthenticated: true,
+            user: response.data.user,
+            isLoading: false,
+            error: null,
+          });
+        }
 
         // Store session metadata for frontend tracking
         if (response.data.session) {
@@ -518,7 +559,7 @@ export class AuthService {
         }
 
         // Explicitly broadcast login event to other tabs
-        this.broadcastLoginEvent(response.data.user);
+        this.broadcastLoginEvent(this.authState.user);
 
         logger.info("Login successful");
         return true;
