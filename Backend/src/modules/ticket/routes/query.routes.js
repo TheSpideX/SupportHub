@@ -31,7 +31,7 @@ router.post("/", srs(["customer"]), queryController.createQuery);
 // Get queries with filters
 router.get(
   "/",
-  srs(["admin", "team_lead", "support"]),
+  srs(["admin", "team_lead", "support", "customer"]),
   queryController.getQueries
 );
 
@@ -45,7 +45,7 @@ router.get(
 // Update query
 router.put(
   "/:id",
-  srs(["admin", "team_lead", "support"]),
+  srs(["admin", "team_lead", "support", "customer"]),
   queryController.updateQuery
 );
 

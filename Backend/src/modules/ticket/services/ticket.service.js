@@ -345,11 +345,20 @@ exports.getTicketAuditLog = async (ticketId, organizationId) => {
         const statusStartTime = new Date(prevStatusChange.timestamp).getTime();
         const statusEndTime = new Date(statusChange.timestamp).getTime();
 
+        // Check if this activity is already in the current group
+        const alreadyInCurrentGroup = currentGroup.activities.some(
+          (a) =>
+            a._id &&
+            activity._id &&
+            a._id.toString() === activity._id.toString()
+        );
+
         return (
           activityTime >= statusStartTime &&
           activityTime < statusEndTime &&
-          activity.action !== "created"
-        ); // Skip creation activity as we've already added it
+          activity.action !== "created" && // Skip creation activity as we've already added it
+          !alreadyInCurrentGroup // Make sure it's not already in the current group
+        );
       });
 
       // Add activities to the current group
@@ -370,12 +379,22 @@ exports.getTicketAuditLog = async (ticketId, organizationId) => {
       };
 
       // Find the status change activity and add it to the new group
+      // Make sure we don't add duplicate status change activities
       const statusChangeActivity = processedAuditLog.find(
         (activity) =>
           activity.action === "status_changed" &&
           activity.details?.newStatus === statusChange.status &&
           new Date(activity.timestamp).getTime() ===
-            new Date(statusChange.timestamp).getTime()
+            new Date(statusChange.timestamp).getTime() &&
+          // Make sure this activity hasn't been added to any previous group
+          !groupedActivities.some((group) =>
+            group.activities.some(
+              (a) =>
+                a._id &&
+                activity._id &&
+                a._id.toString() === activity._id.toString()
+            )
+          )
       );
 
       if (statusChangeActivity) {
@@ -390,13 +409,30 @@ exports.getTicketAuditLog = async (ticketId, organizationId) => {
         const activityTime = new Date(activity.timestamp).getTime();
         const statusStartTime = new Date(lastStatusChange.timestamp).getTime();
 
+        // Check if this activity has already been added to any group
+        const alreadyAddedToAnyGroup = groupedActivities.some((group) =>
+          group.activities.some(
+            (a) =>
+              a._id &&
+              activity._id &&
+              a._id.toString() === activity._id.toString()
+          )
+        );
+
+        // Check if this activity has already been added to the current group
+        const alreadyAddedToCurrentGroup = currentGroup.activities.some(
+          (a) =>
+            a._id &&
+            activity._id &&
+            a._id.toString() === activity._id.toString()
+        );
+
         return (
           activityTime >= statusStartTime &&
           activity.action !== "status_changed" && // Skip the status change itself
-          !currentGroup.activities.some(
-            (a) => a._id.toString() === activity._id.toString()
-          )
-        ); // Avoid duplicates
+          !alreadyAddedToAnyGroup && // Not in any previous group
+          !alreadyAddedToCurrentGroup // Not already in current group
+        );
       });
 
       currentGroup.activities = currentGroup.activities.concat(
@@ -562,10 +598,18 @@ exports.updateTicket = async (ticketId, updateData, userId, organizationId) => {
     }
 
     // Handle status change
-    if (updateData.status && updateData.status !== ticket.status) {
+    const isStatusChanging =
+      updateData.status && updateData.status !== ticket.status;
+    if (isStatusChanging) {
+      const oldStatus = ticket.status;
       ticket._statusChangedBy = userId;
       ticket._statusChangeReason = updateData.statusReason || "Status updated";
       ticket.status = updateData.status;
+
+      // Log status change for debugging
+      logger.info(
+        `Changing ticket ${ticketId} status from ${oldStatus} to ${updateData.status}`
+      );
     }
 
     // Handle assignee change
@@ -752,7 +796,48 @@ exports.updateTicket = async (ticketId, updateData, userId, organizationId) => {
           ? ticket.auditLog[ticket.auditLog.length - 1]
           : null;
 
-      // Send to ticket room
+      // If status was changed, send a specific status change event
+      if (isStatusChanging) {
+        // Send to ticket room - status change specific event
+        ticketWs.sendTicketUpdate(
+          primus,
+          ticket._id.toString(),
+          "ticket:status_changed",
+          {
+            ticketId: ticket._id,
+            ticket: {
+              _id: ticket._id,
+              ticketNumber: ticket.ticketNumber,
+              title: ticket.title,
+              status: ticket.status,
+              statusHistory:
+                ticket.statusHistory && ticket.statusHistory.length > 0
+                  ? [ticket.statusHistory[ticket.statusHistory.length - 1]]
+                  : [],
+            },
+            auditLog: latestAuditLog ? [latestAuditLog] : [],
+          }
+        );
+
+        // Send to organization room - status change specific event
+        ticketWs.sendOrganizationUpdate(
+          primus,
+          ticket.organizationId.toString(),
+          "ticket:status_changed",
+          {
+            ticketId: ticket._id,
+            ticket: {
+              _id: ticket._id,
+              ticketNumber: ticket.ticketNumber,
+              title: ticket.title,
+              status: ticket.status,
+              updatedAt: ticket.updatedAt,
+            },
+          }
+        );
+      }
+
+      // Always send the general update event
       ticketWs.sendTicketUpdate(
         primus,
         ticket._id.toString(),

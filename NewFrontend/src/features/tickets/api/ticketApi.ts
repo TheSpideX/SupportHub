@@ -241,7 +241,40 @@ const ticketApi = api.injectEndpoints({
       transformResponse: (response: {
         success: boolean;
         data: GroupedActivityResponse[];
-      }) => response.data,
+      }) => {
+        // Process the audit log to remove any duplicate activities
+        if (response.data && Array.isArray(response.data)) {
+          // For each status group, make sure there are no duplicate activities
+          const processedData = response.data.map((group) => {
+            if (group.activities && Array.isArray(group.activities)) {
+              // Use a Set to track activity IDs we've seen
+              const seenActivityIds = new Set();
+
+              // Filter out duplicate activities
+              const uniqueActivities = group.activities.filter((activity) => {
+                if (!activity._id) return true; // Keep activities without IDs
+
+                const activityId = activity._id.toString();
+                if (seenActivityIds.has(activityId)) {
+                  return false; // Skip this duplicate
+                }
+
+                seenActivityIds.add(activityId);
+                return true;
+              });
+
+              return {
+                ...group,
+                activities: uniqueActivities,
+              };
+            }
+            return group;
+          });
+
+          return processedData;
+        }
+        return response.data;
+      },
       providesTags: (result, error, id) => [
         { type: "TicketAuditLog" as const, id },
       ],
@@ -319,16 +352,42 @@ const ticketApi = api.injectEndpoints({
     >({
       query: ({ id, data }) => {
         console.log("API layer sending comment data:", JSON.stringify(data));
+
+        // Validate comment text is not empty
+        if (!data.text || typeof data.text !== "string" || !data.text.trim()) {
+          throw new Error("Comment text cannot be empty");
+        }
+
+        // Ensure we're sending a clean object with the right structure
+        const cleanData = {
+          text: data.text.trim(),
+          isInternal: !!data.isInternal,
+        };
+
+        console.log("Sending clean comment data:", JSON.stringify(cleanData));
+
         return {
           url: `/api/tickets/${id}/comments`,
           method: "POST",
-          body: data,
+          body: JSON.stringify(cleanData),
           headers: {
             "Content-Type": "application/json",
+            Accept: "application/json",
           },
+          credentials: "include",
         };
       },
       invalidatesTags: (result, error, { id }) => [{ type: "Tickets", id }],
+      // Add transformResponse to log the response
+      transformResponse: (response) => {
+        console.log("Comment addition response:", response);
+        return response;
+      },
+      // Add transformErrorResponse to log the error
+      transformErrorResponse: (response) => {
+        console.error("Comment addition error:", response);
+        return response;
+      },
     }),
 
     // Assign ticket to user

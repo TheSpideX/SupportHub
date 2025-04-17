@@ -1090,6 +1090,20 @@ const TicketsPage: React.FC<TicketsPageProps> = ({
                       >
                         <FaChartLine /> Analytics Dashboard
                       </button>
+                      <button
+                        onClick={() => {
+                          toast.success("Refreshing tickets...");
+                          refetch();
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                        title="Refresh ticket list"
+                      >
+                        <RefreshCw
+                          className={isLoading ? "animate-spin" : ""}
+                          size={18}
+                        />{" "}
+                        Refresh
+                      </button>
                     </>
                   )}
                 </div>
@@ -1628,38 +1642,27 @@ const TicketDetailModal = ({
         isInternal: isInternalComment,
       });
 
-      // Use direct fetch approach since it's working reliably
+      // Use the RTK Query mutation instead of direct fetch
       const ticketId = ticket._id || ticket.id;
-      const commentData = {
-        text: trimmedText,
-        isInternal: isInternalComment,
-      };
-
-      console.log("Sending comment data:", JSON.stringify(commentData));
-
-      const response = await fetch(`/api/tickets/${ticketId}/comments`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      await addComment({
+        id: ticketId,
+        data: {
+          text: trimmedText,
+          isInternal: isInternalComment,
         },
-        body: JSON.stringify(commentData),
-        credentials: "include",
-      });
+      }).unwrap();
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error adding comment:", errorText);
-        throw new Error(`Failed to add comment: ${errorText}`);
-      }
-
-      // Parse the response as JSON
-      try {
-        const responseText = await response.text();
-        const responseData = JSON.parse(responseText);
-        console.log("Comment added successfully, response:", responseData);
-      } catch (parseError) {
-        console.error("Error parsing response:", parseError);
-        // Continue anyway since we know the request succeeded
+      // We no longer need to add comments to the query separately
+      // The backend will handle this automatically
+      // Just log that we're skipping this step
+      if (ticket.originalQuery && ticket.source === "customer_query") {
+        console.log(
+          "Ticket was created from query, but we're no longer adding comments to queries separately."
+        );
+      } else {
+        console.log(
+          "Ticket was not created from a query or has no originalQuery reference, skipping query comment"
+        );
       }
 
       // Reset form
@@ -1672,19 +1675,7 @@ const TicketDetailModal = ({
       ticketSocket.subscribeToTicket(ticketId);
 
       // Refetch ticket to get updated comments
-      refetch();
-
-      // Reset form
-      setCommentText("");
-      setIsInternalComment(false);
-      setShowCommentForm(false);
-      toast.success("Comment added successfully");
-
-      // Subscribe to ticket updates if not already subscribed
-      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
-
-      // Refetch ticket to get updated comments
-      refetch();
+      await refetch();
     } catch (error) {
       console.error("Error adding comment:", error);
       toast.error("Failed to add comment. Please try again.");
@@ -1731,26 +1722,56 @@ const TicketDetailModal = ({
 
     setIsChangingStatus(true);
     try {
-      await updateTicket({
-        id: ticket._id || ticket.id,
-        data: {
-          status: selectedStatus as
-            | "new"
-            | "assigned"
-            | "in_progress"
-            | "on_hold"
-            | "pending_customer"
-            | "resolved"
-            | "closed",
+      // Use direct fetch for status update to ensure it works
+      const ticketId = ticket._id || ticket.id;
+      console.log(`Updating ticket ${ticketId} status to ${selectedStatus}`);
+
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }).unwrap();
+        body: JSON.stringify({
+          status: selectedStatus,
+          statusReason: `Status updated to ${selectedStatus}`,
+        }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error updating ticket status:", errorText);
+        throw new Error(`Failed to update status: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+      console.log("Status update response:", responseData);
 
       // Reset form
       setShowStatusForm(false);
       toast.success(`Ticket status updated to ${selectedStatus}`);
 
       // Subscribe to ticket updates if not already subscribed
-      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+      ticketSocket.subscribeToTicket(ticketId);
+
+      // Update the local ticket state to reflect the change immediately
+      if (ticket && responseData.data) {
+        // Force UI update by setting the ticket status directly
+        ticket.status = selectedStatus;
+
+        // Update status history if available
+        if (responseData.data.statusHistory) {
+          ticket.statusHistory = responseData.data.statusHistory;
+        }
+
+        // Update audit log if available
+        if (responseData.data.auditLog) {
+          ticket.auditLog = responseData.data.auditLog;
+        }
+      }
+
+      // Force refetch ticket to get updated status
+      await refetch();
     } catch (error) {
       console.error("Error updating ticket status:", error);
       toast.error("Failed to update ticket status. Please try again.");
@@ -1834,18 +1855,50 @@ const TicketDetailModal = ({
     }
 
     try {
-      await applyPolicy({
-        ticketId: ticket._id || ticket.id,
-        data: { policyId: selectedSLAPolicy },
-      }).unwrap();
+      // Use direct fetch for applying SLA policy to ensure it works
+      const ticketId = ticket._id || ticket.id;
+      console.log(
+        `Applying SLA policy ${selectedSLAPolicy} to ticket ${ticketId}`
+      );
+
+      const response = await fetch(`/api/sla/apply/${ticketId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ policyId: selectedSLAPolicy }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error applying SLA policy:", errorText);
+        throw new Error(`Failed to apply SLA policy: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+      console.log("SLA policy applied successfully:", responseData);
 
       // Reset form
       setShowSLAForm(false);
       setSelectedSLAPolicy("");
       toast.success("SLA policy applied successfully");
 
+      // Update the local ticket state to reflect the change immediately
+      if (ticket && responseData.data) {
+        // Update SLA information if available
+        if (responseData.data.sla) {
+          ticket.sla = responseData.data.sla;
+        }
+
+        // Update audit log if available
+        if (responseData.data.auditLog) {
+          ticket.auditLog = responseData.data.auditLog;
+        }
+      }
+
       // Refetch ticket data
-      refetch();
+      await refetch();
     } catch (error) {
       console.error("Error applying SLA policy:", error);
       toast.error("Failed to apply SLA policy. Please try again.");
@@ -1860,18 +1913,50 @@ const TicketDetailModal = ({
     }
 
     try {
-      await pauseSLA({
-        ticketId: ticket._id || ticket.id,
-        data: { reason: pauseReason },
-      }).unwrap();
+      // Use direct fetch for pausing SLA to ensure it works
+      const ticketId = ticket._id || ticket.id;
+      console.log(
+        `Pausing SLA for ticket ${ticketId} with reason: ${pauseReason}`
+      );
+
+      const response = await fetch(`/api/sla/pause/${ticketId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: pauseReason }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error pausing SLA:", errorText);
+        throw new Error(`Failed to pause SLA: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+      console.log("SLA paused successfully:", responseData);
 
       // Reset form
       setShowPauseForm(false);
       setPauseReason("");
       toast.success("SLA paused successfully");
 
+      // Update the local ticket state to reflect the change immediately
+      if (ticket && responseData.data) {
+        // Update SLA information if available
+        if (responseData.data.sla) {
+          ticket.sla = responseData.data.sla;
+        }
+
+        // Update audit log if available
+        if (responseData.data.auditLog) {
+          ticket.auditLog = responseData.data.auditLog;
+        }
+      }
+
       // Refetch ticket data
-      refetch();
+      await refetch();
     } catch (error) {
       console.error("Error pausing SLA:", error);
       toast.error("Failed to pause SLA. Please try again.");
@@ -1883,11 +1968,44 @@ const TicketDetailModal = ({
     if (!ticket) return;
 
     try {
-      await resumeSLA(ticket._id || ticket.id).unwrap();
+      // Use direct fetch for resuming SLA to ensure it works
+      const ticketId = ticket._id || ticket.id;
+      console.log(`Resuming SLA for ticket ${ticketId}`);
+
+      const response = await fetch(`/api/sla/resume/${ticketId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error resuming SLA:", errorText);
+        throw new Error(`Failed to resume SLA: ${errorText}`);
+      }
+
+      const responseData = await response.json();
+      console.log("SLA resumed successfully:", responseData);
+
       toast.success("SLA resumed successfully");
 
+      // Update the local ticket state to reflect the change immediately
+      if (ticket && responseData.data) {
+        // Update SLA information if available
+        if (responseData.data.sla) {
+          ticket.sla = responseData.data.sla;
+        }
+
+        // Update audit log if available
+        if (responseData.data.auditLog) {
+          ticket.auditLog = responseData.data.auditLog;
+        }
+      }
+
       // Refetch ticket data
-      refetch();
+      await refetch();
     } catch (error) {
       console.error("Error resuming SLA:", error);
       toast.error("Failed to resume SLA. Please try again.");
@@ -1923,31 +2041,40 @@ const TicketDetailModal = ({
   // Subscribe to ticket updates when the modal is opened
   useEffect(() => {
     if (isOpen && ticket) {
+      const ticketId = ticket._id || ticket.id;
+      console.log(`Subscribing to ticket updates for ticket ${ticketId}`);
+
       // Subscribe to ticket updates
-      ticketSocket.subscribeToTicket(ticket._id || ticket.id);
+      ticketSocket.subscribeToTicket(ticketId);
 
       // Set up event listeners for real-time updates
-      const handleTicketUpdated = () => {
-        // Refetch the ticket data
-        refetch();
+      const handleTicketUpdated = async (data: any) => {
+        console.log("Ticket updated event received:", data);
+        // Always refetch the entire ticket to ensure we have the latest state
+        await refetch();
         toast.success("Ticket updated");
       };
 
-      const handleCommentAdded = () => {
-        // Refetch the ticket data
-        refetch();
+      const handleCommentAdded = async (data: any) => {
+        console.log("Comment added event received:", data);
+        // Always refetch the entire ticket to ensure we have the latest state
+        await refetch();
         toast.success("New comment added");
       };
 
-      const handleStatusChanged = () => {
-        // Refetch the ticket data
-        refetch();
-        toast.success("Ticket status changed");
+      const handleStatusChanged = async (data: any) => {
+        console.log("Status changed event received:", data);
+        // Always refetch the entire ticket to ensure we have the latest state
+        await refetch();
+        toast.success(
+          `Ticket status changed to ${data.ticket?.status || "new status"}`
+        );
       };
 
-      const handleTicketAssigned = () => {
-        // Refetch the ticket data
-        refetch();
+      const handleTicketAssigned = async (data: any) => {
+        console.log("Ticket assigned event received:", data);
+        // Always refetch the entire ticket to ensure we have the latest state
+        await refetch();
         toast.success("Ticket assigned");
       };
 
@@ -1971,14 +2098,15 @@ const TicketDetailModal = ({
 
       // Return cleanup function to unsubscribe when modal is closed
       return () => {
-        ticketSocket.unsubscribeFromTicket(ticket._id || ticket.id);
+        console.log(`Unsubscribing from ticket updates for ticket ${ticketId}`);
+        ticketSocket.unsubscribeFromTicket(ticketId);
         unsubscribeUpdated();
         unsubscribeCommentAdded();
         unsubscribeStatusChanged();
         unsubscribeAssigned();
       };
     }
-  }, [isOpen, ticket]);
+  }, [isOpen, ticket, refetch]);
 
   // Early return if ticket is null
   if (!ticket) {
@@ -2007,8 +2135,11 @@ const TicketDetailModal = ({
         });
       }
 
+      console.log("Generating activity data for ticket:", ticket);
+
       // Count status changes from statusHistory
       if (ticket.statusHistory && Array.isArray(ticket.statusHistory)) {
+        console.log("Processing status history:", ticket.statusHistory);
         ticket.statusHistory.forEach((status) => {
           if (!status.timestamp) return;
 
@@ -2022,12 +2153,14 @@ const TicketDetailModal = ({
 
           if (dayIndex !== -1) {
             days[dayIndex].updates++;
+            console.log(`Added status update for ${days[dayIndex].name}`);
           }
         });
       }
 
       // Count comments
       if (ticket.comments && Array.isArray(ticket.comments)) {
+        console.log("Processing comments:", ticket.comments.length);
         ticket.comments.forEach((comment) => {
           if (!comment.createdAt) return;
 
@@ -2041,12 +2174,14 @@ const TicketDetailModal = ({
 
           if (dayIndex !== -1) {
             days[dayIndex].comments++;
+            console.log(`Added comment for ${days[dayIndex].name}`);
           }
         });
       }
 
       // Count audit log entries
       if (ticket.auditLog && Array.isArray(ticket.auditLog)) {
+        console.log("Processing audit log:", ticket.auditLog.length);
         ticket.auditLog.forEach((entry) => {
           if (!entry.timestamp) return;
 
@@ -2061,16 +2196,26 @@ const TicketDetailModal = ({
           if (dayIndex !== -1) {
             if (entry.action === "commented") {
               days[dayIndex].comments++;
+              console.log(
+                `Added comment from audit log for ${days[dayIndex].name}`
+              );
             } else if (
               entry.action === "status_changed" ||
               entry.action === "updated" ||
-              entry.action === "assigned"
+              entry.action === "assigned" ||
+              entry.action.includes("status") ||
+              entry.action.includes("update")
             ) {
               days[dayIndex].updates++;
+              console.log(
+                `Added status update from audit log for ${days[dayIndex].name}: ${entry.action}`
+              );
             }
           }
         });
       }
+
+      console.log("Final activity data:", days);
 
       return days;
     } catch (error) {
@@ -3536,9 +3681,22 @@ const TicketDetailModal = ({
 
                       {activeTab === "activity" && (
                         <div className="space-y-4">
-                          <h3 className="text-lg font-medium text-white mb-4">
-                            Ticket Activity
-                          </h3>
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-medium text-white">
+                              Ticket Activity
+                            </h3>
+                            <button
+                              onClick={async () => {
+                                // Refetch the ticket data to get the latest activities
+                                await refetch();
+                                toast.success("Activity timeline refreshed");
+                              }}
+                              className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                            >
+                              <RefreshCw size={14} />
+                              Refresh
+                            </button>
+                          </div>
 
                           {/* Activity mind map visualization with enhanced features */}
                           <div className="bg-gray-700/30 rounded-lg p-5">

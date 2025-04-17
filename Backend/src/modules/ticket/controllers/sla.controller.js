@@ -15,15 +15,15 @@ exports.createSLAPolicy = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
-    
+
     // Add organization ID to policy data
     const policyData = {
       ...req.body,
       organizationId,
     };
-    
+
     const policy = await slaService.createSLAPolicy(policyData, userId);
-    
+
     return res.status(201).json({
       success: true,
       data: policy,
@@ -42,9 +42,9 @@ exports.getSLAPolicyById = async (req, res, next) => {
   try {
     const policyId = req.params.id;
     const organizationId = req.user.organizationId;
-    
+
     const policy = await slaService.getSLAPolicyById(policyId, organizationId);
-    
+
     return res.status(200).json({
       success: true,
       data: policy,
@@ -62,9 +62,9 @@ exports.getSLAPolicyById = async (req, res, next) => {
 exports.getSLAPolicies = async (req, res, next) => {
   try {
     const organizationId = req.user.organizationId;
-    
+
     const policies = await slaService.getSLAPolicies(organizationId);
-    
+
     return res.status(200).json({
       success: true,
       data: policies,
@@ -83,13 +83,13 @@ exports.updateSLAPolicy = async (req, res, next) => {
   try {
     const policyId = req.params.id;
     const organizationId = req.user.organizationId;
-    
+
     const policy = await slaService.updateSLAPolicy(
       policyId,
       req.body,
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: policy,
@@ -108,9 +108,9 @@ exports.deleteSLAPolicy = async (req, res, next) => {
   try {
     const policyId = req.params.id;
     const organizationId = req.user.organizationId;
-    
+
     await slaService.deleteSLAPolicy(policyId, organizationId);
-    
+
     return res.status(200).json({
       success: true,
       message: "SLA policy deleted successfully",
@@ -128,19 +128,78 @@ exports.deleteSLAPolicy = async (req, res, next) => {
 exports.applyPolicyToTicket = async (req, res, next) => {
   try {
     const ticketId = req.params.ticketId;
-    const { policyId } = req.body;
     const organizationId = req.user.organizationId;
-    
-    if (!policyId) {
-      return next(new ApiError(400, "Policy ID is required"));
+
+    // Log the request for debugging
+    logger.info("Apply SLA policy request:", {
+      ticketId,
+      body: req.body,
+      contentType: req.headers["content-type"],
+    });
+
+    // Parse the request body if it's a string
+    let policyId;
+    if (typeof req.body === "string") {
+      try {
+        const parsedBody = JSON.parse(req.body);
+        policyId = parsedBody.policyId;
+        logger.info("Parsed request body:", parsedBody);
+      } catch (parseError) {
+        logger.error("Error parsing request body:", parseError);
+      }
+    } else {
+      policyId = req.body.policyId;
     }
-    
+
+    logger.info("Policy ID from request:", policyId);
+
+    if (!policyId) {
+      // If no policy ID is provided, get the default policy based on ticket priority
+      const Ticket = require("../models/ticket.model");
+      const ticket = await Ticket.findById(ticketId);
+
+      if (!ticket) {
+        return next(new ApiError(404, "Ticket not found"));
+      }
+
+      // Get default policy based on ticket priority
+      const SLAPolicy = require("../models/sla-policy.model");
+
+      // First try to find a policy marked as default
+      let defaultPolicy = await SLAPolicy.findOne({
+        organizationId,
+        isDefault: true,
+      });
+
+      // If no default policy, try to find any active policy
+      if (!defaultPolicy) {
+        defaultPolicy = await SLAPolicy.findOne({
+          organizationId,
+          isActive: true,
+        });
+      }
+
+      if (!defaultPolicy) {
+        return next(
+          new ApiError(
+            400,
+            "No default SLA policy found and no policy ID provided"
+          )
+        );
+      }
+
+      logger.info("Using default policy:", defaultPolicy._id);
+
+      // Use the default policy
+      policyId = defaultPolicy._id;
+    }
+
     const ticket = await slaService.applyPolicyToTicket(
       ticketId,
-      policyId,
+      policyId, // Use the policyId variable we defined above
       organizationId
     );
-    
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -160,17 +219,13 @@ exports.pauseSLA = async (req, res, next) => {
     const ticketId = req.params.ticketId;
     const { reason } = req.body;
     const organizationId = req.user.organizationId;
-    
+
     if (!reason) {
       return next(new ApiError(400, "Reason is required"));
     }
-    
-    const ticket = await slaService.pauseSLA(
-      ticketId,
-      reason,
-      organizationId
-    );
-    
+
+    const ticket = await slaService.pauseSLA(ticketId, reason, organizationId);
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -189,12 +244,9 @@ exports.resumeSLA = async (req, res, next) => {
   try {
     const ticketId = req.params.ticketId;
     const organizationId = req.user.organizationId;
-    
-    const ticket = await slaService.resumeSLA(
-      ticketId,
-      organizationId
-    );
-    
+
+    const ticket = await slaService.resumeSLA(ticketId, organizationId);
+
     return res.status(200).json({
       success: true,
       data: ticket,
@@ -213,9 +265,9 @@ exports.resumeSLA = async (req, res, next) => {
 exports.checkSLABreaches = async (req, res, next) => {
   try {
     const organizationId = req.user.organizationId;
-    
+
     const results = await slaService.checkSLABreaches(organizationId);
-    
+
     return res.status(200).json({
       success: true,
       data: results,

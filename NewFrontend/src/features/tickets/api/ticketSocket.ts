@@ -29,10 +29,13 @@ export const ticketSocket = {
   // Subscribe to ticket updates
   subscribeToTicket: (ticketId: string) => {
     if (appPrimusClient.primus) {
+      console.log(`Subscribing to ticket updates for ticket ${ticketId}`);
       appPrimusClient.primus.write({
         event: "ticket:subscribe",
         data: { ticketId },
       });
+    } else {
+      console.error("Primus client not available for ticket subscription");
     }
   },
 

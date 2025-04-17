@@ -50,9 +50,16 @@ exports.createQuery = async (req, res, next) => {
 exports.getQueryById = async (req, res, next) => {
   try {
     const queryId = req.params.id;
+    const userId = req.user._id;
+    const userRole = req.user.role;
     const organizationId = req.user.organizationId;
 
-    const query = await queryService.getQueryById(queryId, organizationId);
+    const query = await queryService.getQueryById(
+      queryId,
+      organizationId,
+      userId,
+      userRole
+    );
 
     return res.status(200).json({
       success: true,
@@ -70,6 +77,8 @@ exports.getQueryById = async (req, res, next) => {
  */
 exports.getQueries = async (req, res, next) => {
   try {
+    const userId = req.user._id;
+    const userRole = req.user.role;
     const organizationId = req.user.organizationId;
     const { page = 1, limit = 20 } = req.query;
 
@@ -77,10 +86,18 @@ exports.getQueries = async (req, res, next) => {
     const filters = {
       status: req.query.status,
       category: req.query.category,
-      customerId: req.query.customerId,
       assignedTo: req.query.assignedTo,
       search: req.query.search,
     };
+
+    // If user is a customer, only show their own queries
+    if (userRole === "customer") {
+      logger.info(`Customer ${userId} accessing their queries`);
+      filters.customerId = userId;
+    } else {
+      // For non-customers, allow filtering by customerId if provided
+      filters.customerId = req.query.customerId;
+    }
 
     const result = await queryService.getQueries(
       filters,
@@ -137,6 +154,65 @@ exports.addComment = async (req, res, next) => {
     const userId = req.user._id;
     const organizationId = req.user.organizationId;
 
+    // Log the request for debugging
+    logger.info("Add comment to query request:", {
+      queryId,
+      body: req.body,
+      contentType: req.headers["content-type"],
+    });
+
+    // Check if the query ID is valid
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(queryId)) {
+      logger.warn(`Invalid query ID format: ${queryId}`);
+      return res.status(400).json({
+        success: false,
+        error: "Invalid query ID format",
+      });
+    }
+
+    // Check if this is a ticket ID that was mistakenly passed as a query ID
+    const Ticket = require("../models/ticket.model");
+    const ticket = await Ticket.findOne({
+      _id: queryId,
+      organizationId,
+    });
+
+    if (ticket) {
+      logger.warn(
+        `Attempted to add comment to query but ID ${queryId} belongs to a ticket`
+      );
+
+      // Instead of returning an error, add the comment to the ticket directly
+      logger.info(`Adding comment to ticket ${queryId} instead`);
+
+      try {
+        // Get the ticket service
+        const ticketService = require("../services/ticket.service");
+
+        // Add the comment to the ticket
+        const updatedTicket = await ticketService.addComment(
+          queryId,
+          req.body,
+          userId,
+          organizationId
+        );
+
+        return res.status(200).json({
+          success: true,
+          data: updatedTicket,
+          message: "Comment added to ticket instead of query",
+        });
+      } catch (ticketError) {
+        logger.error(`Error adding comment to ticket ${queryId}:`, ticketError);
+        return res.status(400).json({
+          success: false,
+          error:
+            "The provided ID belongs to a ticket, not a query. Attempted to add comment to ticket but failed.",
+        });
+      }
+    }
+
     const query = await queryService.addComment(
       queryId,
       req.body,
@@ -150,6 +226,15 @@ exports.addComment = async (req, res, next) => {
     });
   } catch (error) {
     logger.error("Error adding comment:", error);
+
+    // Handle specific error cases
+    if (error.statusCode === 404) {
+      return res.status(404).json({
+        success: false,
+        error: "Query not found",
+      });
+    }
+
     return next(error);
   }
 };

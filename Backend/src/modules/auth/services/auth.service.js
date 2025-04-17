@@ -955,7 +955,7 @@ class AuthService {
    * @param {Object} user - User object
    * @returns {Object} Sanitized user object
    */
-  sanitizeUser(user) {
+  async sanitizeUser(user) {
     const sanitized = {
       id: user._id,
       email: user.email,
@@ -972,6 +972,22 @@ class AuthService {
     // Add additional fields if they exist
     if (user.profileImage) sanitized.profileImage = user.profileImage;
     if (user.preferences) sanitized.preferences = user.preferences;
+
+    // Add team type for team leads
+    if (user.role === "team_lead" && user.teamId) {
+      try {
+        const Team = require("../../team/models/team.model");
+        const team = await Team.findById(user.teamId);
+        if (team) {
+          sanitized.teamType = team.teamType;
+          logger.info(
+            `Added team type ${team.teamType} for team lead ${user._id}`
+          );
+        }
+      } catch (error) {
+        logger.error(`Error getting team type for team lead: ${error.message}`);
+      }
+    }
 
     return sanitized;
   }

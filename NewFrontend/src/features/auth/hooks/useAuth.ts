@@ -90,8 +90,53 @@ export const useAuth = () => {
       if (result) {
         logger.info("Login successful", { component: "useAuth" });
 
-        // Get the redirect path from state or default to dashboard
-        const from = location.state?.from?.pathname || "/dashboard";
+        // Get the current user data from the auth state
+        const currentState = authServiceInstance.getAuthState();
+        const userData = currentState.user;
+
+        logger.info("User data for redirect decision:", {
+          component: "useAuth",
+          role: userData?.role,
+          hasUser: !!userData,
+        });
+
+        // Determine the appropriate dashboard based on user role
+        let dashboardPath = "/dashboard";
+
+        if (userData && userData.role) {
+          // Map user roles to their respective dashboards
+          switch (userData.role) {
+            case "admin":
+              dashboardPath = "/admin-dashboard";
+              break;
+            case "support":
+            case "support_member":
+              dashboardPath = "/support-dashboard";
+              break;
+            case "team_lead":
+              // Check if the user is a support team lead or technical team lead
+              if (userData.teamType === "support") {
+                dashboardPath = "/team-lead-support-dashboard";
+              } else if (userData.teamType === "technical") {
+                dashboardPath = "/team-lead-technical-dashboard";
+              }
+              break;
+            case "customer":
+              dashboardPath = "/dashboard"; // Customer dashboard
+              break;
+            default:
+              dashboardPath = "/dashboard"; // Default dashboard
+          }
+        }
+
+        // Get the redirect path from state or use the role-based dashboard
+        const from = location.state?.from?.pathname || dashboardPath;
+
+        logger.info("Redirecting after login", {
+          component: "useAuth",
+          path: from,
+          role: userData?.role,
+        });
 
         // Redirect to the intended destination
         navigate(from, { replace: true });

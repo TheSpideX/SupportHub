@@ -304,7 +304,7 @@ exports.login = asyncHandler(async (req, res) => {
     success: true,
     message: "Login successful",
     data: {
-      user: authService.sanitizeUser(result.user),
+      user: await authService.sanitizeUser(result.user),
       session: {
         id: result.session._id,
         expiresAt: result.session.expiresAt,
@@ -362,7 +362,7 @@ exports.verifyTwoFactor = asyncHandler(async (req, res) => {
     status: "success",
     message: "Two-factor authentication successful",
     data: {
-      user: authService.sanitizeUser(result.user),
+      user: await authService.sanitizeUser(result.user),
       session: {
         id: result.session._id,
         expiresAt: result.session.expiresAt,
@@ -447,7 +447,7 @@ exports.checkAuth = asyncHandler(async (req, res) => {
     authenticated: true,
     message: "User is authenticated",
     data: {
-      user: authService.sanitizeUser(req.user),
+      user: await authService.sanitizeUser(req.user),
     },
   });
 });
@@ -493,7 +493,7 @@ exports.validateUser = asyncHandler(async (req, res) => {
     success: true,
     data: {
       isValid: true,
-      user: authService.sanitizeUser(req.user),
+      user: await authService.sanitizeUser(req.user),
     },
   });
 });
@@ -505,7 +505,7 @@ exports.getCurrentUser = asyncHandler(async (req, res) => {
   // Return user data
   res.status(200).json({
     success: true,
-    data: authService.sanitizeUser(req.user),
+    data: await authService.sanitizeUser(req.user),
   });
 });
 
@@ -833,7 +833,7 @@ exports.getAuthStatus = asyncHandler(async (req, res) => {
       status: "success",
       data: {
         isAuthenticated: true,
-        user: authService.sanitizeUser(req.user),
+        user: await authService.sanitizeUser(req.user),
         sessionId: req.session?.id,
       },
     });

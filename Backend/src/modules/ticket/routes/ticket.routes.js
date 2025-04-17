@@ -30,7 +30,7 @@ router.get(
 // Get ticket statistics
 router.get(
   "/statistics",
-  srs(["admin", "team_lead"]),
+  srs(["admin", "team_lead", "technical", "support", "customer"]),
   ticketController.getTicketStatistics
 );
 

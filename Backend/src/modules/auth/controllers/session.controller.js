@@ -12,6 +12,49 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
 /**
+ * Helper function to get user data with team type for team leads
+ * @param {string} userId - User ID
+ * @param {string} email - User email
+ * @param {string} role - User role
+ * @returns {Promise<Object>} User data with team type if applicable
+ */
+async function getUserDataWithTeamType(userId, email, role) {
+  // Create basic user data
+  const userData = {
+    id: userId,
+    email: email,
+    role: role,
+  };
+
+  // If user is a team lead, get their team type
+  if (role === "team_lead") {
+    try {
+      // Get user from database to get teamId
+      const User = require("../../user/models/user.model");
+      const user = await User.findById(userId);
+
+      if (user && user.teamId) {
+        // Get team to determine team type
+        const Team = require("../../team/models/team.model");
+        const team = await Team.findById(user.teamId);
+
+        if (team) {
+          // Add team type to user data
+          userData.teamType = team.teamType;
+          logger.info(
+            `Added team type ${team.teamType} for team lead ${userId}`
+          );
+        }
+      }
+    } catch (error) {
+      logger.error(`Error getting team type for team lead: ${error.message}`);
+    }
+  }
+
+  return userData;
+}
+
+/**
  * Validate session
  * @route GET /api/auth/session/validate
  */
@@ -715,11 +758,11 @@ exports.getSessionStatus = async (req, res) => {
                       tabId: sessionInfo.tabId || null,
                       rememberMe: sessionInfo.rememberMe || false,
                     },
-                    user: {
-                      id: refreshDecoded.userId || refreshDecoded.sub,
-                      email: refreshDecoded.email,
-                      role: refreshDecoded.role,
-                    },
+                    user: await getUserDataWithTeamType(
+                      refreshDecoded.userId || refreshDecoded.sub,
+                      refreshDecoded.email,
+                      refreshDecoded.role
+                    ),
                     tokens: {
                       accessTokenExpiry: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
                       refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -794,11 +837,11 @@ exports.getSessionStatus = async (req, res) => {
                     tabId: session.tabId || null,
                     rememberMe: true,
                   },
-                  user: {
-                    id: userId,
-                    email: refreshDecoded.email,
-                    role: refreshDecoded.role,
-                  },
+                  user: await getUserDataWithTeamType(
+                    userId,
+                    refreshDecoded.email,
+                    refreshDecoded.role
+                  ),
                   tokens: {
                     accessTokenExpiry: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
                     refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -947,16 +990,19 @@ exports.getSessionStatus = async (req, res) => {
         expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
       });
 
+      // Get user data with team type information if applicable
+      const userData = await getUserDataWithTeamType(
+        decoded.userId || decoded.sub,
+        decoded.email,
+        decoded.role
+      );
+
       // Return a response format that exactly matches what the frontend expects
       return res.status(200).json({
         authenticated: true,
         active: true,
         isAuthenticated: true,
-        user: {
-          id: decoded.userId || decoded.sub,
-          email: decoded.email,
-          role: decoded.role,
-        },
+        user: userData,
         sessionExpiry: sessionInfo.expiresAt,
       });
     } catch (error) {

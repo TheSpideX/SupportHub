@@ -478,7 +478,7 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                     <div className="flex items-center">
                       <FaQuestion className="text-blue-500 mr-2" />
                       <span className="text-gray-300 font-mono text-sm">
-                        {query.id.substring(0, 8)}
+                        {query.id ? query.id.substring(0, 8) : "N/A"}
                       </span>
                     </div>
                   </td>
@@ -501,11 +501,12 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-white">
-                            {query.customer?.userId?.profile?.firstName}{" "}
-                            {query.customer?.userId?.profile?.lastName}
+                            {query.customer?.userId?.profile?.firstName ||
+                              "Unknown"}{" "}
+                            {query.customer?.userId?.profile?.lastName || ""}
                           </div>
                           <div className="text-sm text-gray-400">
-                            {query.customer?.userId?.email}
+                            {query.customer?.userId?.email || "No email"}
                           </div>
                         </div>
                       </div>
@@ -522,11 +523,11 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-white">
-                            {query.assignedTo.profile?.firstName}{" "}
-                            {query.assignedTo.profile?.lastName}
+                            {query.assignedTo.profile?.firstName || "Unknown"}{" "}
+                            {query.assignedTo.profile?.lastName || ""}
                           </div>
                           <div className="text-sm text-gray-400">
-                            {query.assignedTo.email}
+                            {query.assignedTo.email || "No email"}
                           </div>
                         </div>
                       </div>
@@ -582,7 +583,12 @@ const QueriesPage: React.FC<QueriesPageProps> = ({
                             <FaTicketAlt className="mr-1.5" /> Converted to
                             Ticket:{" "}
                             <span className="font-mono ml-1">
-                              {query.convertedToTicket.ticketId.substring(0, 8)}
+                              {query.convertedToTicket.ticketId
+                                ? query.convertedToTicket.ticketId.substring(
+                                    0,
+                                    8
+                                  )
+                                : "N/A"}
                             </span>
                           </div>
                         )}

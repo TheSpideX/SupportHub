@@ -106,12 +106,26 @@ exports.createQuery = async (queryData, customerId) => {
  * @param {string} organizationId - Organization ID for security check
  * @returns {Promise<Query>} Query
  */
-exports.getQueryById = async (queryId, organizationId) => {
+exports.getQueryById = async (
+  queryId,
+  organizationId,
+  userId = null,
+  userRole = null
+) => {
   try {
-    const query = await Query.findOne({
+    // Build the query filter
+    const queryFilter = {
       _id: queryId,
       organizationId,
-    })
+    };
+
+    // If user info is provided and user is a customer, restrict to their own queries
+    if (userId && userRole === "customer") {
+      queryFilter.customerId = userId;
+      logger.info(`Customer ${userId} accessing query ${queryId}`);
+    }
+
+    const query = await Query.findOne(queryFilter)
       .populate("customerId", "profile.firstName profile.lastName email")
       .populate("assignedTo", "profile.firstName profile.lastName email")
       .populate("comments.author", "profile.firstName profile.lastName email")
@@ -119,7 +133,10 @@ exports.getQueryById = async (queryId, organizationId) => {
       .populate("convertedBy", "profile.firstName profile.lastName email");
 
     if (!query) {
-      throw new ApiError(404, "Query not found");
+      throw new ApiError(
+        404,
+        "Query not found or you don't have permission to view it"
+      );
     }
 
     return query;
@@ -206,23 +223,47 @@ exports.getQueries = async (filters, organizationId, page = 1, limit = 20) => {
  */
 exports.updateQuery = async (queryId, updateData, userId, organizationId) => {
   try {
-    const query = await Query.findOne({
+    // Get the user to check their role
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    // Build the query to find the query document
+    const queryFilter = {
       _id: queryId,
       organizationId,
-    });
+    };
+
+    // If the user is a customer, they can only update their own queries
+    if (user.role === "customer") {
+      queryFilter.customerId = userId;
+      logger.info(`Customer ${userId} attempting to update query ${queryId}`);
+    }
+
+    const query = await Query.findOne(queryFilter);
 
     if (!query) {
-      throw new ApiError(404, "Query not found");
+      throw new ApiError(
+        404,
+        "Query not found or you don't have permission to update it"
+      );
     }
 
     // Update allowed fields
-    const allowedFields = [
-      "subject",
-      "description",
-      "category",
-      "status",
-      "assignedTo",
-    ];
+    // For customers, limit the fields they can update
+    let allowedFields;
+    if (user.role === "customer") {
+      allowedFields = ["subject", "description", "category"];
+    } else {
+      allowedFields = [
+        "subject",
+        "description",
+        "category",
+        "status",
+        "assignedTo",
+      ];
+    }
 
     allowedFields.forEach((field) => {
       if (updateData[field] !== undefined) {
@@ -253,13 +294,33 @@ exports.updateQuery = async (queryId, updateData, userId, organizationId) => {
  */
 exports.addComment = async (queryId, commentData, userId, organizationId) => {
   try {
+    // Validate query ID format first
+    if (!mongoose.Types.ObjectId.isValid(queryId)) {
+      throw new ApiError(400, "Invalid query ID format");
+    }
+
+    // Check if the query exists
     const query = await Query.findOne({
       _id: queryId,
       organizationId,
     });
 
     if (!query) {
-      throw new ApiError(404, "Query not found");
+      // Check if this is a ticket ID that was mistakenly passed as a query ID
+      const Ticket = mongoose.model("Ticket");
+      const ticket = await Ticket.findOne({
+        _id: queryId,
+        organizationId,
+      });
+
+      if (ticket) {
+        throw new ApiError(
+          400,
+          "The provided ID belongs to a ticket, not a query. Comments should be added to the ticket directly."
+        );
+      } else {
+        throw new ApiError(404, "Query not found");
+      }
     }
 
     // Add comment

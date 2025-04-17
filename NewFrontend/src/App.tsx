@@ -192,7 +192,9 @@ const routes = [
         path: "queries",
         element: (
           <AuthGuard>
-            <QueriesPage view="my-queries" />
+            <ErrorBoundary>
+              <QueriesPage view="my-queries" />
+            </ErrorBoundary>
           </AuthGuard>
         ),
       },
@@ -200,7 +202,9 @@ const routes = [
         path: "queries/create",
         element: (
           <AuthGuard>
-            <QueriesPage view="create" />
+            <ErrorBoundary>
+              <QueriesPage view="create" />
+            </ErrorBoundary>
           </AuthGuard>
         ),
       },
@@ -208,7 +212,9 @@ const routes = [
         path: "queries/team",
         element: (
           <AuthGuard>
-            <QueriesPage view="team" />
+            <ErrorBoundary>
+              <QueriesPage view="team" />
+            </ErrorBoundary>
           </AuthGuard>
         ),
       },
@@ -216,7 +222,9 @@ const routes = [
         path: "queries/:id",
         element: (
           <AuthGuard>
-            <QueriesPage view="detail" />
+            <ErrorBoundary>
+              <QueriesPage view="detail" />
+            </ErrorBoundary>
           </AuthGuard>
         ),
       },

@@ -11,15 +11,15 @@
  * 9. Add comprehensive error handling with recovery strategies
  */
 
-import { logger } from '@/utils/logger';
-import { encryptData, decryptData } from '@/utils/crypto';
-import { 
-  getSessionMetadata, 
-  hasAuthTokens, 
+import { logger } from "@/utils/logger";
+import { encryptData, decryptData } from "@/utils/crypto";
+import {
+  getSessionMetadata,
+  hasAuthTokens,
   getOfflineAuthQueue,
-  queueOfflineAuthAction as storageQueueAction
-} from './storage.utils';
-import { jwtDecode } from 'jwt-decode';
+  queueOfflineAuthAction as storageQueueAction,
+} from "./storage.utils";
+import { jwtDecode } from "jwt-decode";
 import {
   UserData,
   TokenData,
@@ -27,8 +27,8 @@ import {
   SecurityContext,
   AuthError,
   OfflineAuthAction,
-  AUTH_ERROR_CODES
-} from '../types/auth.types';
+  AUTH_ERROR_CODES,
+} from "../types/auth.types";
 
 /**
  * Extracts session data from tokens and metadata
@@ -38,17 +38,19 @@ import {
  */
 export function extractSessionData(tokenData: TokenData): SessionData {
   const metadata = getSessionMetadata() || { lastActivity: Date.now() };
-  
+
   return {
-    userId: tokenData.userId || '',
-    expiresAt: tokenData.exp ? tokenData.exp * 1000 : calculateSessionExpiry(30 * 60), // Default 30 min
+    userId: tokenData.userId || "",
+    expiresAt: tokenData.exp
+      ? tokenData.exp * 1000
+      : calculateSessionExpiry(30 * 60), // Default 30 min
     createdAt: tokenData.iat ? tokenData.iat * 1000 : Date.now(),
     lastActivity: metadata.lastActivity,
     deviceInfo: {
       browser: getBrowserInfo(),
       os: getOSInfo(),
-      deviceType: getDeviceType()
-    }
+      deviceType: getDeviceType(),
+    },
   };
 }
 
@@ -58,7 +60,7 @@ export function extractSessionData(tokenData: TokenData): SessionData {
  * @returns Expiry timestamp
  */
 export function calculateSessionExpiry(durationSeconds: number): number {
-  return Date.now() + (durationSeconds * 1000);
+  return Date.now() + durationSeconds * 1000;
 }
 
 /**
@@ -79,14 +81,14 @@ export function isSessionExpired(sessionData?: SessionData): boolean {
  */
 export function sanitizeCredentials(data: any): any {
   if (!data) return data;
-  
+
   const sanitized = { ...data };
-  
+
   // Remove sensitive fields
-  if ('password' in sanitized) sanitized.password = '[REDACTED]';
-  if ('token' in sanitized) sanitized.token = '[REDACTED]';
-  if ('refreshToken' in sanitized) sanitized.refreshToken = '[REDACTED]';
-  
+  if ("password" in sanitized) sanitized.password = "[REDACTED]";
+  if ("token" in sanitized) sanitized.token = "[REDACTED]";
+  if ("refreshToken" in sanitized) sanitized.refreshToken = "[REDACTED]";
+
   return sanitized;
 }
 
@@ -103,23 +105,25 @@ export function sanitizeCredentials(data: any): any {
  * @returns Promise that resolves when action is queued
  */
 export async function queueOfflineAuthAction(
-  action: 'login' | 'logout' | 'refresh' | 'update',
+  action: "login" | "logout" | "refresh" | "update",
   payload: any
 ): Promise<string> {
-  const actionId = `${action}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
+  const actionId = `${action}-${Date.now()}-${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
+
   const offlineAction: OfflineAuthAction = {
     type: action,
     payload: sanitizeCredentials(payload),
     timestamp: Date.now(),
-    id: actionId
+    id: actionId,
   };
-  
+
   // Use the imported function from storage.utils.ts
   await storageQueueAction(offlineAction);
-  
+
   logger.debug(`Queued offline auth action: ${action}`, { actionId });
-  
+
   return actionId;
 }
 
@@ -129,7 +133,8 @@ function getBrowserInfo(): string {
   if (userAgent.indexOf("Chrome") > -1) return "Chrome";
   if (userAgent.indexOf("Safari") > -1) return "Safari";
   if (userAgent.indexOf("Firefox") > -1) return "Firefox";
-  if (userAgent.indexOf("MSIE") > -1 || userAgent.indexOf("Trident") > -1) return "IE";
+  if (userAgent.indexOf("MSIE") > -1 || userAgent.indexOf("Trident") > -1)
+    return "IE";
   if (userAgent.indexOf("Edge") > -1) return "Edge";
   return "Unknown";
 }
@@ -140,14 +145,25 @@ function getOSInfo(): string {
   if (userAgent.indexOf("Mac") > -1) return "MacOS";
   if (userAgent.indexOf("Linux") > -1) return "Linux";
   if (userAgent.indexOf("Android") > -1) return "Android";
-  if (userAgent.indexOf("iOS") > -1 || userAgent.indexOf("iPhone") > -1 || userAgent.indexOf("iPad") > -1) return "iOS";
+  if (
+    userAgent.indexOf("iOS") > -1 ||
+    userAgent.indexOf("iPhone") > -1 ||
+    userAgent.indexOf("iPad") > -1
+  )
+    return "iOS";
   return "Unknown";
 }
 
 function getDeviceType(): string {
   const userAgent = navigator.userAgent;
-  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(userAgent)) return "Tablet";
-  if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(userAgent)) return "Mobile";
+  if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(userAgent))
+    return "Tablet";
+  if (
+    /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(
+      userAgent
+    )
+  )
+    return "Mobile";
   return "Desktop";
 }
 
@@ -158,10 +174,10 @@ function getDeviceType(): string {
 export function isAuthStateValid(): boolean {
   // Check if we have tokens
   if (!hasAuthTokens()) return false;
-  
+
   // Check if session is expired
   if (isSessionExpired()) return false;
-  
+
   return true;
 }
 
@@ -173,18 +189,18 @@ export function isAuthStateValid(): boolean {
 export const extractUserData = (userData: any): UserData => {
   // Handle case where user data is nested in response
   const user = userData || {};
-  
+
   return {
-    id: user.id || '',
-    email: user.email || '',
-    name: user.name || user.email?.split('@')[0] || '',
-    role: user.role || 'user',
+    id: user.id || "",
+    email: user.email || "",
+    name: user.name || user.email?.split("@")[0] || "",
+    role: user.role || "user",
     permissions: user.permissions || [],
     emailVerified: !!user.emailVerified,
     twoFactorEnabled: !!user.twoFactorEnabled,
     preferences: user.preferences || {},
     createdAt: user.createdAt || null,
-    updatedAt: user.updatedAt || null
+    updatedAt: user.updatedAt || null,
   };
 };
 
@@ -197,18 +213,18 @@ export function formatAuthError(error: any): AuthError {
   // Default error
   const defaultError: AuthError = {
     code: AUTH_ERROR_CODES.UNKNOWN,
-    message: 'An unknown authentication error occurred',
-    retry: false
+    message: "An unknown authentication error occurred",
+    retry: false,
   };
 
   if (!error) return defaultError;
 
   // Network errors
-  if (error.message && error.message.includes('network')) {
+  if (error.message && error.message.includes("network")) {
     return {
       code: AUTH_ERROR_CODES.NETWORK_ERROR,
-      message: 'Network error. Please check your connection',
-      retry: true
+      message: "Network error. Please check your connection",
+      retry: true,
     };
   }
 
@@ -216,16 +232,16 @@ export function formatAuthError(error: any): AuthError {
   if (error.status === 401) {
     return {
       code: AUTH_ERROR_CODES.UNAUTHORIZED,
-      message: 'You are not authorized. Please log in again',
-      retry: false
+      message: "You are not authorized. Please log in again",
+      retry: false,
     };
   }
 
   if (error.status === 403) {
     return {
       code: AUTH_ERROR_CODES.FORBIDDEN,
-      message: 'You do not have permission to perform this action',
-      retry: false
+      message: "You do not have permission to perform this action",
+      retry: false,
     };
   }
 
@@ -234,7 +250,7 @@ export function formatAuthError(error: any): AuthError {
     code: error.code || defaultError.code,
     message: error.message || defaultError.message,
     details: error.details,
-    retry: error.retry !== undefined ? error.retry : defaultError.retry
+    retry: error.retry !== undefined ? error.retry : defaultError.retry,
   };
 }
 
@@ -250,22 +266,22 @@ export async function withRetry<T>(
 ): Promise<T> {
   const maxRetries = options.maxRetries || 3;
   const baseDelay = options.baseDelay || 1000;
-  
+
   let lastError: any;
-  
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      
+
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-  
+
   throw lastError;
 }
 
@@ -282,31 +298,36 @@ export function createAuthError(
   originalError?: any
 ): AuthError {
   // Handle both string literals and enum keys
-  const errorCode = typeof code === 'string' && AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES] 
-    ? AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES]
-    : code;
-  
+  const errorCode =
+    typeof code === "string" &&
+    AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES]
+      ? AUTH_ERROR_CODES[code as keyof typeof AUTH_ERROR_CODES]
+      : code;
+
   // Don't create errors for success messages
-  if (message.toLowerCase().includes('successful')) {
-    logger.warn('Attempted to create error with success message', { 
-      message, 
-      code: errorCode 
+  if (message.toLowerCase().includes("successful")) {
+    logger.warn("Attempted to create error with success message", {
+      message,
+      code: errorCode,
     });
-    message = 'An unexpected error occurred';
+    message = "An unexpected error occurred";
   }
-  
+
   const error: AuthError = {
     code: errorCode as string,
-    message
+    message,
   };
-  
+
   // Add original error if provided
   if (originalError) {
     (error as any).originalError = originalError;
   }
-  
-  logger.error(`Auth error: ${message}`, { code: error.code, error: originalError });
-  
+
+  logger.error(`Auth error: ${message}`, {
+    code: error.code,
+    error: originalError,
+  });
+
   return error;
 }
 
@@ -316,10 +337,13 @@ export function createAuthError(
  * @param timestamp - The timestamp to set (defaults to current time)
  * @returns Updated session data
  */
-export function updateLastActivity(sessionData: SessionData, timestamp: number = Date.now()): SessionData {
+export function updateLastActivity(
+  sessionData: SessionData,
+  timestamp: number = Date.now()
+): SessionData {
   return {
     ...sessionData,
-    lastActivity: timestamp
+    lastActivity: timestamp,
   };
 }
 
@@ -330,6 +354,34 @@ export function getExpiryDate(expiryTimestamp: number): Date {
   return new Date(expiryTimestamp);
 }
 
+/**
+ * Get the authentication token from localStorage or sessionStorage
+ * @returns The authentication token or null if not found
+ */
+export const getAuthToken = (): string | null => {
+  try {
+    // Try to get the token from localStorage
+    const token = localStorage.getItem("auth_token");
+
+    // If token exists, return it
+    if (token) {
+      return token;
+    }
+
+    // Check if we have a token in sessionStorage as fallback
+    const sessionToken = sessionStorage.getItem("auth_token");
+    if (sessionToken) {
+      return sessionToken;
+    }
+
+    // No token found
+    return null;
+  } catch (error) {
+    console.error("Error getting auth token:", error);
+    return null;
+  }
+};
+
 export default {
   extractUserData,
   calculateSessionExpiry,
@@ -339,5 +391,6 @@ export default {
   withRetry,
   extractSessionData,
   isAuthStateValid,
-  AUTH_ERROR_CODES
+  AUTH_ERROR_CODES,
+  getAuthToken,
 };

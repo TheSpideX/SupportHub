@@ -423,18 +423,32 @@ TicketSchema.pre("save", function (next) {
       oldStatus = this.statusHistory[this.statusHistory.length - 2].status;
     }
 
-    // Add to audit log
+    // Add to audit log - but only if this is not a new ticket
+    // and we're not already in the middle of a status change operation
     if (!this.isNew) {
-      this.auditLog.push({
-        action: "status_changed",
-        performedBy: changedBy,
-        timestamp,
-        details: {
-          oldStatus: oldStatus,
-          newStatus: this.status,
-          reason: reason,
-        },
-      });
+      // Check if we already have a status_changed entry with the same timestamp
+      // to avoid duplicates
+      const hasExistingStatusChange = this.auditLog.some(
+        (entry) =>
+          entry.action === "status_changed" &&
+          entry.details?.newStatus === this.status &&
+          // Check if timestamps are within 1 second of each other
+          entry.timestamp &&
+          Math.abs(entry.timestamp.getTime() - timestamp.getTime()) < 1000
+      );
+
+      if (!hasExistingStatusChange) {
+        this.auditLog.push({
+          action: "status_changed",
+          performedBy: changedBy,
+          timestamp,
+          details: {
+            oldStatus: oldStatus,
+            newStatus: this.status,
+            reason: reason,
+          },
+        });
+      }
     }
   }
   next();
